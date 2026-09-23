@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Produce a device payload; data/secrets/ROMs are never bundled."""
 import hashlib, json, pathlib, shutil
-from PIL import Image
+from PIL import Image, ImageOps
 root=pathlib.Path(__file__).resolve().parents[1]
-ids=['launcher','piano','nes','streamplayer','calendar','calculator','terminal','gomoku']
+ids=['launcher','piano','nes','streamplayer','calendar','calculator','terminal','gomoku','pcsx4all','processing']
 tool_payload=root/'linux-tools/.build/linux-tools'
 tool_verification=root/'linux-tools/.build/verification.json'
 if not tool_verification.is_file():raise SystemExit('Run apps/linux-tools/build.sh before packaging')
@@ -20,9 +20,9 @@ for name in ids:
             if p.suffix in ['.nes','.7z','.o']:continue
             if p.suffix == '.png' and 'assets' not in p.parts:continue
             digest.update(str(p.relative_to(root)).encode()+b'\0'+p.read_bytes())
-    for filename in ['CMakeLists.txt','dependencies.json']:
+    for filename in ['CMakeLists.txt','dependencies.json','archives.json']:
         digest.update((root/filename).read_bytes())
-    apps.append({'id':name,'version':'0.3.0' if name=='calendar' else '0.1.0' if name in ['terminal','gomoku'] else '0.2.0','revision':digest.hexdigest()})
+    apps.append({'id':name,'version':'0.3.0' if name=='calendar' else '0.1.0' if name in ['terminal','gomoku','pcsx4all','processing'] else '0.2.0','revision':digest.hexdigest()})
 catalog={'schema':1,'platform':'c1max-mipsel-linux','apps':apps}
 (root/'catalog.json').write_text(json.dumps(catalog,indent=2)+'\n')
 out=root/'.build/device'
@@ -41,11 +41,19 @@ shutil.copy2(root/'streamplayer/vendor/ffmpeg42/COPYING.LGPLv2.1',out/'streampla
 (out/'launcher/icons').mkdir()
 for icon in sorted((root/'launcher/assets/icons').glob('*.png')):
     with Image.open(icon) as source:
-        pixels=source.convert('RGBA').resize((96,96),Image.Resampling.LANCZOS)
+        fitted=ImageOps.contain(source.convert('RGBA'),(96,96),Image.Resampling.LANCZOS)
+        pixels=Image.new('RGBA',(96,96));pixels.paste(fitted,((96-fitted.width)//2,(96-fitted.height)//2))
         (out/'launcher/icons'/(icon.stem+'.bgra')).write_bytes(pixels.tobytes('raw','BGRA'))
 shutil.copytree(root/'terminal/assets',out/'terminal/assets')
 (out/'terminal/licenses').mkdir()
 shutil.copy2(root/'terminal/vendor/libvterm/LICENSE',out/'terminal/licenses/libvterm.txt')
+shutil.copy2(root/'.build/mips/c1max-psx-core',out/'pcsx4all')
+shutil.copytree(root/'pcsx4all/licenses',out/'pcsx4all/licenses')
+shutil.copy2(root/'pcsx4all/README.md',out/'pcsx4all')
+shutil.copy2(root/'processing/api.js',out/'processing')
+shutil.copytree(root/'processing/examples',out/'processing/examples')
+shutil.copytree(root/'processing/licenses',out/'processing/licenses')
+shutil.copy2(root/'processing/README.md',out/'processing')
 shutil.copytree(tool_payload,out/'linux-tools')
 shutil.copy2(tool_verification,out/'linux-tools/share/verification.json')
 (out/'shared').mkdir()

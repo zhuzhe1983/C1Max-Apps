@@ -27,6 +27,9 @@ Shift 加字母仍然输入键帽数字和符号，大写状态下也是如此�
 - 计算器：Shift 数字、A 加号、Enter 计算；右上退格修改表达式，电源回菜单。
 - 钢琴：A/W/S/E/D/F/T/G/Y/H/U/J/K/O/L/P/Z/X/C/V/B/N/M/Q 两个八度半音；支持多键，电源回菜单。
 - NES：WASD 方向、J/K A/B、Q 选择、E/Enter 开始；电源回菜单。触摸游戏控件保留。
+- 五子棋：WASD 选位置、回车/空格落子，U 悔棋、N 新局、M 切换人机/双人。
+- PCSX4all：WASD 方向、J/K/U/I 为 ×/○/□/△，Q/E 和 Z/C 为肩键，回车 Start、空格 Select，中间返回打开存档菜单；电源回 launcher。
+- Processing：Q/W/E/R/T 选示例或自己的程序；运行中 P/空格暂停、R 重置、E 编辑；编辑器相机键前缀提供导航/额外标点，返回保存，电源保存并回 launcher。
 - Terminal：真实 PTY；返回发送 Escape，右上退格发送 DEL。符号前缀提供 Ctrl、方向、Tab 和额外标点，详见 [终端说明](terminal/README.md)。
 
 音量由 launcher 会话内唯一 `c1max-volume` 处理，减/加每次调整 softvolume 13/255，支持长按，所有自定义应用共享。退出回原厂时恢复进入前的混音器状态。

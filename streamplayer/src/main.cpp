@@ -331,7 +331,7 @@ static void poll_player(){
 }
 static void show_updates(){
     view=View::Updates;screen_base("C1Max Apps  /  GitHub updates");
-    label(content,"Repository: zhuzhe1983/C1Max\nBranch: main  /  apps/catalog.json\nChecks versions and source revisions. Installs remain manual.",8,8,730);
+    label(content,"Repository: zhuzhe1983/C1Max-Apps\nBranch: main  /  catalog.json\nChecks versions and source revisions. Installs remain manual.",8,8,730);
     button(content,"Check for updates",8,110,330,[](lv_event_t*){work("Checking GitHub...",[]{return c1::updates();},[](Json j){lv_obj_clean(content);physical_buttons.clear();physical_index=0;int y=4;int count=0;for(auto&a:j){auto s=a.at("state").get<std::string>();if(s=="update"||s=="new"||s=="changed")count++;label(content,a.at("id").get<std::string>()+"  "+a.at("version").get<std::string>()+"  ["+s+"]",8,y,730);y+=34;}status(count?std::to_string(count)+" app(s) have updates":"Installed apps are current");});});
     status("Public update source; no GitHub token stored.");
 }

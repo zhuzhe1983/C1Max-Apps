@@ -11,6 +11,8 @@ apps/
 ├── linux-tools/    独立 bash / less / nano / SSH 客户端工具包
 ├── calculator/     四则运算、括号、乘方、小数
 ├── gomoku/         人机／双人五子棋、悔棋和自动续局
+├── pcsx4all/       PS1 模拟器、游戏库、即时存档（自备游戏）
+├── processing/     QuickJS 绘图、四个官方示例改编与物理键盘编辑
 ├── piano/          触屏钢琴
 ├── nes/            InfoNES 平台适配与实验记录
 ├── shared/         LVGL 显示/触摸、网络、tinyalsa、中文字体
@@ -28,14 +30,14 @@ apps/
 
 可独立克隆此仓库；在主仓库中它位于 `apps/` submodule。以下命令从本仓库根目录执行（在主仓库先 `cd apps`）。
 
-主机需要 Docker、Python 3、Git 和 adb，截图另需 ffmpeg。无需旧的 Lima VM 或特定开发者绝对路径。
+主机需要 Docker、Python 3.12+、Git、curl 和 adb，截图另需 ffmpeg。无需旧的 Lima VM 或特定开发者绝对路径。
 
 ```sh
 ./tools/build.sh
 python3 ./tools/deploy.py --serial MagicPen-931f06 --start
 ```
 
-构建固定 LVGL / InfoNES 的提交，编译静态 MIPS ELF，生成运行包。部署先传到新的 release 目录、逐文件校验 SHA-256，再通过 `rename(2)` 原子切换 `current`。保留旧版本，不覆盖用户数据；运行中的 launcher 必须先退出。
+构建固定 LVGL / InfoNES / PCSX4all 的提交及 QuickJS / zlib 源码校验值，编译静态 MIPS ELF，生成运行包。部署先传到新的 release 目录、逐文件校验 SHA-256，再通过 `rename(2)` 原子切换 `current`。保留旧版本，不覆盖用户数据；运行中的 launcher 必须先退出。
 
 ```text
 /storage/apps/
@@ -47,6 +49,9 @@ python3 ./tools/deploy.py --serial MagicPen-931f06 --start
 │   ├── calculator/c1max-calculator
 │   ├── terminal/{c1max-terminal,assets/}
 │   ├── linux-tools/{bin/,share/}
+│   ├── gomoku/c1max-gomoku
+│   ├── pcsx4all/{c1max-pcsx4all,c1max-psx-core,licenses/}
+│   ├── processing/{c1max-processing,api.js,examples/,licenses/}
 │   ├── piano/c1max-piano
 │   ├── nes/c1max-nes
 │   ├── shared/{字体,CA证书,c1max-activate,c1max-volume,c1max-capture}
@@ -56,6 +61,9 @@ python3 ./tools/deploy.py --serial MagicPen-931f06 --start
     ├── streamplayer/  config.json 登录令牌（0600）
     ├── calendar/      本地数据库、订阅缓存、导出 ICS
     ├── terminal/      shell HOME 与历史
+    ├── gomoku/        自动续局
+    ├── pcsx4all/      自备游戏、BIOS、记忆卡和即时存档
+    ├── processing/    my-sketch.js 用户程序
     ├── calculator/
     └── nes/roms/      自备合法 .nes 文件
 ```
@@ -91,6 +99,7 @@ launcher 的 **App Updates** 打开检查页，访问：
 ## 验证
 
 ```sh
+./gomoku/tests/run.sh
 ./calculator/tests/run.sh
 sh ./calendar/tests/run.sh
 ./streamplayer/tests/run.sh
@@ -101,6 +110,8 @@ sh ./terminal/tests/run.sh
 ```
 
 StreamPlayer 的 Emby 实机结果与未迁移部分见 [播放器说明](streamplayer/README.md)。日历/计算器各有独立模型测试。NES 需要自备 ROM，已加入 WASD/J/K 物理按键；尚待用户 ROM 实测兼容性。
+
+PS1 的镜像路径、按键和兼容性见 [PCSX4all](pcsx4all/README.md)，绘图语言的支持范围与示例来源见 [Processing 2D](processing/README.md)。
 
 全局物理键盘、Shift 与音量键说明：[键盘映射](docs-keyboard.md)。
 

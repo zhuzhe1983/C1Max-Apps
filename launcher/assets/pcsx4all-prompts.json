@@ -1,0 +1,7 @@
+{
+  "tool": "image_gen.imagegen",
+  "mode": "built-in generate and alpha edit",
+  "prompt": "Use case: stylized-concept. One small launcher icon for PCSX4all, a classic 32-bit console emulator on a handheld device. A premium miniature light-gray 1990s game controller, compact two-handle silhouette, dark directional pad and four small colorful face buttons, gently sculpted plastic, front three-quarter view, restrained highlights and a subtle small optical disc behind it. Centered isolated subject, readable at 96 pixels. Actual transparent alpha background with generous transparent margins. No rectangular app tile, no colored background block, no outer shadow plane, no text, no logo, no watermark. Polished physical-object icon for a dark navy app launcher.",
+  "alpha_prompt": "Use case: background-extraction. Edit this controller-and-disc app icon. Keep the exact controller and disc objects, their materials, color and perspective. Remove ALL surrounding gray glow, haze, black or gray backdrop, cast shadow and ground plane. Every pixel outside the actual object silhouette must be genuinely transparent alpha, with clean antialiased edges. Compose on a square canvas with 12 percent transparent margin around the subject. No tile, no background plate, no letters, no watermark. It must look clean composited over dark navy, white, or colored UI.",
+  "path": "icons/pcsx4all.png"
+}

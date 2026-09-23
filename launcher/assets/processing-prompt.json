@@ -1,0 +1,4 @@
+{
+  "tool": "imagegen",
+  "prompt": "Use case: stylized-concept. Create one square RGBA launcher icon for a creative coding / Processing-style 2D sketch app. The sole object is a small elegant mathematical sculpture: three interwoven flowing loops in teal, warm amber and coral, with a few tiny pale nodes along the curves. Polished sculpted physical materials, restrained highlights, three-quarter view, strong clear silhouette at 96 pixels, centered with 12 percent empty margin. Everything outside the exact object silhouette must be completely transparent alpha. No background square, no tile, no ground, no external shadows, no fog, no glow, no text, no watermark. Match a premium miniature object icon set for a dark navy handheld launcher."
+}

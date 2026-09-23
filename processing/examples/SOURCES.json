@@ -1,0 +1,19 @@
+{
+  "repository": "https://github.com/processing/processing-examples",
+  "commit": "b10c9e9a05a0d6c20d233ca7f30d315b5047720e",
+  "author": "Daniel Shiffman",
+  "license": "Public domain according to upstream README",
+  "sources": [
+    "Topics/Fractals and L-Systems/Koch/Koch.pde",
+    "Topics/Fractals and L-Systems/Koch/KochFractal.pde",
+    "Topics/Fractals and L-Systems/Koch/KochLine.pde",
+    "Topics/Fractals and L-Systems/Tree/Tree.pde",
+    "Topics/Simulate/Flocking/Boid.pde",
+    "Topics/Simulate/Flocking/Flock.pde",
+    "Topics/Simulate/Flocking/Flocking.pde",
+    "Topics/Simulate/MultipleParticleSystems/CrazyParticle.pde",
+    "Topics/Simulate/MultipleParticleSystems/MultipleParticleSystems.pde",
+    "Topics/Simulate/MultipleParticleSystems/Particle.pde",
+    "Topics/Simulate/MultipleParticleSystems/ParticleSystem.pde"
+  ]
+}

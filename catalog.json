@@ -5,42 +5,52 @@
     {
       "id": "launcher",
       "version": "0.2.0",
-      "revision": "f655de0d4e3e5337f3e805b8cba929fe135eb269c9fd46c3dfbd3b4734e16c30"
+      "revision": "db89d82212e5e949355fd747b03c4082d371abc3dfb1178abcb5297a7f239b7c"
     },
     {
       "id": "piano",
       "version": "0.2.0",
-      "revision": "1b89a967f7eb0029133fa71a445ac544b849b0cc81a5a93c635d2cb6a019cfb9"
+      "revision": "3454f1ffe3d1192ff0d3c7f84c024a6e657cc0fa50564cb681af98e9efa27307"
     },
     {
       "id": "nes",
       "version": "0.2.0",
-      "revision": "e8cfc30ed0efa14ee67bd5424c7116b70bf3c67b2c7463a1a27eec59f7efbb14"
+      "revision": "7c066c562e11daa306fc007c51b3f3ba6f50458a889e2b6ee98e60c7eaa4afb1"
     },
     {
       "id": "streamplayer",
       "version": "0.2.0",
-      "revision": "bb1323bfe4a4baa9905f80d3386c8f658acd993da79073700a521e86dd16e4df"
+      "revision": "7afa38c70c7c112e8276c316cb00a5fa673f00336cb2d5afecbae5d029a5af80"
     },
     {
       "id": "calendar",
       "version": "0.3.0",
-      "revision": "ba3c9c8ab6b7924c5b3c25dffa0ee30d5e42054d5ea87a74a0d8bc2e07a116eb"
+      "revision": "17e159e64be60079b17369bc9e1e28e064d2b4204dc52489e0557220d85dfa97"
     },
     {
       "id": "calculator",
       "version": "0.2.0",
-      "revision": "44c1b2cb207fffce4c6493be5d611003f2082949ca8c1be1c764b8d82451914a"
+      "revision": "2157ddd4b48be9e7398a8eea46b4466b1b752d54f0bd02501b52d0a2eb41addf"
     },
     {
       "id": "terminal",
       "version": "0.1.0",
-      "revision": "2ea369525bfd187b098374d8698e71af9ff928aad320449b13b2f3b8988a6152"
+      "revision": "85ee095ea3f628d1cdcd920a9390ca75409ffef272bbbea82637d33a11b85d57"
     },
     {
       "id": "gomoku",
       "version": "0.1.0",
-      "revision": "1cb51e94fb189dc315f9c7ecfb66824f78b3cd3c971d6ba571aaa054ba3f5def"
+      "revision": "4c01cf8c2e7be11eb3a367a866a7b22403a4399643f76bc2b779d62a4b3827bd"
+    },
+    {
+      "id": "pcsx4all",
+      "version": "0.1.0",
+      "revision": "1ba1689ace77b773ce7a34816842c27575bf22d240678020c369cd506cd8f629"
+    },
+    {
+      "id": "processing",
+      "version": "0.1.0",
+      "revision": "8ff8bb5918b57cc73dbd605ec863e1894b39a42f280a036c0a7cdb0d2cfd78b7"
     }
   ]
 }
