@@ -22,7 +22,7 @@ for name in ids:
             digest.update(str(p.relative_to(root)).encode()+b'\0'+p.read_bytes())
     for filename in ['CMakeLists.txt','dependencies.json','archives.json']:
         digest.update((root/filename).read_bytes())
-    apps.append({'id':name,'version':'0.3.0' if name=='calendar' else '0.1.0' if name in ['terminal','gomoku','pcsx4all','processing','dosbox'] else '0.2.0','revision':digest.hexdigest()})
+    apps.append({'id':name,'version':'0.3.0' if name=='calendar' else '0.1.1' if name=='dosbox' else '0.1.0' if name in ['terminal','gomoku','pcsx4all','processing'] else '0.2.0','revision':digest.hexdigest()})
 catalog={'schema':1,'platform':'c1max-mipsel-linux','apps':apps}
 (root/'catalog.json').write_text(json.dumps(catalog,indent=2)+'\n')
 out=root/'.build/device'

@@ -21,3 +21,6 @@ add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/C1LAB.COM"
   COMMAND "${NASM}" -f bin "${CMAKE_CURRENT_SOURCE_DIR}/tests/lab.asm" -o "${CMAKE_BINARY_DIR}/C1LAB.COM"
   DEPENDS tests/lab.asm VERBATIM)
 add_custom_target(c1max-dos-lab ALL DEPENDS "${CMAKE_BINARY_DIR}/C1LAB.COM")
+add_executable(c1max-dos-video-test tests/video_test.cpp)
+target_compile_options(c1max-dos-video-test PRIVATE -UNDEBUG)
+set_target_properties(c1max-dos-video-test PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")

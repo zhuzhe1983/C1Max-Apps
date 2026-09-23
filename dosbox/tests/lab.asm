@@ -11,7 +11,8 @@ start:
     int 33h
     mov ax,0a000h
     mov es,ax
-main:
+    ; Clear only once. Clearing VGA RAM every tick exposes blank/partial
+    ; frames to real VGA scanout and to DOSBox's video callback.
     xor di,di
     mov ax,0101h
     mov cx,32000
@@ -22,20 +23,58 @@ main:
     mov si,help
     mov dx,0100h
     call text
+main:
+    call render_changes
+    jmp read_input
+render_changes:
+    mov ax,[x]
+    cmp ax,[oldx]
+    jne .redraw
+    mov ax,[y]
+    cmp ax,[oldy]
+    jne .redraw
+    mov ax,[starx]
+    cmp ax,[oldstarx]
+    jne .redraw
+    mov ax,[stary]
+    cmp ax,[oldstary]
+    je .done
+.redraw:
+    cmp word [oldx],0ffffh
+    je .paint
+    mov ax,[oldx]
+    mov dx,[oldy]
+    mov bl,1
+    call box
+    mov ax,[oldstarx]
+    mov dx,[oldstary]
+    mov bl,1
+    call box
+.paint:
     mov ax,[x]
     mov dx,[y]
+    mov [oldx],ax
+    mov [oldy],dx
     mov bl,10
     call box
     mov ax,[starx]
     mov dx,[stary]
+    mov [oldstarx],ax
+    mov [oldstary],dx
     mov bl,14
     call box
     mov al,[score]
+    cmp al,[oldscore]
+    je .done
+    mov [oldscore],al
     add al,'0'
     mov [scoretext+7],al
     mov si,scoretext
     mov dx,0200h
     call text
+.done:
+    ret
+read_input:
     mov ax,3
     int 33h
     test bx,1
@@ -185,3 +224,8 @@ y dw 88
 lastkey dw 0
 starx dw 240
 stary dw 120
+oldx dw 0ffffh
+oldy dw 0
+oldstarx dw 0
+oldstary dw 0
+oldscore db 0ffh

@@ -5,57 +5,57 @@
     {
       "id": "launcher",
       "version": "0.2.0",
-      "revision": "cdb742b898618e5a8eee23e288762238b04faa3a099f0dd4c6d6fd6d774e69f8"
+      "revision": "167b2d570913d9dd045b3f02c60170a2ce03f2381833cffb5bce11d2940c7f00"
     },
     {
       "id": "piano",
       "version": "0.2.0",
-      "revision": "73609c87627954dc6f64795aa08053ed69c8c0ada19c49ef3c9c9c74fffbe6cd"
+      "revision": "217a33f9e20dbcd2f76bfd087189dd339225308c80194d1901033668d845305c"
     },
     {
       "id": "nes",
       "version": "0.2.0",
-      "revision": "fcd898322b217e3c5ef176c83714d6f0ecb875e28691e291b9edd9b213a38b3d"
+      "revision": "653e6f74e0b6b8bff4a409e292107bb71623b30fd32ec3a66dba0396333f39b5"
     },
     {
       "id": "streamplayer",
       "version": "0.2.0",
-      "revision": "0709083025c32c39f48133ca23f2066a5eb579f9d9e8ba3e01db205304929de0"
+      "revision": "860b854b6f8aa6d32ddb467b1d0f94c06d572612c2d71d84e242c764da92522b"
     },
     {
       "id": "calendar",
       "version": "0.3.0",
-      "revision": "3fdd8c7b8c863f0091f3f87faae67922788dea9ac9ff311156f7518ad5e1c732"
+      "revision": "148a42096defda88a3b9794c9649075ea9b30ff19b421d3fd1560aad90d2dc36"
     },
     {
       "id": "calculator",
       "version": "0.2.0",
-      "revision": "3ab4700dfa7517e32522d185bcd3266298db9773d2ad081192eec5c366da026e"
+      "revision": "976be7066c583cd8979c8995132161ebedb6b3eab232d609ab4f8105b3df4764"
     },
     {
       "id": "terminal",
       "version": "0.1.0",
-      "revision": "ec38d5a5d11bd3ea292dbddf92afd73ee7c5b324a16ba622a86865ad212fa128"
+      "revision": "70d8be49c6db78418c02d3c518b280b031cb69620c51f48a8c867e84fc7b8514"
     },
     {
       "id": "gomoku",
       "version": "0.1.0",
-      "revision": "6f3b3252e5a07eb3d759f3c3bd9b392ec34d4b8c57554f3a1cbb22e4d465a033"
+      "revision": "1fa168da0e0f282d7096823da89cf8b899136e61d01eb87045aa414c0dcfd6ba"
     },
     {
       "id": "pcsx4all",
       "version": "0.1.0",
-      "revision": "d882182569ea9496e44e48f3f61ab7a9d0df0f0ce52dc8f5b4482af0a89b7ea5"
+      "revision": "4dd4062f2c4ad235f5c4b962318c910bcb5aeb9f35ebcf02c74b3e27e067d756"
     },
     {
       "id": "processing",
       "version": "0.1.0",
-      "revision": "d0dadc8aee99d040ee252c3bfa295d9eb01c84b4c453b9c71d4cf9bb60e077a2"
+      "revision": "9bb0dbf68134b54ab1897d3253d33dcd3efd8840dca91d28cf4ac7c7aa532de3"
     },
     {
       "id": "dosbox",
-      "version": "0.1.0",
-      "revision": "d7179040a159f15bba4f20618736bf1001f88a97d053416f8a520b577392bf11"
+      "version": "0.1.1",
+      "revision": "94149b19bc42ef8259d0a758af4ce78ea0dff13b7d883b9e51531af124c8b6ef"
     }
   ]
 }

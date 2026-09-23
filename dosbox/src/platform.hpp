@@ -22,8 +22,10 @@ class Platform {
     fb_var_screeninfo initial_{},current_{};
     std::vector<uint32_t> last_;
     unsigned width_=0,height_=0;
+    bool dirty_=true,last_stretch_=false;
+    std::string last_hint_;
     void begin(){ioctl(fb_,FBIOGET_VSCREENINFO,&current_);unsigned p=pages_>1?(current_.yoffset/800+1)%pages_:0;current_.yoffset=p*800;page_=mapped_+size_t(p)*stride_*800;}
-    void end(){__sync_synchronize();current_.xoffset=0;current_.activate=FB_ACTIVATE_VBL;ioctl(fb_,FBIOPAN_DISPLAY,&current_);}
+    bool end(){__sync_synchronize();current_.xoffset=0;current_.activate=FB_ACTIVATE_VBL;return ioctl(fb_,FBIOPAN_DISPLAY,&current_)==0;}
     void pixel(int x,int y,uint32_t color){if(x>=0&&x<800&&y>=0&&y<340)*(uint32_t*)(page_+size_t(799-x)*stride_+y*4)=color|0xff000000;}
     void blank(uint32_t color){for(int x=0;x<800;x++){auto*p=(uint32_t*)(page_+size_t(799-x)*stride_);std::fill(p,p+340,color|0xff000000);}}
     void text(int x,int y,const std::string&s,uint32_t color=0xd9e5ed,int scale=2){for(unsigned char c:s){if(x+8*scale>800)break;if(c>=128)c='?';for(int j=0;j<8;j++)for(int i=0;i<8;i++)if(font8x8_basic[c][j]&(1<<i))for(int dy=0;dy<scale;dy++)for(int dx=0;dx<scale;dx++)pixel(x+i*scale+dx,y+j*scale+dy,color);x+=8*scale;}}
@@ -63,18 +65,22 @@ public:
     bool inside()const{return touch_x>=(stretch?0:173)&&touch_x<(stretch?800:626);}
     int16_t pointer_x()const{return std::clamp((touch_x-(stretch?0:173))*65534/(stretch?799:452)-32767,-32767,32767);}
     int16_t pointer_y()const{return touch_y*65534/339-32767;}
+    // Report actual guest image changes; padding bytes are not pixels.
     bool frame(const void *data,unsigned w,unsigned h,size_t pitch){
         if(!data||!w||!h||w>1024||h>1024||pitch<size_t(w)*4)return false;
-        width_=w;height_=h;last_.resize(size_t(w)*h);for(unsigned y=0;y<h;y++)memcpy(last_.data()+size_t(y)*w,(const char*)data+y*pitch,w*4);return true;
+        bool changed=w!=width_||h!=height_;
+        if(!changed)for(unsigned y=0;y<h;y++)if(memcmp(last_.data()+size_t(y)*w,(const char*)data+y*pitch,w*4)){changed=true;break;}
+        if(!changed)return false;
+        width_=w;height_=h;last_.resize(size_t(w)*h);for(unsigned y=0;y<h;y++)memcpy(last_.data()+size_t(y)*w,(const char*)data+y*pitch,w*4);dirty_=true;return true;
     }
     void present(const std::string&hint={}){
-        if(!mapped_||last_.empty())return;begin();blank(0);int vw=stretch?800:453,left=(800-vw)/2;unsigned yy[340];for(unsigned y=0;y<340;y++)yy[y]=(y*height_/340)*width_;
+        if(!mapped_||last_.empty()||(!dirty_&&stretch==last_stretch_&&hint==last_hint_))return;begin();blank(0);int vw=stretch?800:453,left=(800-vw)/2;unsigned yy[340];for(unsigned y=0;y<340;y++)yy[y]=(y*height_/340)*width_;
         for(int x=0;x<vw;x++){unsigned sx=x*width_/vw;auto *p=(uint32_t*)(page_+size_t(799-left-x)*stride_);for(int y=0;y<340;y++)p[y]=last_[yy[y]+sx]|0xff000000;}
         if(!hint.empty()){for(int x=0;x<800;x++)for(int y=322;y<340;y++)pixel(x,y,0x14232e);text(8,327,hint,0x8bddd2,1);}
-        end();
+        if(end()){dirty_=false;last_stretch_=stretch;last_hint_=hint;}
     }
     void menu(int selected,const std::vector<std::string>&items,const std::string&hint){
-        if(!mapped_)return;begin();blank(0x111c2b);text(30,20,"DOSBox / C1Max",0x8bddd2,3);
+        if(!mapped_)return;dirty_=true;begin();blank(0x111c2b);text(30,20,"DOSBox / C1Max",0x8bddd2,3);
         for(size_t i=0;i<items.size();i++){text(30,75+34*i,int(i)==selected?">":" ",0xf0c778);text(60,75+34*i,items[i],int(i)==selected?0xf0c778:0xe4ecf1);}
         text(30,260,"W/S select   Enter confirm   Back resume",0xa4b5c2,2);
         text(30,294,"Camera tap: NAV / F1-F12 / Ctrl / Alt / symbols",0xa4b5c2,1);
