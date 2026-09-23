@@ -15,10 +15,10 @@ archive=root/'.build'/('apps-'+tag+'.tar')
 with tarfile.open(archive,'w') as tar:
     for child in sorted(payload.iterdir()):tar.add(child,arcname=child.name)
 base='/storage/apps';stage=base+'/releases/'+tag
-folders=[base+'/data/'+name for name in ids]+[base+'/data/nes/roms',base+'/data/pcsx4all/roms',base+'/data/pcsx4all/bios']
+folders=[base+'/data/'+name for name in ids]+[base+'/data/nes/roms',base+'/data/pcsx4all/roms',base+'/data/pcsx4all/bios',base+'/data/dosbox/games']
 call('shell','mkdir -p '+stage+' '+' '.join(folders)+'; chmod 700 '+base+'/data '+' '.join(folders))
 call('push',str(archive),stage+'/payload.tar')
-executables=['launcher/run.sh','pcsx4all/c1max-psx-core']+[name+'/c1max-'+name for name in ids]
+executables=['launcher/run.sh','pcsx4all/c1max-psx-core','dosbox/c1max-dos-core']+[name+'/c1max-'+name for name in ids]
 cmd=f'cd {stage} && tar xf payload.tar && sha256sum -c SHA256SUMS && rm payload.tar && chmod 755 '+ ' '.join(executables)
 if 'OK' not in shell(cmd):raise SystemExit('Device verification failed; current release unchanged')
 # old BusyBox adb does not propagate remote exit statuses, so verify explicitly.

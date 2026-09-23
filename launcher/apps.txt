@@ -9,3 +9,4 @@ NES 游戏|/storage/apps/current/streamplayer/c1max-streamplayer|--roms|||nes
 五子棋|/storage/apps/current/gomoku/c1max-gomoku||||gomoku
 PCSX4all|/storage/apps/current/pcsx4all/c1max-pcsx4all||||pcsx4all
 Processing|/storage/apps/current/processing/c1max-processing||||processing
+DOSBox|/storage/apps/current/dosbox/c1max-dosbox||||dosbox

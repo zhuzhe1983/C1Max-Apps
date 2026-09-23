@@ -1,0 +1,5 @@
+{
+  "tool": "image_gen.imagegen",
+  "prompt": "Use case: stylized-concept. Create a single premium miniature object launcher icon for a DOS games emulator on a dark navy handheld launcher. A small warm ivory 1980s desktop CRT computer with an integrated compact keyboard, three-quarter view, teal phosphor screen showing only a tiny amber pixel spaceship and two simple block obstacles, evocative of early PC games. Clean sculpted 3D materials, restrained highlights, readable and elegant at 96 pixels. Centered with 12 percent empty margins, square canvas. RGBA, truly transparent outside the object silhouette. No background square, tile, ground, outer glow, shadow outside the object, labels, brand names, text or watermark.",
+  "path": "icons/dosbox.png"
+}

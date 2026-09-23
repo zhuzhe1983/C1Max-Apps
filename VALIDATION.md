@@ -1,3 +1,23 @@
+# 2026-09-23 DOSBox 与用户 CHD 导入
+
+正式部署：`/storage/apps/releases/20260923-152053-58e9a81e`，114 个文件、约 44.8 MB；逐文件 SHA-256 校验后原子切换，保留旧 release 和用户数据。Launcher 共 11 个入口，第二页 DOSBox 为 E。
+
+DOSBox 0.1.0：DOSBox Pure 固定提交 `73e03aa145e0549ed4d5a20f8e65532714da33f5`，轻量原生前端，无 RetroArch/虚拟键盘。解释器模式，默认 8 MB DOS 内存与静音。修正 MIPSel 未对齐访问；动态重编译仍在真机崩溃，因此发布构建明确禁用。未采用已不受上游支持的 partial TLB 优化。
+
+- 原创 VGA DOS LAB 真机运行；键盘 D 移动、触摸移动并收集目标，分数变成 1。Esc 写出 7 字节 `RESULT.DAT`，内容为 score=1、x=248、y=125、lastkey=0x011b；正常退出回游戏库。
+- 图形模式（8 MB）运行约一分钟并测试暂停/继续，峰值 32672 KiB；80 列 DOS shell 峰值 35216 KiB。16 MB 内存配置在真机完成 180 帧，峰值 41060 KiB，约 2573 ms。均不能代表大型游戏内存或性能。
+- 文本模式事件注入验证双击 Shift 大写、Shift 数字/冒号/斜杠/句点、退格、回车、符号前缀及 DOS 重定向。`KEYS.TXT` 精确字节 `41 5a 31 3a 2f 2e 0d 0a`（`AZ1:/.` + CRLF）。发现并修复 `<` / `>` 映射颠倒。
+- ASan/UBSan：按住/释放、跨 Shift 释放、大小写、方向/F1–F12/Ctrl/Alt/符号前缀、游戏模式与音量键不消耗前缀通过。实体键帽码仍沿用已约定映射，本轮为事件注入，不冒充用户亲按验证。
+- `.bat` 小写扩展名实际启动、重定向写文件通过，输出 `C1DOS_OK`；修正快速结束且未产生画面的脚本被误报退出码 1，复测退出码 0。
+- 按电源从核心回 launcher，无残留 DOS 核心。显示通过单一 framebuffer 所有者、离屏页整体提交；暂停菜单切换模式/画幅，默认 4:3，DOS shell 铺满宽度。包内原创 COM 由 NASM 构建，没有打包商业游戏。
+- DOS 图标为 imagegen 生成的 RGBA 1254×1254，四角 alpha=0，817145 个完全透明像素；打包保持比例缩至 96×96。暂停菜单无 Exit 按钮，长按拍照键开启。
+
+用户 CHD 已通过 chdman SHA-1 校验并无损解压为 BIN/CUE，设备文件 SHA-256 与本地一致。ISO 标识 `IMBNES`、启动项 `NES.EXE`，含六款 NES 洛克人 HACK；它不是原生 PS1《洛克人传奇》。放于 `/storage/apps/data/pcsx4all/roms/Rockman-Hack/`，选择 `Rockman-Hack.cue`。HLE＋兼容模式确认合集菜单与第一款的选关画面；保留兼容模式及静音。镜像、截图、临时日志只在本机忽略目录和用户设备，不上传 ROM/BIOS。
+
+全程 softvolume=0,0，DOS/PCSX 均静音，未测试发声、音画同步或长期游戏稳定性。DOS 当前已验证原创 VGA 程序、shell、鼠标、普通文件保存；复杂商业游戏、保护模式、3D、Windows 与即时存档不在本次已验证范围。证据在 `.build/qa/dosbox/`、`.build/qa/pcsx4all/chd-convert/`。
+
+---
+
 # 2026-09-23 新应用与公开更新源
 
 当前发布：`/storage/apps/releases/20260923-123400-1ab7acf4`，共 103 个文件、约 38.4 MB，保留上个 release 和全部用户数据。应用目录已独立为公开仓库 `zhuzhe1983/C1Max-Apps`，主项目通过 Git submodule 引用。以下测试继续遵守静音要求，softvolume 确认为 `0,0`，PCSX 核心使用 `--mute`，没有测试发声或音画同步。

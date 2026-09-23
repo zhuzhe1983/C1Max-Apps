@@ -22,6 +22,8 @@ PlayStation 1 原生模拟器移植。基于 [dmitrysmagin/pcsx4all](https://git
 
 游戏库 W/S 选择、回车开始、R 刷新，V 切换声音，C 切换快速/解释器模式，也可触摸。**默认静音**，本轮遵照用户工作时间要求没有测试发声或音画同步。
 
+CHD 可在电脑用 MAME 的 `chdman verify -i GAME.chd` 校验，再用 `chdman extractcd -i GAME.chd -o GAME.cue -ob GAME.bin` 转为 BIN/CUE。两份文件一起复制进游戏目录，在游戏库选择 `.cue`；原始 CHD 保留在电脑。2026-09-23 用户提供的 imbNES 洛克人合集盘按此转换，真机 HLE＋兼容模式进入了合集菜单和第一款游戏的选关画面。它是在 PS1 上运行 NES 的合集，不能据此推断原生 PS1 3D 游戏性能。
+
 | 操作 | 物理键 |
 | --- | --- |
 | 方向 | WASD |

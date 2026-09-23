@@ -1,0 +1,264 @@
+libretro-common/include/libretro.h
+/* Copyright (C) 2010-2020 The RetroArch team
+ *
+ * ---------------------------------------------------------------------------------------
+ * The following license statement only applies to this libretro API header (libretro.h).
+ * ---------------------------------------------------------------------------------------
+ *
+ * Permission is hereby granted, free of charge,
+ * to any person obtaining a copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation the rights to
+ * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
+ * and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+src/hardware/nukedopl3.cpp
+/* Nuked OPL3
+ *
+ * Copyright (C) 2013-2020 Nuke.YKT
+ * Copyright (C) 2026 Tony Gies (Nuked-OPL3-fast modifications)
+ *
+ * This file is part of Nuked OPL3.
+ *
+ * Nuked OPL3 is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, either version 2.1
+ * of the License, or (at your option) any later version.
+ *
+ * Nuked OPL3 is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with Nuked OPL3. If not, see <https://www.gnu.org/licenses/>.
+ *
+ *  Nuked OPL3 emulator.
+ *  Thanks:
+ *      MAME Development Team(Jarek Burczynski, Tatsuyuki Satoh):
+ *          Feedback and Rhythm part calculation information.
+ *      forums.submarine.org.uk(carbon14, opl3):
+ *          Tremolo and phase generator calculation information.
+ *      OPLx decapsulated(Matthew Gambrell, Olli Niemitalo):
+ *          OPL2 ROMs.
+ *      siliconpr0n.org(John McMaster, digshadow):
+ *          YMF262 and VRC VII decaps and die shots.
+ *
+ * Upstream version: 1.8 (commit cfedb09)
+ * Fork version:    1.8-fast.2
+ * Fork home:       https://github.com/tgies/Nuked-OPL3-fast
+ *
+ * Nuked-OPL3-fast is a bit-exact performance-optimized fork of Nuked-OPL3.
+ * Audio output is identical to upstream for the same register stream.
+ *
+ * Modifications vs. upstream:
+ *
+ *   - Replaced 8 runtime waveform math functions with a unified 8x1024
+ *     logsin lookup table (logsin_wf). In the upstream fork this is a
+ *     precomputed header; in DBP it is computed on first reset from the
+ *     base logsinrom[256] table to avoid embedding 16KB of data.
+ *   - Pre-shifted the exprom table at compile time to eliminate a runtime
+ *     shift in OPL3_SlotGenerate.
+ *   - Hoisted per-sample envelope rate resolution out of OPL3_EnvelopeCalc
+ *     into OPL3_EnvelopeUpdateRate (eg_rate_hi[4], eg_rate_lo[4]).
+ *   - Added write-time caches on opl3_slot: eg_tl_ksl (TL + KSL sum),
+ *     eg_ks (envelope key-scale shift), pg_inc (non-vibrato phase
+ *     increment).
+ *   - Added fast paths in OPL3_ProcessSlot for fully-attenuated key-off
+ *     non-rhythm slots, permanently-dead uninitialized slots, and
+ *     sustain-with-rate-zero slots.
+ *   - Added OPL3_SlotGenerateSilent: when eg_out >= 0x180 the exprom
+ *     result is provably zero, so output reduces to the waveform sign bit.
+ *     Used by the key-off fast path.
+ *   - Unrolled both 18-channel mix loops in OPL3_Generate4Ch using a
+ *     per-channel out_cnt, skipping dummy reads for muted/2-op voices.
+ *   - All 36 slots are processed (channel-grouped modulator/carrier pairs,
+ *     with channel->fb loaded once per pair) before either mix pass; the
+ *     CHANNELSAMPLEDELAY snapshots come from per-channel out_left/out_right
+ *     pointer lists that read delayed slots through prout, and the right
+ *     mix is its own function (OPL3_MixRight).
+ *   - Fused the rhythm-mode special cases in OPL3_PhaseGenerate into a
+ *     single switch indexed by slot_num for jump-table dispatch.
+ *   - Reordered opl3_slot to put hot per-sample fields in the first cache
+ *     line; struct size reduced from 96 to 88 bytes.
+ *   - Per-slot pg_inc_vib[8] (phase increment per vibrato position) replaces
+ *     the per-sample vibrato recomputation; rebuilt on the writes that affect
+ *     it (f_num/block/mult/vibshift).
+ *   - Hoisted the noise LFSR out of slot processing into a word-parallel
+ *     36-step advance at the top of OPL3_Generate4Ch.
+ *   - Minor: __builtin_ctz for the envelope timer on GCC/Clang with a
+ *     portable fallback; replaced the tremolo-position modulo with an
+ *     explicit wrap.
+ */
+
+src/hardware/voodoo.cpp
+/*
+ *  Copyright (C) 2002-2011  The DOSBox Team
+ *  Copyright (C) 2022-2026  Bernhard Schelling
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
+/*        Portion of this software comes with the following license:       */
+/*
+    Copyright Aaron Giles
+    All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are
+    met:
+
+        * Redistributions of source code must retain the above copyright
+          notice, this list of conditions and the following disclaimer.
+        * Redistributions in binary form must reproduce the above copyright
+          notice, this list of conditions and the following disclaimer in
+          the documentation and/or other materials provided with the
+          distribution.
+        * Neither the name 'MAME' nor the names of its contributors may be
+          used to endorse or promote products derived from this software
+          without specific prior written permission.
+
+    THIS SOFTWARE IS PROVIDED BY AARON GILES ''AS IS'' AND ANY EXPRESS OR
+    IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+    DISCLAIMED. IN NO EVENT SHALL AARON GILES BE LIABLE FOR ANY DIRECT,
+    INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+    HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+    STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+    IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+    POSSIBILITY OF SUCH DAMAGE.
+
+***************************************************************************/
+
+src/dos/stb_vorbis.inl
+/*
+------------------------------------------------------------------------------
+This software is available under 2 licenses -- choose whichever you prefer.
+------------------------------------------------------------------------------
+ALTERNATIVE A - MIT License
+Copyright (c) 2017 Sean Barrett
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+------------------------------------------------------------------------------
+ALTERNATIVE B - Public Domain (www.unlicense.org)
+This is free and unencumbered software released into the public domain.
+Anyone is free to copy, modify, publish, use, compile, sell, or distribute this
+software, either in source code form or as a compiled binary, for any purpose,
+commercial or non-commercial, and by any means.
+In jurisdictions that recognize copyright laws, the author or authors of this
+software dedicate any and all copyright interest in the software to the public
+domain. We make this dedication for the benefit of the public at large and to
+the detriment of our heirs and successors. We intend this dedication to be an
+overt act of relinquishment in perpetuity of all present and future rights to
+this software under copyright law.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+------------------------------------------------------------------------------
+*/
+
+src/dos/drive_zip.cpp
+/*
+ *  Copyright (C) 2020-2024 Bernhard Schelling
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+ */
+miniz.c v1.15 - public domain deflate
+Rich Geldreich <richgel99@gmail.com>, last updated Oct. 13, 2013
+
+src/dos/dos_codepages.h
+/*
+ *  Copyright (C)  Henrique Peron
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+ */
+/* The font files have been created/edited with CPIadd V1.20
+   Copyright (C) 1993-1996 by kostis@acm.org (Kosta Kostis) */
+/* This file contains data of UPX-compressed CPI files.
+   UPX, The Ultimate Packer for eXecutables
+   Copyright (c) 1996-2002 Markus Oberhumer & Laszlo Molnar
+   http://upx.sourceforge.net */
+
+src/dos/dos_keyboard_layout_data.h
+/*
+ *  Copyright (C)  Henrique Peron
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+ */
+/* KC: compiles keyboard descriptors in KEY language to a KeybCB,
+   wrapped in a KL file (for use of FD-KEYB 2.X)
+   Copyright (C) 2004 by Aitor SANTAMARIA_MERINO */

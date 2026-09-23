@@ -12,6 +12,7 @@ apps/
 ├── calculator/     四则运算、括号、乘方、小数
 ├── gomoku/         人机／双人五子棋、悔棋和自动续局
 ├── pcsx4all/       PS1 模拟器、游戏库、即时存档（自备游戏）
+├── dosbox/         DOS 游戏库、命令行与实体键盘（解释器）
 ├── processing/     QuickJS 绘图、四个官方示例改编与物理键盘编辑
 ├── piano/          触屏钢琴
 ├── nes/            InfoNES 平台适配与实验记录
@@ -37,7 +38,7 @@ apps/
 python3 ./tools/deploy.py --serial MagicPen-931f06 --start
 ```
 
-构建固定 LVGL / InfoNES / PCSX4all 的提交及 QuickJS / zlib 源码校验值，编译静态 MIPS ELF，生成运行包。部署先传到新的 release 目录、逐文件校验 SHA-256，再通过 `rename(2)` 原子切换 `current`。保留旧版本，不覆盖用户数据；运行中的 launcher 必须先退出。
+构建固定 LVGL / InfoNES / PCSX4all / DOSBox Pure 的提交及 QuickJS / zlib 源码校验值，编译静态 MIPS ELF，生成运行包。部署先传到新的 release 目录、逐文件校验 SHA-256，再通过 `rename(2)` 原子切换 `current`。保留旧版本，不覆盖用户数据；运行中的 launcher 必须先退出。
 
 ```text
 /storage/apps/
@@ -51,6 +52,7 @@ python3 ./tools/deploy.py --serial MagicPen-931f06 --start
 │   ├── linux-tools/{bin/,share/}
 │   ├── gomoku/c1max-gomoku
 │   ├── pcsx4all/{c1max-pcsx4all,c1max-psx-core,licenses/}
+│   ├── dosbox/{c1max-dosbox,c1max-dos-core,C1LAB.COM,licenses/}
 │   ├── processing/{c1max-processing,api.js,examples/,licenses/}
 │   ├── piano/c1max-piano
 │   ├── nes/c1max-nes
@@ -63,6 +65,7 @@ python3 ./tools/deploy.py --serial MagicPen-931f06 --start
     ├── terminal/      shell HOME 与历史
     ├── gomoku/        自动续局
     ├── pcsx4all/      自备游戏、BIOS、记忆卡和即时存档
+    ├── dosbox/        DOS 游戏完整目录、设置与游戏存档
     ├── processing/    my-sketch.js 用户程序
     ├── calculator/
     └── nes/roms/      自备合法 .nes 文件
@@ -106,12 +109,13 @@ sh ./calendar/tests/run.sh
 ./tests/run-hotkey.sh
 bash ./tests/run-keymap.sh
 sh ./terminal/tests/run.sh
+sh ./dosbox/tests/run.sh
 # 设备上执行构建生成的 c1max-api-test：清单/版本/URL 校验
 ```
 
 StreamPlayer 的 Emby 实机结果与未迁移部分见 [播放器说明](streamplayer/README.md)。日历/计算器各有独立模型测试。NES 需要自备 ROM，已加入 WASD/J/K 物理按键；尚待用户 ROM 实测兼容性。
 
-PS1 的镜像路径、按键和兼容性见 [PCSX4all](pcsx4all/README.md)，绘图语言的支持范围与示例来源见 [Processing 2D](processing/README.md)。
+DOS 的导入与键盘说明见 [DOSBox](dosbox/README.md)。PS1 的镜像路径、按键和兼容性见 [PCSX4all](pcsx4all/README.md)，绘图语言的支持范围与示例来源见 [Processing 2D](processing/README.md)。
 
 全局物理键盘、Shift 与音量键说明：[键盘映射](docs-keyboard.md)。
 

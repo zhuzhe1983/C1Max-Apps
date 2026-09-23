@@ -56,3 +56,5 @@ add_executable(c1max-gomoku gomoku/src/main.cpp gomoku/src/game.cpp shared/displ
 target_link_libraries(c1max-gomoku c1net lvgl m)
 add_subdirectory(pcsx4all)
 add_subdirectory(processing)
+
+add_subdirectory(dosbox)

@@ -10,5 +10,9 @@
   "pcsx4all": {
     "url": "https://github.com/dmitrysmagin/pcsx4all.git",
     "commit": "c7faf12b893eba94faced88baa5e7dd059be58b7"
+  },
+  "dosbox-pure": {
+    "url": "https://github.com/schellingb/dosbox-pure.git",
+    "commit": "73e03aa145e0549ed4d5a20f8e65532714da33f5"
   }
 }

@@ -3,7 +3,7 @@
 import hashlib, json, pathlib, shutil
 from PIL import Image, ImageOps
 root=pathlib.Path(__file__).resolve().parents[1]
-ids=['launcher','piano','nes','streamplayer','calendar','calculator','terminal','gomoku','pcsx4all','processing']
+ids=['launcher','piano','nes','streamplayer','calendar','calculator','terminal','gomoku','pcsx4all','processing','dosbox']
 tool_payload=root/'linux-tools/.build/linux-tools'
 tool_verification=root/'linux-tools/.build/verification.json'
 if not tool_verification.is_file():raise SystemExit('Run apps/linux-tools/build.sh before packaging')
@@ -22,7 +22,7 @@ for name in ids:
             digest.update(str(p.relative_to(root)).encode()+b'\0'+p.read_bytes())
     for filename in ['CMakeLists.txt','dependencies.json','archives.json']:
         digest.update((root/filename).read_bytes())
-    apps.append({'id':name,'version':'0.3.0' if name=='calendar' else '0.1.0' if name in ['terminal','gomoku','pcsx4all','processing'] else '0.2.0','revision':digest.hexdigest()})
+    apps.append({'id':name,'version':'0.3.0' if name=='calendar' else '0.1.0' if name in ['terminal','gomoku','pcsx4all','processing','dosbox'] else '0.2.0','revision':digest.hexdigest()})
 catalog={'schema':1,'platform':'c1max-mipsel-linux','apps':apps}
 (root/'catalog.json').write_text(json.dumps(catalog,indent=2)+'\n')
 out=root/'.build/device'
@@ -50,6 +50,10 @@ shutil.copy2(root/'terminal/vendor/libvterm/LICENSE',out/'terminal/licenses/libv
 shutil.copy2(root/'.build/mips/c1max-psx-core',out/'pcsx4all')
 shutil.copytree(root/'pcsx4all/licenses',out/'pcsx4all/licenses')
 shutil.copy2(root/'pcsx4all/README.md',out/'pcsx4all')
+shutil.copy2(root/'.build/mips/c1max-dos-core',out/'dosbox')
+shutil.copy2(root/'.build/mips/C1LAB.COM',out/'dosbox')
+shutil.copytree(root/'dosbox/licenses',out/'dosbox/licenses')
+shutil.copy2(root/'dosbox/README.md',out/'dosbox')
 shutil.copy2(root/'processing/api.js',out/'processing')
 shutil.copytree(root/'processing/examples',out/'processing/examples')
 shutil.copytree(root/'processing/licenses',out/'processing/licenses')
