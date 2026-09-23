@@ -25,7 +25,7 @@ void start(bool shell=false){
     std::string executable=c1::root()+"/dosbox/c1max-dos-core";
     if(access(executable.c_str(),X_OK)){message=tr("模拟器文件缺失，请重新安装","Emulator missing; reinstall app");render();return;}
     std::vector<std::string> args={executable};if(shell)args.push_back("--shell");else{args.push_back("--file");args.push_back(games[selected]);if(game)args.push_back("--game");}
-    args.push_back(muted?"--mute":"--audio");args.push_back("--cycles");args.push_back(std::to_string(cycles));args.push_back("--memory");args.push_back(std::to_string(memory));if(stretch||shell)args.push_back("--stretch");
+    args.push_back(muted?"--mute":"--audio");args.push_back("--cycles");args.push_back(std::to_string(cycles));args.push_back("--memory");args.push_back(std::to_string(memory));if(stretch)args.push_back("--stretch");
     std::vector<char*> av;for(auto &a:args)av.push_back(a.data());av.push_back(nullptr);
     screen::close();execv(executable.c_str(),av.data());_exit(1);
 }
@@ -33,7 +33,7 @@ void scan(){
     games.clear();std::error_code ec;fs::recursive_directory_iterator it(folder,fs::directory_options::skip_permission_denied,ec),end;
     while(!ec&&it!=end&&games.size()<200){
         if(it.depth()>=3)it.disable_recursion_pending();
-        if(it->is_regular_file(ec)){auto ext=it->path().extension().string();std::transform(ext.begin(),ext.end(),ext.begin(),[](unsigned char c){return std::tolower(c);});if(ext==".exe"||ext==".com"||ext==".bat")games.push_back(it->path().string());}
+        if(it->is_regular_file(ec)){auto ext=it->path().extension().string();std::transform(ext.begin(),ext.end(),ext.begin(),[](unsigned char c){return std::tolower(c);});if(ext==".exe"||ext==".com"||ext==".bat"||ext==".zip"||ext==".dosz")games.push_back(it->path().string());}
         it.increment(ec);
     }
     std::sort(games.begin(),games.end());selected=std::min(selected,games.empty()?size_t(0):games.size()-1);if(ec)message=tr("部分目录无法读取","Some folders could not be read");render();
@@ -53,11 +53,11 @@ void render(){
         button(muted?tr("V 声音关闭","V Sound off"):tr("V 声音开启","V Sound on"),18,240,178,4);
         button((std::string("C ")+std::to_string(cycles)+" cycles").c_str(),210,240,178,5);
         button((std::string("M ")+std::to_string(memory)+" MB").c_str(),402,240,178,6);
-        button(stretch?tr("T 铺满宽度","T Fill width"):"T 4:3",594,240,190,7);
-        label(tr("建议先运行内置 DOS LAB；首版以早期 2D DOS 程序为主。","Try DOS LAB first. Best suited to early 2D DOS programs."),18,304,766,0xa8bccf);return;
+        button(stretch?"T 16:9":"T 4:3",594,240,190,7);
+        label(tr("ZIP 包内选程序：游戏键盘 W/S、回车；文件读写保存在独立存档包。","ZIP: game keys W/S + Enter choose program; writes saved separately."),18,304,766,0xa8bccf);return;
     }
     size_t first=(selected/5)*5;
-    if(games.empty())label(tr("将 DOS 游戏完整目录放在下方路径。\n启动文件使用英文 8.3 文件名。","Copy a complete DOS game folder below.\nUse ASCII 8.3 executable names."),24,80,485);
+    if(games.empty())label(tr("将 DOS 游戏完整目录放在下方路径。\n支持 ZIP/DOSZ 包或英文 8.3 启动文件。","Copy a complete DOS game folder below.\nZIP/DOSZ or ASCII 8.3 executable names."),24,80,485);
     else for(size_t i=first;i<std::min(first+5,games.size());i++){
         auto *o=lv_button_create(root);lv_obj_set_pos(o,16,53+45*int(i-first));lv_obj_set_size(o,510,42);lv_obj_set_style_shadow_width(o,0,0);lv_obj_set_style_bg_color(o,lv_color_hex(i==selected?0x276977:0x23344a),0);
         auto *l=lv_label_create(o);auto name=fs::relative(games[i],folder).string();lv_label_set_text(l,name.c_str());lv_obj_set_width(l,480);lv_label_set_long_mode(l,LV_LABEL_LONG_DOT);lv_obj_center(l);

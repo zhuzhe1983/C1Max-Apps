@@ -1,6 +1,7 @@
 // GPL-2.0-or-later. A single framebuffer owner for the DOS frontend.
 #pragma once
-#include "../../launcher/src/font8x8.h"
+#include "guide.hpp"
+#include <cstdlib>
 #include <algorithm>
 #include <cstring>
 #include <string>
@@ -20,9 +21,10 @@ class Platform {
     uint8_t *mapped_=nullptr,*page_=nullptr;
     size_t size_=0;
     fb_var_screeninfo initial_{},current_{};
-    std::vector<uint32_t> last_;
+    std::vector<uint32_t> last_,guides_[9];
     unsigned width_=0,height_=0;
-    bool dirty_=true,last_stretch_=false;
+    bool dirty_=true,last_stretch_=false,last_game_=true,last_caps_=false;
+    int last_prefix_=0;
     std::string last_hint_;
     void begin(){ioctl(fb_,FBIOGET_VSCREENINFO,&current_);unsigned p=pages_>1?(current_.yoffset/800+1)%pages_:0;current_.yoffset=p*800;page_=mapped_+size_t(p)*stride_*800;}
     bool end(){__sync_synchronize();current_.xoffset=0;current_.activate=FB_ACTIVATE_VBL;return ioctl(fb_,FBIOPAN_DISPLAY,&current_)==0;}
@@ -40,6 +42,13 @@ public:
             if(fb_<0||ioctl(fb_,FBIOGET_VSCREENINFO,&initial_)||ioctl(fb_,FBIOGET_FSCREENINFO,&f)||initial_.xres!=340||initial_.yres!=800||initial_.bits_per_pixel!=32)return false;
             stride_=f.line_length;size_=f.smem_len;pages_=std::min(3,int(size_/(stride_*800)));if(!pages_)return false;
             auto *p=mmap(nullptr,size_,PROT_READ|PROT_WRITE,MAP_SHARED,fb_,0);if(p==MAP_FAILED)return false;mapped_=(uint8_t*)p;
+            const char *root=getenv("C1_APPS_ROOT");std::string path=std::string(root?root:"/storage/apps/current")+"/shared/NotoSansSC-Regular.ttf";
+            bool font=typeface_open(path.c_str());std::vector<uint32_t> panel;
+            for(int mode=0;mode<9;mode++){
+                dosguide::panel(panel,font,mode);guides_[mode].resize(dosguide::Width*340);
+                for(int x=0;x<dosguide::Width;x++)for(int y=0;y<340;y++)guides_[mode][x*340+y]=panel[y*dosguide::Width+x];
+            }
+            typeface_close();
             for(int n=0;n<pages_;n++){page_=mapped_+size_t(n)*stride_*800;blank(0);}
         }
         for(int i=0;i<3;i++){auto path="/dev/input/event"+std::to_string(i);keys_[i]=::open(path.c_str(),O_RDONLY|O_NONBLOCK|O_CLOEXEC);input_event e{};while(keys_[i]>=0&&read(keys_[i],&e,sizeof e)==sizeof e){}}
@@ -62,8 +71,10 @@ public:
             }else if(e.type==EV_KEY)callback(e.code,e.value,uint64_t(e.time.tv_sec)*1000+e.time.tv_usec/1000);
         }
     }
-    bool inside()const{return touch_x>=(stretch?0:173)&&touch_x<(stretch?800:626);}
-    int16_t pointer_x()const{return std::clamp((touch_x-(stretch?0:173))*65534/(stretch?799:452)-32767,-32767,32767);}
+    int viewport_width()const{return stretch?604:453;}
+    int viewport_left()const{return (800-viewport_width())/2;}
+    bool inside()const{return touch_x>=viewport_left()&&touch_x<viewport_left()+viewport_width();}
+    int16_t pointer_x()const{return std::clamp((touch_x-viewport_left())*65534/(viewport_width()-1)-32767,-32767,32767);}
     int16_t pointer_y()const{return touch_y*65534/339-32767;}
     // Report actual guest image changes; padding bytes are not pixels.
     bool frame(const void *data,unsigned w,unsigned h,size_t pitch){
@@ -73,11 +84,17 @@ public:
         if(!changed)return false;
         width_=w;height_=h;last_.resize(size_t(w)*h);for(unsigned y=0;y<h;y++)memcpy(last_.data()+size_t(y)*w,(const char*)data+y*pitch,w*4);dirty_=true;return true;
     }
-    void present(const std::string&hint={}){
-        if(!mapped_||last_.empty()||(!dirty_&&stretch==last_stretch_&&hint==last_hint_))return;begin();blank(0);int vw=stretch?800:453,left=(800-vw)/2;unsigned yy[340];for(unsigned y=0;y<340;y++)yy[y]=(y*height_/340)*width_;
+    void present(const std::string&hint={},bool game=true,int prefix=0,bool caps=false){
+        if(!mapped_||last_.empty()||(!dirty_&&stretch==last_stretch_&&hint==last_hint_&&game==last_game_&&prefix==last_prefix_&&caps==last_caps_))return;begin();blank(0);int vw=viewport_width(),left=viewport_left();unsigned yy[340];for(unsigned y=0;y<340;y++)yy[y]=(y*height_/340)*width_;
         for(int x=0;x<vw;x++){unsigned sx=x*width_/vw;auto *p=(uint32_t*)(page_+size_t(799-left-x)*stride_);for(int y=0;y<340;y++)p[y]=last_[yy[y]+sx]|0xff000000;}
-        if(!hint.empty()){for(int x=0;x<800;x++)for(int y=322;y<340;y++)pixel(x,y,0x14232e);text(8,327,hint,0x8bddd2,1);}
-        if(end()){dirty_=false;last_stretch_=stretch;last_hint_=hint;}
+        for(int side=0;side<2;side++){
+            int edge=side?left+vw:0,available=side?800-edge:left;
+            for(int x=edge;x<edge+available;x++){auto *col=(uint32_t*)(page_+size_t(799-x)*stride_);std::fill(col,col+340,0xff0b121a);}
+            int panel_left=edge+(available-dosguide::Width)/2;
+            int mode=side?2:prefix>=1&&prefix<=5?prefix+2:game?0:caps?8:1;
+            for(int x=0;x<dosguide::Width;x++)memcpy(page_+size_t(799-panel_left-x)*stride_,guides_[mode].data()+x*340,340*4);
+        }
+        if(end()){dirty_=false;last_stretch_=stretch;last_hint_=hint;last_game_=game;last_prefix_=prefix;last_caps_=caps;}
     }
     void menu(int selected,const std::vector<std::string>&items,const std::string&hint){
         if(!mapped_)return;dirty_=true;begin();blank(0x111c2b);text(30,20,"DOSBox / C1Max",0x8bddd2,3);

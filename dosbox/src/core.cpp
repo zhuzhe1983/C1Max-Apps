@@ -50,7 +50,7 @@ void video(const void *data,unsigned width,unsigned height,size_t pitch){
     for(unsigned y=0;y<height;y+=8)for(unsigned x=0;x<width;x+=8){uint32_t pixel;memcpy(&pixel,p+y*pitch+x*4,4);h^=pixel;h*=1099511628211ULL;}hash=h;
     if(frames==1){printf("DOS_VIDEO %ux%u pitch=%zu\n",width,height,pitch);fflush(stdout);}
     auto now=dos::micros();
-    if(!headless&&now-last_present>=33333){platform.frame(data,width,height,pitch);platform.present(now<hint_until?keys.hint():"");last_present=now;}
+    if(!headless&&now-last_present>=33333){platform.frame(data,width,height,pitch);platform.present(now<hint_until?keys.hint():"",keys.game(),keys.prefix(),keys.caps());last_present=now;}
 }
 void sample(int16_t,int16_t){}
 size_t batch(const int16_t *data,size_t n){
@@ -76,7 +76,7 @@ int16_t input(unsigned,unsigned device,unsigned,unsigned id){
 void menu(){
     keys.clear();platform.touching=false;int selected=0;bool dirty=true;
     while(menu_requested&&!stop_requested){
-        if(dirty){platform.menu(selected,{"Resume",keys.game()?"Keyboard: GAME":"Keyboard: TEXT",platform.stretch?"Display: fill width":"Display: 4:3","Game library"},keys.hint());dirty=false;}
+        if(dirty){platform.menu(selected,{"Resume",keys.game()?"Keyboard: GAME":"Keyboard: TEXT",platform.stretch?"Display: 16:9":"Display: 4:3","Game library"},keys.hint());dirty=false;}
         platform.poll([&](unsigned code,int value,uint64_t){
             if(value!=1)return;
             if(code==116){stop_requested=1;return;}if(code==14){menu_requested=false;return;}
@@ -84,7 +84,7 @@ void menu(){
             if(code==28){if(selected==0)menu_requested=false;if(selected==1){keys.set_game(!keys.game());dirty=true;}if(selected==2){platform.stretch=!platform.stretch;dirty=true;}if(selected==3){library_requested=true;stop_requested=1;}}
         });usleep(12000);
     }
-    keys.clear();platform.touching=false;platform.present();hint_until=dos::micros()+2500000;
+    keys.clear();platform.touching=false;platform.present("",keys.game(),keys.prefix(),keys.caps());hint_until=dos::micros()+2500000;
 }
 int finish(int code,const char *error=nullptr){
     if(audio_device){pcm_close(audio_device);audio_device=nullptr;}platform.close();
@@ -109,21 +109,25 @@ int main(int argc,char **argv){
     if((file.empty()&&!shell)||(!file.empty()&&shell)||frame_limit>36000||(memsize!=8&&memsize!=16)||(cycles!=2750&&cycles!=4720&&cycles!=7800))return 2;
     signal(SIGTERM,stop);signal(SIGINT,stop);umask(0077);
     std::error_code ec;fs::create_directories(directory+"/games",ec);if(ec)return finish(1,"Data directory unavailable");
-    std::string mount=directory+"/games",command;bool batch_file=false;
+    std::string mount=directory+"/games",command;bool batch_file=false,archive=false;
     if(!shell){
         auto path=fs::absolute(file,ec);if(ec||!fs::is_regular_file(path,ec))return finish(2,"Program file unavailable");
-        mount=path.parent_path().string();command=path.filename().string();auto dot=command.find('.');
+        mount=path.parent_path().string();command=path.filename().string();
+        auto suffix=path.extension().string();std::transform(suffix.begin(),suffix.end(),suffix.begin(),[](unsigned char c){return std::tolower(c);});
+        archive=suffix==".zip"||suffix==".dosz";file=path.string();
+        auto dot=command.find('.');
+        if(!archive){
         if(dot==std::string::npos||dot==0||dot>8||command.size()-dot!=4||command.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-.")!=std::string::npos)return finish(2,"Use an ASCII DOS 8.3 program name, e.g. GAME.EXE");
-        auto ext=command.substr(dot);std::transform(ext.begin(),ext.end(),ext.begin(),[](unsigned char c){return std::toupper(c);});if(ext!=".EXE"&&ext!=".COM"&&ext!=".BAT")return finish(2,"Choose an EXE, COM or BAT program");batch_file=ext==".BAT";
+        auto ext=command.substr(dot);std::transform(ext.begin(),ext.end(),ext.begin(),[](unsigned char c){return std::toupper(c);});if(ext!=".EXE"&&ext!=".COM"&&ext!=".BAT")return finish(2,"Choose an EXE, COM or BAT program");batch_file=ext==".BAT";}
     }
-    if(mount.find_first_of("\"\r\n")!=std::string::npos)return finish(2,"Unsupported folder name");
+    if(!archive&&mount.find_first_of("\"\r\n")!=std::string::npos)return finish(2,"Unsupported folder name");
     auto conf=directory+"/session.conf";
-    {std::ofstream out(conf,std::ios::trunc);out<<"[autoexec]\n@echo off\nmount c \""<<mount<<"\"\nc:\n";if(!shell)out<<(batch_file?"call ":"")<<command<<"\nexit\n";out.flush();if(!out)return finish(1,"Cannot write DOS configuration");}
-    options={{"dosbox_pure_memory_size",std::to_string(memsize)},{"dosbox_pure_cpu_core","normal"},{"dosbox_pure_cycles",std::to_string(cycles)},{"dosbox_pure_savestate","disabled"},{"dosbox_pure_midi","disabled"},{"dosbox_pure_machine","vga"},{"dosbox_pure_voodoo","off"},{"dosbox_pure_voodoo_perf","0"},{"dosbox_pure_on_screen_keyboard","false"},{"dosbox_pure_auto_mapping","false"},{"dosbox_pure_mouse_input","direct"},{"dosbox_pure_menu_time","0"},{"dosbox_pure_audiorate","44100"}};
+    if(!archive){std::ofstream out(conf,std::ios::trunc);out<<"[autoexec]\n@echo off\nmount c \""<<mount<<"\"\nc:\n";if(!shell)out<<(batch_file?"call ":"")<<command<<"\nexit\n";out.flush();if(!out)return finish(1,"Cannot write DOS configuration");}
+    options={{"dosbox_pure_memory_size",std::to_string(memsize)},{"dosbox_pure_cpu_core","normal"},{"dosbox_pure_cycles",std::to_string(cycles)},{"dosbox_pure_savestate","disabled"},{"dosbox_pure_midi","disabled"},{"dosbox_pure_machine","vga"},{"dosbox_pure_voodoo","off"},{"dosbox_pure_voodoo_perf","0"},{"dosbox_pure_on_screen_keyboard","false"},{"dosbox_pure_auto_mapping","false"},{"dosbox_pure_mouse_input","direct"},{"dosbox_pure_menu_time","0"},{"dosbox_pure_conf","false"},{"dosbox_pure_audiorate","44100"}};
     if(!platform.open(!headless))return finish(1,"Framebuffer unavailable");
     keys.set_game(game);keys.send=[](bool down,unsigned key){if(keyboard_callback)keyboard_callback(down,key,0,0);};
     retro_set_environment(environment);retro_set_video_refresh(video);retro_set_audio_sample(sample);retro_set_audio_sample_batch(batch);retro_set_input_poll(poll);retro_set_input_state(input);retro_init();
-    retro_game_info info{conf.c_str(),nullptr,0,nullptr};if(!retro_load_game(&info)){retro_deinit();return finish(1,"DOS core could not load the program");}
+    retro_game_info info{archive?file.c_str():conf.c_str(),nullptr,0,nullptr};if(!retro_load_game(&info)){retro_deinit();return finish(1,"DOS core could not load the program");}
     retro_system_av_info av{};retro_get_system_av_info(&av);if(av.timing.fps>1&&av.timing.fps<200)fps=av.timing.fps;
     if(audio_enabled){pcm_config c{};c.channels=2;c.rate=av.timing.sample_rate;c.format=PCM_FORMAT_S16_LE;c.period_size=1024;c.period_count=4;audio_device=pcm_open(0,0,PCM_OUT,&c);if(!audio_device||!pcm_is_ready(audio_device)){if(audio_device)pcm_close(audio_device);audio_device=nullptr;fprintf(stderr,"DOS audio unavailable; muted\n");}}
     printf("DOS_READY fps=%.2f audio=%.0f muted=%d memory=%u cycles=%u cpu=normal\n",fps,av.timing.sample_rate,!audio_device,memsize,cycles);fflush(stdout);

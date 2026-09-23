@@ -6,6 +6,8 @@
 #include "gpu/gpu_unai/gpu.h"
 #include "spu/spu_pcsxrearmed/spu_config.h"
 #include "sio.h"
+#include "guide.hpp"
+#include "video.hpp"
 #include "../../launcher/src/font8x8.h"
 #include <algorithm>
 #include <csignal>
@@ -28,9 +30,22 @@ static size_t map_size=0;
 static fb_var_screeninfo initial{};
 static unsigned short pad=0xffff;
 static volatile sig_atomic_t stop_requested=0;
-static bool initialized=false,headless=false,library=false;
+static bool initialized=false,headless=false,library=false,interpreter_mode=false;
 static unsigned smoke_frames=0,vsyncs=0;
 static std::string data_dir,state_path;
+static psxvideo::Source source;
+static psxvideo::Map mapping;
+static std::vector<uint32_t> guides[2];
+static int page_width[3]={};
+static bool wide=false;
+static std::string display_path;
+static void save_display(){
+    std::string tmp=display_path+".tmp";FILE *f=fopen(tmp.c_str(),"w");
+    if(!f)return;bool ok=fprintf(f,"%d\n",wide?1:0)>0;if(fclose(f))ok=false;
+    if(ok)rename(tmp.c_str(),display_path.c_str());else unlink(tmp.c_str());
+}
+static void toggle_display(){wide=!wide;save_display();}
+
 static void stop(int){stop_requested=1;}
 unsigned get_ticks(){timespec t;clock_gettime(CLOCK_MONOTONIC,&t);return unsigned(t.tv_sec*1000000ULL+t.tv_nsec/1000);}
 void wait_ticks(unsigned us){usleep(us);}
@@ -39,17 +54,48 @@ void port_printf(int x,int y,const char *s){
     for(;*s;s++,x+=8){unsigned ch=(unsigned char)*s;if(ch>=128)ch='?';
         for(int j=0;j<8;j++)for(int i=0;i<8;i++)if(x+i>=0&&x+i<320&&y+j>=0&&y+j<240&&(font8x8_basic[ch][j]&(1<<i)))frame[(y+j)*320+x+i]=0xffff;}
 }
-void video_flip(){
-    if(headless||!memory)return;
-    fb_var_screeninfo v{};if(ioctl(fb,FBIOGET_VSCREENINFO,&v))return;
+static uint8_t *begin_frame(int width,fb_var_screeninfo &v){
+    if(headless||!memory||ioctl(fb,FBIOGET_VSCREENINFO,&v))return nullptr;
     int page=pages>1?(int(v.yoffset/800)+1)%pages:0;
     auto *dst=memory+size_t(page)*stride*800;
+    if(page_width[page]!=width){
+        memset(dst,0,size_t(stride)*800);
+        if(width==453)for(int side=0;side<2;side++){
+            int left=side?627:0;
+            for(int x=0;x<psxguide::Width;x++)for(int y=0;y<340;y++)
+                *(uint32_t*)(dst+size_t(799-left-x)*stride+y*4)=guides[side][y*psxguide::Width+x];
+        }
+        page_width[page]=width;
+    }
+    v.xoffset=0;v.yoffset=page*800;v.activate=FB_ACTIVATE_VBL;return dst;
+}
+static void end_frame(fb_var_screeninfo &v){__sync_synchronize();ioctl(fb,FBIOPAN_DISPLAY,&v);}
+void video_flip(){
+    // Pause UI uses its own low-resolution canvas; game frames never use it.
+    fb_var_screeninfo v{};auto *dst=begin_frame(453,v);if(!dst)return;
     for(int x=0;x<453;x++)for(int y=0;y<340;y++){
         uint16_t p=frame[(y*240/340)*320+x*320/453];uint32_t r=(p>>11)&31,g=(p>>5)&63,b=p&31;
         *(uint32_t*)(dst+size_t(799-(173+x))*stride+y*4)=0xff000000|((r*255/31)<<16)|((g*255/63)<<8)|(b*255/31);
     }
-    __sync_synchronize();v.xoffset=0;v.yoffset=page*800;v.activate=FB_ACTIVATE_VBL;
-    ioctl(fb,FBIOPAN_DISPLAY,&v);
+    end_frame(v);
+}
+void video_frame(const uint16_t *vram,int x,int y,int width,int height,int active,bool rgb24){
+    if(width!=source.width||height!=source.height||rgb24!=source.rgb24){
+        printf("C1MAX_PSX_VIDEO source=%dx%d active=%d rgb=%d\n",width,height,active,rgb24?24:15);fflush(stdout);
+    }
+    source={vram,x,y,width,height,active,rgb24};if(!source.valid())return;
+    if(headless)return;
+    mapping.set(source,wide);fb_var_screeninfo v{};auto *dst=begin_frame(mapping.width,v);if(!dst)return;
+    for(int i=0;i<mapping.width;i++){
+        auto *col=(uint32_t*)(dst+size_t(799-mapping.left-i)*stride);
+        for(int j=0;j<340;j++)col[j]=psxvideo::sample(source,mapping.row[j],mapping.x[i]);
+    }
+    end_frame(v);
+}
+void video_blank(){
+    fb_var_screeninfo v{};int width=wide?800:453,left=wide?0:173;auto *dst=begin_frame(width,v);if(!dst)return;
+    for(int x=left;x<left+width;x++)memset(dst+size_t(799-x)*stride,0,340*4);
+    end_frame(v);
 }
 static bool open_display(){
     fb=open("/dev/fb2",O_RDWR|O_CLOEXEC);fb_fix_screeninfo f{};
@@ -57,6 +103,10 @@ static bool open_display(){
     stride=f.line_length;map_size=f.smem_len;pages=std::min(3,int(map_size/(stride*800)));if(!pages)return false;
     memory=(uint8_t*)mmap(0,map_size,PROT_READ|PROT_WRITE,MAP_SHARED,fb,0);if(memory==MAP_FAILED){memory=nullptr;return false;}
     memset(memory,0,map_size);
+    const char *root=getenv("C1_APPS_ROOT");std::string font_path=std::string(root?root:"/storage/apps/current")+"/shared/NotoSansSC-Regular.ttf";
+    bool font=typeface_open(font_path.c_str());
+    for(int side=0;side<2;side++)psxguide::panel(guides[side],font,side,interpreter_mode);
+    typeface_close();
     for(int i=0;i<2;i++){std::string path="/dev/input/event"+std::to_string(i);keys[i]=open(path.c_str(),O_RDONLY|O_NONBLOCK|O_CLOEXEC);input_event e;while(read(keys[i],&e,sizeof e)==sizeof e){}}
     return true;
 }
@@ -83,19 +133,21 @@ static void menu(){
     while(!done&&!stop_requested){
         if(dirty){dirty=false;
         video_clear();port_printf(56,28,"PCSX4all / C1Max");
-        const char *items[]={"Resume","Save state (slot 1)","Load state (slot 1)","Game library"};
-        for(int i=0;i<4;i++){port_printf(28,66+i*28,i==selected?">":" ");port_printf(48,66+i*28,items[i]);}
-        port_printf(24,196,"W/S move  Enter select");port_printf(24,210,"Back resume  Power home");port_printf(24,228,message.c_str());video_flip();}
+        const char *items[]={"Resume",wide?"Display: full width":"Display: 4:3 + key guide","Save state (slot 1)","Load state (slot 1)","Game library"};
+        for(int i=0;i<5;i++){port_printf(12,56+i*25,i==selected?">":" ");port_printf(28,56+i*25,items[i]);}
+        port_printf(24,196,"W/S move  Enter select");port_printf(24,210,"Camera: width / Back: resume");port_printf(24,228,message.c_str());video_flip();}
         for(int fd:keys){input_event e;while(read(fd,&e,sizeof e)==sizeof e){if(e.type!=EV_KEY||e.value!=1)continue;
             dirty=true;
             if(e.code==KEY_POWER){stop_requested=1;break;}
             if(e.code==14){done=true;break;}
-            if(e.code==KEY_W)selected=(selected+3)%4;if(e.code==KEY_S)selected=(selected+1)%4;
+            if(e.code==410)toggle_display();
+            if(e.code==KEY_W)selected=(selected+4)%5;if(e.code==KEY_S)selected=(selected+1)%5;
             if(e.code==KEY_ENTER||e.code==KEY_J){
                 if(selected==0)done=true;
-                if(selected==1){const std::string tmp=state_path+".tmp";if(SaveState(tmp.c_str())==0&&rename(tmp.c_str(),state_path.c_str())==0)message="State saved";else message="Save failed";}
-                if(selected==2){if(access(state_path.c_str(),R_OK)!=0)message="No saved state";else if(LoadState(state_path.c_str())==0){message="State loaded";done=true;}else message="Load failed";}
-                if(selected==3){library=true;stop_requested=1;}
+                if(selected==1)toggle_display();
+                if(selected==2){const std::string tmp=state_path+".tmp";if(SaveState(tmp.c_str())==0&&rename(tmp.c_str(),state_path.c_str())==0)message="State saved";else message="Save failed";}
+                if(selected==3){if(access(state_path.c_str(),R_OK)!=0)message="No saved state";else if(LoadState(state_path.c_str())==0){message="State loaded";done=true;}else message="Load failed";}
+                if(selected==4){library=true;stop_requested=1;}
             }
         }}usleep(20000);
     }
@@ -110,6 +162,7 @@ void pad_update(){
         case KEY_Q:bit=10;break;case KEY_E:bit=11;break;case KEY_Z:bit=8;break;case KEY_C:bit=9;break;
         case KEY_I:bit=12;break;case KEY_K:bit=13;break;case KEY_J:bit=14;break;case KEY_U:bit=15;break;
         case KEY_ENTER:bit=3;break;case KEY_SPACE:bit=0;break;case KEY_POWER:if(e.value==1)stop_requested=1;break;
+        case 410:if(e.value==1)toggle_display();break;
         case 14:if(e.value==1)menu();break;default:break;}
         if(bit>=0){if(e.value)pad&=~(1<<bit);else pad|=1<<bit;}
     }}
@@ -127,14 +180,17 @@ int main(int argc,char **argv){
     if(image.empty()||image.size()>240||access(image.c_str(),R_OK)){return fail("Game image unavailable",2);}
     signal(SIGTERM,stop);signal(SIGINT,stop);umask(0077);
     const char *d=getenv("C1_APPS_DATA");std::string base=d?d:"/storage/apps/data";mkdir(base.c_str(),0700);data_dir=base+"/pcsx4all";mkdir(data_dir.c_str(),0700);
+    display_path=data_dir+"/display.conf";
+    if(FILE *f=fopen(display_path.c_str(),"r")){wide=fgetc(f)=='1';fclose(f);}
     for(auto folder:{"/memcards","/states","/bios","/patches"})mkdir((data_dir+folder).c_str(),0700);
     copy_path(Config.Mcd1,sizeof Config.Mcd1,data_dir+"/memcards/slot1.mcr");copy_path(Config.Mcd2,sizeof Config.Mcd2,data_dir+"/memcards/slot2.mcr");
     copy_path(Config.PatchesDir,sizeof Config.PatchesDir,data_dir+"/patches");copy_path(Config.BiosDir,sizeof Config.BiosDir,data_dir+"/bios");
     Config.HLE=1;
     if(!bios.empty()){struct stat st{};if(stat(bios.c_str(),&st)||st.st_size!=524288){return fail("BIOS must be 512 KiB",2);}
         auto slash=bios.find_last_of('/');copy_path(Config.BiosDir,sizeof Config.BiosDir,slash==std::string::npos?".":bios.substr(0,slash));copy_path(Config.Bios,sizeof Config.Bios,slash==std::string::npos?bios:bios.substr(slash+1));Config.HLE=0;}
-    Config.Cpu=interpreter?1:0;Config.PsxAuto=1;Config.FrameLimit=1;Config.FrameSkip=FRAMESKIP_AUTO;Config.SpuUpdateFreq=2;Config.ForcedXAUpdates=1;
+    interpreter_mode=interpreter;Config.Cpu=interpreter?1:0;Config.PsxAuto=1;Config.FrameLimit=1;Config.FrameSkip=FRAMESKIP_AUTO;Config.SpuUpdateFreq=2;Config.ForcedXAUpdates=1;
     spu_config.iHaveConfiguration=1;spu_config.iVolume=c1_psx_mute?0:1024;spu_config.iUseInterpolation=0;spu_config.iTempo=1;spu_config.iUseFixedUpdates=1;
+    gpu_unai_config_ext.pixel_skip=0;gpu_unai_config_ext.ilace_force=0;
     gpu_unai_config_ext.lighting=1;gpu_unai_config_ext.blending=1;gpu_unai_config_ext.fast_lighting=1;gpu_unai_config_ext.dithering=0;
     FILE *fp=fopen(image.c_str(),"rb");char magic[8]={};if(!fp)return fail("Game image unavailable",2);fread(magic,1,8,fp);fclose(fp);bool executable=!memcmp(magic,"PS-X EXE",8);
     if(!executable)SetIsoFile(image.c_str());

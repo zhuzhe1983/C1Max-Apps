@@ -14,6 +14,8 @@ void wait_ticks(unsigned);
 void pad_update();
 unsigned short pad_read(int);
 void video_flip();
+void video_frame(const uint16_t*,int,int,int,int,int,bool);
+void video_blank();
 void video_clear();
 void port_printf(int,int,const char*);
 extern unsigned short *SCREEN;

@@ -4,6 +4,11 @@ set(PSX "${CMAKE_CURRENT_BINARY_DIR}/vendor/src")
 file(READ "${PSX}/recompiler/mips/rec_mdu.cpp.h" MDU_SOURCE)
 string(REPLACE "abs(rt_val)" "abs((s32)rt_val)" MDU_SOURCE "${MDU_SOURCE}")
 file(WRITE "${PSX}/recompiler/mips/rec_mdu.cpp.h" "${MDU_SOURCE}")
+# The stock 320x240 port discards odd 480-line scanlines while rendering.
+# Native output needs both fields/lines, including high-resolution text.
+file(READ "${PSX}/gpu/gpu_unai/gpu_unai.h" UNAI_SOURCE)
+string(REPLACE "static inline bool LineSkipEnabled()\n{\n\treturn true;\n}" "static inline bool LineSkipEnabled()\n{\n\treturn false;\n}" UNAI_SOURCE "${UNAI_SOURCE}")
+file(WRITE "${PSX}/gpu/gpu_unai/gpu_unai.h" "${UNAI_SOURCE}")
 set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 add_subdirectory("${CMAKE_SOURCE_DIR}/.deps/zlib-1.3.1" "${CMAKE_BINARY_DIR}/zlib" EXCLUDE_FROM_ALL)
 set(PSX_FILES r3000a misc plugins psxmem psxhw psxcounters psxdma psxbios psxhle psxevents psxcommon psxinterpreter mdec decode_xa cdriso cdrom ppf sio pad gte)
@@ -27,9 +32,10 @@ foreach(name spu dma freeze out nullsnd registers)
   list(APPEND PSX_SOURCES "${PSX}/spu/spu_pcsxrearmed/${name}.c")
 endforeach()
 add_executable(c1max-psx-core ${PSX_SOURCES} "${PSX}/recompiler/mips/host_asm.S"
-  "${PSX}/gpu/gpu_unai/gpulib_if.cpp" "${PSX}/gpu/gpulib/gpu.cpp" "${PSX}/gpu/gpulib/vout_port.cpp"
-  src/port.cpp src/audio.c)
+  "${PSX}/gpu/gpu_unai/gpulib_if.cpp" "${PSX}/gpu/gpulib/gpu.cpp" src/vout.cpp
+  src/port.cpp src/audio.c ../launcher/src/typeface.c)
 target_include_directories(c1max-psx-core PRIVATE src "${PSX}" "${PSX}/plugin_lib" "${PSX}/gpu/gpu_unai" "${PSX}/spu/spu_pcsxrearmed")
+target_include_directories(c1max-psx-core PRIVATE "${CMAKE_SOURCE_DIR}/.deps/lvgl/src/libs/tiny_ttf")
 target_compile_definitions(c1max-psx-core PRIVATE USE_GPULIB GPU_UNAI SPU_PCSXREARMED PSXREC mips GCW_ZERO TMPFS_MIRRORING TMPFS_DIR="/tmp" XA_HACK HAVE_LIBRETRO "INLINE=static __inline__" "asm=__asm__ __volatile__")
 target_compile_options(c1max-psx-core PRIVATE -O2 -mplt -mno-shared "$<$<COMPILE_LANGUAGE:CXX>:-Wno-narrowing;-Wno-register>")
 target_link_libraries(c1max-psx-core zlibstatic tinyalsa pthread m)
