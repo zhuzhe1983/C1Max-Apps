@@ -27,6 +27,37 @@ apps/
 
 旧的顶层 `launcher/`、`piano/`、`emu/` 已分别迁入这里，tinyalsa 合并到 `shared/`。来源是 CardputerZero 的应用保留在各自 README 中；未改写原工程。
 
+## 设备截图
+
+下图均为 C1 Max 设备画面。模拟器截图展示实际运行中的内容；PS1 镜像及 NES ROM 由用户自行提供，仓库不包含游戏镜像。DOSBox 图为项目自带的 DOS LAB 小游戏。点图可查看 800×340 原图。
+
+<table>
+  <tr>
+    <td width="50%"><strong>Launcher / 应用更新</strong><br><a href="docs/screenshots/launcher.png"><img src="docs/screenshots/launcher.png" alt="Launcher 应用网格和 App Updates 图标" width="400"></a><br>自定义应用网格与更新检查入口。</td>
+    <td width="50%"><strong>StreamPlayer</strong><br><a href="docs/screenshots/streamplayer.png"><img src="docs/screenshots/streamplayer.png" alt="StreamPlayer 正在播放服务器转码视频" width="400"></a><br>Emby / Jellyfin 远程转码视频的设备播放画面。</td>
+  </tr>
+  <tr>
+    <td><strong>日历</strong><br><a href="docs/screenshots/calendar.png"><img src="docs/screenshots/calendar.png" alt="日历月视图和当日日程" width="400"></a><br>月历、节假日与日程视图。</td>
+    <td><strong>计算器</strong><br><a href="docs/screenshots/calculator.png"><img src="docs/screenshots/calculator.png" alt="计算器显示运算结果" width="400"></a><br>物理键盘操作的四则运算界面。</td>
+  </tr>
+  <tr>
+    <td><strong>钢琴</strong><br><a href="docs/screenshots/piano.png"><img src="docs/screenshots/piano.png" alt="钢琴键盘界面" width="400"></a><br>适配屏幕宽度的钢琴键盘。</td>
+    <td><strong>终端与 Linux 工具</strong><br><a href="docs/screenshots/terminal.png"><img src="docs/screenshots/terminal.png" alt="终端 shell 运行命令" width="400"></a><br>交互式 shell；另附 bash、less、nano、SSH 等常用工具。</td>
+  </tr>
+  <tr>
+    <td><strong>五子棋</strong><br><a href="docs/screenshots/gomoku.png"><img src="docs/screenshots/gomoku.png" alt="五子棋进行中的对局" width="400"></a><br>人机／双人对局、悔棋与自动续局。</td>
+    <td><strong>NES 游戏</strong><br><a href="docs/screenshots/nes.png"><img src="docs/screenshots/nes.png" alt="NES 设备端渲染和输入自测画面" width="400"></a><br>当前图为设备端渲染／输入自测；运行游戏需自行准备 `.nes` 文件。</td>
+  </tr>
+  <tr>
+    <td><strong>PCSX4all</strong><br><a href="docs/screenshots/pcsx4all.png"><img src="docs/screenshots/pcsx4all.png" alt="PCSX4all 运行《北欧女神》标题菜单" width="400"></a><br>PS1 游戏运行画面示例，游戏镜像不随仓库发布。</td>
+    <td><strong>DOSBox</strong><br><a href="docs/screenshots/dosbox.png"><img src="docs/screenshots/dosbox.png" alt="DOSBox 运行 DOS LAB 游戏并显示设备按键提示" width="400"></a><br>DOS LAB 正在运行；4:3 游戏区周围保留设备按键提示。</td>
+  </tr>
+  <tr>
+    <td><strong>Processing</strong><br><a href="docs/screenshots/processing.png"><img src="docs/screenshots/processing.png" alt="Processing 运行 Koch 分形示例" width="400"></a><br>Processing 风格的绘图示例与 sketch 控制栏。</td>
+    <td></td>
+  </tr>
+</table>
+
 ## 构建、同步与启动
 
 可独立克隆此仓库；在主仓库中它位于 `apps/` submodule。以下命令从本仓库根目录执行（在主仓库先 `cd apps`）。
