@@ -1,0 +1,34 @@
+{
+  "tool": "image_gen.imagegen",
+  "model": "built-in",
+  "icons": {
+    "streamplayer": {
+      "path": "streamplayer.png",
+      "prompt": "Use case: stylized-concept. Asset type: square application icon for an 800x340 embedded Linux launcher, displayed at 96x96 pixels. Style: refined tactile 3D illustration, matte ceramic forms, simple bold silhouette, soft studio light, deep midnight-blue full-bleed opaque background. Composition: one large centered functional symbol, fills about 72 percent of the canvas, generous clean negative space, readable at tiny size. Constraints: exactly one square icon, no letters, no initials, no labels, no watermark, no border, no collage, no device mockup. Primary request: streamplayer application icon. Subject: a luminous turquoise triangular play symbol inset in a rounded glassy cinema screen tile; restrained warm amber highlight."
+    },
+    "calendar": {
+      "path": "calendar.png",
+      "prompt": "Use case: stylized-concept. Asset type: square application icon for an 800x340 embedded Linux launcher, displayed at 96x96 pixels. Style: refined tactile 3D illustration, matte ceramic forms, simple bold silhouette, soft studio light, deep midnight-blue full-bleed opaque background. Composition: one large centered functional symbol, fills about 72 percent of the canvas, generous clean negative space, readable at tiny size. Constraints: exactly one square icon, no letters, no initials, no labels, no watermark, no border, no collage, no device mockup. Primary request: calendar application icon. Subject: an ivory desktop calendar page with two coral binding tabs, a clean grid of raised square day marks and one coral highlighted day; no date numerals."
+    },
+    "calculator": {
+      "path": "calculator.png",
+      "prompt": "Use case: stylized-concept. Asset type: square application icon for an 800x340 embedded Linux launcher, displayed at 96x96 pixels. Style: refined tactile 3D illustration, matte ceramic forms, simple bold silhouette, soft studio light, deep midnight-blue full-bleed opaque background. Composition: one large centered functional symbol, fills about 72 percent of the canvas, generous clean negative space, readable at tiny size. Constraints: exactly one square icon, no letters, no initials, no labels, no watermark, no border, no collage, no device mockup. Primary request: calculator application icon. Subject: a compact ivory calculator with dark blank display and a clean grid of turquoise keys, one amber key; clear sturdy rounded geometry."
+    },
+    "piano": {
+      "path": "piano.png",
+      "prompt": "Use case: stylized-concept. Asset type: square application icon for an 800x340 embedded Linux launcher, displayed at 96x96 pixels. Style: refined tactile 3D illustration, matte ceramic forms, simple bold silhouette, soft studio light, deep midnight-blue full-bleed opaque background. Composition: one large centered functional symbol, fills about 72 percent of the canvas, generous clean negative space, readable at tiny size. Constraints: exactly one square icon, no letters, no initials, no labels, no watermark, no border, no collage, no device mockup. Primary request: piano application icon. Subject: a compact sculptural row of ivory piano keys with clearly visible shorter black raised keys; subtle warm coral accent beneath the keys."
+    },
+    "nes": {
+      "path": "nes.png",
+      "prompt": "Use case: stylized-concept. Asset type: square application icon for an 800x340 embedded Linux launcher, displayed at 96x96 pixels. Style: refined tactile 3D illustration, matte ceramic forms, simple bold silhouette, soft studio light, deep midnight-blue full-bleed opaque background. Composition: one large centered functional symbol, fills about 72 percent of the canvas, generous clean negative space, readable at tiny size. Constraints: exactly one square icon, no letters, no initials, no labels, no watermark, no border, no collage, no device mockup. Primary request: nes application icon. Subject: a compact cream retro game controller with a dark directional cross and two coral circular buttons, original generic design with no brand."
+    },
+    "updates": {
+      "path": "updates.png",
+      "prompt": "Use case: stylized-concept. Asset type: square application icon for an 800x340 embedded Linux launcher, displayed at 96x96 pixels. Style: refined tactile 3D illustration, matte ceramic forms, simple bold silhouette, soft studio light, deep midnight-blue full-bleed opaque background. Composition: one large centered functional symbol, fills about 72 percent of the canvas, generous clean negative space, readable at tiny size. Constraints: exactly one square icon, no letters, no initials, no labels, no watermark, no border, no collage, no device mockup. Primary request: updates application icon. Subject: a small stack of three luminous application tiles with one clear upward arrow in turquoise, restrained amber accent, no brand marks."
+    },
+    "terminal": {
+      "path": "terminal.png",
+      "prompt": "Use case: stylized-concept. Asset type: square application icon for an 800x340 embedded Linux launcher, displayed at 96x96 pixels. Style: refined tactile 3D illustration, matte ceramic forms, simple bold silhouette, soft studio light, deep midnight-blue full-bleed opaque background. Composition: one large centered functional symbol, fills about 72 percent of the canvas, generous clean negative space, readable at tiny size. Constraints: exactly one square icon, no letters, no initials, no labels, no watermark, no border, no collage, no device mockup. Primary request: terminal application icon. Subject: a dark indigo console tile with a large luminous mint chevron prompt and a short cursor bar, both formed as raised ceramic geometric marks; no words."
+    }
+  }
+}

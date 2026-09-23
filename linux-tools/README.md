@@ -1,0 +1,121 @@
+# C1Max terminal tools
+
+This optional payload adds Bash, less, nano and the Dropbear SSH client to the
+MIPS Linux terminal. It installs below the application release directory and
+does not replace BusyBox, `/bin/sh`, the original desktop or any system service.
+No SSH server is installed or started.
+
+| Component | Fixed release | Runtime file | License |
+| --- | --- | --- | --- |
+| GNU Bash | 5.3 + official patches 001–020 (5.3.20) | `bin/bash` | GPL-3.0-or-later |
+| less | 710 | `bin/less` | BSD-2-Clause alternative |
+| GNU nano | 9.2 | `bin/nano` | GPL-3.0-or-later |
+| Dropbear | 2026.94 | `bin/dbclient`, `bin/dropbearkey` | MIT/BSD/public-domain components |
+| ncurses | 6.6 | statically linked; two terminfo entries | MIT-style ncurses license |
+
+Official archive URLs, SHA-256 digests and the twenty individual Bash patches
+are fixed in [sources.json](sources.json). Upstream license texts, including
+Dropbear's bundled LibTomCrypt and LibTomMath notices, are in [licenses](licenses/).
+The runtime also contains the glibc and GCC copyright/license notices from the
+cross-toolchain. Bash and nano sources are unchanged except for the listed
+official Bash patches. Build options are recorded in `cross-build.sh`.
+
+## Build
+
+Prerequisites: Docker, Python 3 and curl on the development machine, plus the
+project's `c1max-apps-builder:bookworm` image. The local Dockerfile adds a native
+compiler for build generators and QEMU for testing. All application binaries use
+`mipsel-linux-gnu-gcc`, `-march=mips32r2 -mabi=32 -Os`, static glibc and section
+garbage collection. No runtime PNG, SSL, ncurses shared library or zlib package
+is needed by these tools.
+
+```sh
+./apps/linux-tools/build.sh
+```
+
+The script verifies every source digest before extracting or compiling. Changed
+recipes/source manifests/compiler versions invalidate cached build products.
+`JOBS=2` can reduce host build memory. The tools can be built independently. The main `apps/tools/build.sh` also invokes
+this builder, and `package.py` checks the verified executable hashes before
+copying the payload into each release's `linux-tools/` directory.
+
+```text
+apps/linux-tools/
+  build.sh                 host entry point
+  cross-build.sh           fixed cross-compilation recipes
+  sources.py / sources.json
+  verify.py                static ELF + actual MIPS execution checks
+  licenses/                original third-party notices
+  .build/                  ignored, generated and locally reusable
+    downloads/             original archives and individual Bash patches
+    src/                   extracted source trees (Bash patches applied)
+    build/                 object files, libraries, generators and build stamps
+    sysroot/               static ncurses development files
+    logs/                  one configure/build log per component
+    verification.json      executable hashes, byte counts and test results
+    linux-tools/           copy this directory into the application release
+      bin/{bash,less,nano,dbclient,dropbearkey}
+      share/terminfo/{x/xterm-256color,v/vt100}
+      share/licenses/
+      share/{sources.json,toolchain.txt}
+```
+
+`SOURCE_DATE_EPOCH` and deterministic archive flags are set, build paths are
+mapped out of compiler output, and all dependencies are source-pinned. The base
+Docker image and Debian package repository are not a hermetic toolchain lock:
+retain the built Docker image for byte-for-byte rebuilds. The payload records
+the concrete compiler/libc package versions in `share/toolchain.txt` and binary
+hashes in `.build/verification.json`. Keep source archives, this recipe and the
+object/build trees when distributing binaries, so corresponding sources and
+static relinking materials can accompany them.
+
+## Terminal integration
+
+Set these variables only in the terminal child process. Existing system programs
+continue using their normal PATH. The terminal should set its own persistent
+home directory (for history, `.nanorc`, SSH keys and `known_hosts`) before exec.
+
+```sh
+C1_APPS_ROOT=${C1_APPS_ROOT:-/storage/apps/current}
+export PATH="$C1_APPS_ROOT/linux-tools/bin:$PATH"
+export TERMINFO="$C1_APPS_ROOT/linux-tools/share/terminfo"
+export TERM=xterm-256color
+exec "$C1_APPS_ROOT/linux-tools/bin/bash" --noprofile --norc -i
+```
+
+Use `TERM=vt100` if the terminal renderer supports only VT100 features. Both
+entries are compiled from the pinned ncurses source; all other terminal entries
+are omitted. UTF-8 rendering additionally depends on the terminal font/renderer
+and an available UTF-8 locale; nano's UTF-8 code is enabled, but this payload
+does not add a system locale archive.
+
+Examples inside the terminal:
+
+```sh
+less /proc/meminfo
+nano /storage/apps/data/notes.txt
+dbclient user@example.org
+dbclient -p 2222 user@192.168.1.10
+```
+
+`dbclient` has Dropbear's option set, rather than every OpenSSH option. Host-key
+verification remains enabled; keys and known-host entries are not generated by
+installation. `dropbearkey` is included for intentional key setup. No startup
+scripts modify DNS, Wi-Fi, ADB, audio or stock applications. With 128 MB RAM,
+these tools are intended for a single interactive terminal session; no resident
+daemon is added. Runtime memory and SSH/terminal behavior still need device
+validation.
+
+## Checks
+
+`verify.py` rejects ELF files with a dynamic interpreter or needed shared
+libraries, verifies little-endian MIPS32r2/o32, then executes all real MIPS
+binaries under QEMU. It checks versions, Bash arrays/functions/arithmetic, less
+pipe input, temporary Ed25519 key generation/readback, and ncurses terminfo
+loading. A loopback-only SSH banner fixture checks client hostname resolution
+and TCP without authentication or accepting a host key. Temporary test keys are
+deleted. No device ADB or remote account is used by the build.
+
+See `.build/verification.json` for the completed build's results. An SSH login,
+interactive nano shortcuts, PTY sizing and memory use must be checked through
+the device terminal during integration.

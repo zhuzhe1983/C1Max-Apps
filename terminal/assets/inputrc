@@ -1,0 +1,6 @@
+set editing-mode emacs
+set bell-style none
+set enable-bracketed-paste on
+set input-meta on
+set output-meta on
+set convert-meta off

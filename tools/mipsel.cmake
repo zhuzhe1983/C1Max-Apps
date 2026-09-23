@@ -1,0 +1,7 @@
+set(CMAKE_SYSTEM_NAME Linux)
+set(CMAKE_SYSTEM_PROCESSOR mipsel)
+set(CMAKE_C_COMPILER mipsel-linux-gnu-gcc)
+set(CMAKE_CXX_COMPILER mipsel-linux-gnu-g++)
+set(CMAKE_C_FLAGS_INIT "-Os -march=mips32r2 -mabi=32 -ffunction-sections -fdata-sections")
+set(CMAKE_CXX_FLAGS_INIT "-Os -march=mips32r2 -mabi=32 -ffunction-sections -fdata-sections")
+set(CMAKE_EXE_LINKER_FLAGS_INIT "-static -Wl,--gc-sections -s")

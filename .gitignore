@@ -1,0 +1,16 @@
+.deps/
+.build/
+.runtime/
+**/build/
+**/*.o
+**/*.7z
+nes/rom/
+data/
+
+**/__pycache__/
+.DS_Store
+*.pyc
+.env
+.env.*
+*.pem
+*.key

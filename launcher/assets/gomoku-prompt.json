@@ -1,0 +1,6 @@
+{
+  "tool": "image_gen.imagegen",
+  "mode": "built-in generate",
+  "prompt": "Use case: stylized-concept. Create one premium small launcher icon for a Gomoku / five-in-a-row board game on a handheld Linux computer. A tiny warm pale wooden board with understated engraved grid lines, three black and two ivory Go stones arranged pleasingly, front three-quarter view, softly rounded physical materials and restrained lighting. Centered isolated object, strong legibility when reduced to 96 pixels. Actual transparent alpha background, generous empty transparent margin. No square app tile, no background plate, no surrounding glow, no lettering, no watermark. Similar polished miniature product icon aesthetic to a modern dark app launcher.",
+  "path": "icons/gomoku.png"
+}

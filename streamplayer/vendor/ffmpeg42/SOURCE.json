@@ -1,0 +1,23 @@
+{
+  "source": "https://ffmpeg.org/releases/ffmpeg-4.2.tar.xz",
+  "tag": "n4.2",
+  "archive_sha256": "023f10831a97ad93d798f53a3640e55cd564abfeba807ecbe8524dac4fedecd5",
+  "files": {
+    "libavutil/attributes.h": "d695c5661adf0b5018bd9a7e59f7f1b839318beed656b0930f10cee7360a509a",
+    "libavutil/avutil.h": "5d868e4d3340fccd511662b67eb4e28febd23e4eb28466d57a7e277228d53baf",
+    "libavutil/buffer.h": "f3cae86c0fea1fa0e037fecebd9acd998bedcb19bead1eb7df6da64d4b2aa689",
+    "libavutil/common.h": "f19e0ab33a14ce1a7753fce406bfc514ae8a1bf14c408e2f186e37545099d03d",
+    "libavutil/dict.h": "b8f3d9d4f4e59c77fede23eef817e5821608151f86cd8dfffb4b81c877d973c8",
+    "libavutil/error.h": "cd530a990c8949e867f05e08e4de07c2df170d435707a73679fe5fe53bb3389e",
+    "libavutil/frame.h": "4a3d94b48378fd8a2391da809741c3bb86a1778af18cbf431b514811d2197323",
+    "libavutil/intfloat.h": "3a29e4eebc8c269cfd867b96de91d8231773d392c12a8820e46eaba96d2b4ca1",
+    "libavutil/log.h": "238d18ca7c46c84b0977bc67283c9ba2b034f8f6f20c2110fcd1e0a5c1d97d08",
+    "libavutil/macros.h": "7fd8514cbe4b6ef025b0f5cc3b752e2c3940e22f4945cf6e6372653b6e3d2bca",
+    "libavutil/mathematics.h": "a4cd34f7c19d82c4e58349f0c4987f5b3829dad15755f4eca166b492506cd37c",
+    "libavutil/mem.h": "86e8321a725ad3762f17babdc73cea675a94eb6514aa1f29f649668d4b5a6652",
+    "libavutil/pixfmt.h": "7173d3950222fee924d47a72a436dd73c8604a2b6bb9b1831739042b354c43fa",
+    "libavutil/rational.h": "8c4ce57974b97c4160d7552c14b2c23fcc6f4c1321281c1e8e33beb6e2276276",
+    "libavutil/samplefmt.h": "e92c47e4aedb439ccb630e46e80ef884c848ca2b7baeb64b1050802312751e0d",
+    "libavutil/version.h": "7f85fe647cb61005b1d9606e76f67e231d5e4fb358b287d000457933a7e6918b"
+  }
+}

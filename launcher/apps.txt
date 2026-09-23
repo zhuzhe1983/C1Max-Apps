@@ -1,0 +1,9 @@
+# Label|executable|arg1|arg2|cwd=directory|icon-id
+StreamPlayer|/storage/apps/current/streamplayer/c1max-streamplayer||||streamplayer
+日历|/storage/apps/current/calendar/c1max-calendar||||calendar
+计算器|/storage/apps/current/calculator/c1max-calculator||||calculator
+钢琴|/storage/apps/current/piano/c1max-piano||||piano
+NES 游戏|/storage/apps/current/streamplayer/c1max-streamplayer|--roms|||nes
+应用更新|/storage/apps/current/streamplayer/c1max-streamplayer|--updates|||updates
+终端|/storage/apps/current/terminal/c1max-terminal||||terminal
+五子棋|/storage/apps/current/gomoku/c1max-gomoku||||gomoku

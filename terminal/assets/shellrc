@@ -1,0 +1,8 @@
+# Application shell settings only; does not source/modify stock root profiles.
+PS1='c1max:\w # '
+export PS1
+if [ -n "$BASH_VERSION" ]; then
+    shopt -s checkwinsize
+    HISTSIZE=300
+    HISTFILESIZE=600
+fi

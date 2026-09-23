@@ -1,0 +1,4 @@
+{
+  "lvgl": {"url":"https://github.com/lvgl/lvgl.git","commit":"85aa60d18b3d5e5588d7b247abf90198f07c8a63"},
+  "InfoNES": {"url":"https://github.com/jay-kumogata/InfoNES.git","commit":"fe3295c0a86bf5bbecc22aeab3b3af11f6f47908"}
+}

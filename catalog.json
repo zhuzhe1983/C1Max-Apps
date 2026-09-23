@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "platform": "c1max-mipsel-linux",
+  "apps": [
+    {
+      "id": "launcher",
+      "version": "0.2.0",
+      "revision": "f655de0d4e3e5337f3e805b8cba929fe135eb269c9fd46c3dfbd3b4734e16c30"
+    },
+    {
+      "id": "piano",
+      "version": "0.2.0",
+      "revision": "1b89a967f7eb0029133fa71a445ac544b849b0cc81a5a93c635d2cb6a019cfb9"
+    },
+    {
+      "id": "nes",
+      "version": "0.2.0",
+      "revision": "e8cfc30ed0efa14ee67bd5424c7116b70bf3c67b2c7463a1a27eec59f7efbb14"
+    },
+    {
+      "id": "streamplayer",
+      "version": "0.2.0",
+      "revision": "bb1323bfe4a4baa9905f80d3386c8f658acd993da79073700a521e86dd16e4df"
+    },
+    {
+      "id": "calendar",
+      "version": "0.3.0",
+      "revision": "ba3c9c8ab6b7924c5b3c25dffa0ee30d5e42054d5ea87a74a0d8bc2e07a116eb"
+    },
+    {
+      "id": "calculator",
+      "version": "0.2.0",
+      "revision": "44c1b2cb207fffce4c6493be5d611003f2082949ca8c1be1c764b8d82451914a"
+    },
+    {
+      "id": "terminal",
+      "version": "0.1.0",
+      "revision": "2ea369525bfd187b098374d8698e71af9ff928aad320449b13b2f3b8988a6152"
+    },
+    {
+      "id": "gomoku",
+      "version": "0.1.0",
+      "revision": "1cb51e94fb189dc315f9c7ecfb66824f78b3cd3c971d6ba571aaa054ba3f5def"
+    }
+  ]
+}

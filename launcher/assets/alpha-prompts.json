@@ -1,0 +1,35 @@
+{
+  "tool": "image_gen.imagegen",
+  "mode": "built-in edit",
+  "prompt": "Use case: background-extraction. Edit target: supplied existing application icon. Remove the entire navy-blue background, ground plane, ambient backdrop and external cast shadow; make all exterior space genuinely transparent using the PNG alpha channel. Keep the central sculpted icon object, its exact silhouette, interior materials, colors, highlights, perspective and centered composition unchanged. Preserve soft antialiased object edges. Return a square RGBA PNG with real alpha transparency, with approximately 12 percent transparent margin. No replacement color background, no checkerboard baked into pixels, no new background plaque, no text, no watermark. This will be composited over several UI background colors at 88x88 pixels.",
+  "icons": {
+    "streamplayer": {
+      "generated": "/Users/zhuzhe/.codex/generated_images/01a0c882-f158-7553-a6a7-9c1c65bc6eb5/exec-1f20816b-eac6-41b1-8e53-9f745c296a0a.png",
+      "path": "icons/streamplayer.png"
+    },
+    "calendar": {
+      "generated": "/Users/zhuzhe/.codex/generated_images/01a0c882-f158-7553-a6a7-9c1c65bc6eb5/exec-ca7f080e-a640-4a94-a597-e3a1e4ae7e1e.png",
+      "path": "icons/calendar.png"
+    },
+    "calculator": {
+      "generated": "/Users/zhuzhe/.codex/generated_images/01a0c882-f158-7553-a6a7-9c1c65bc6eb5/exec-f848f4c5-fc74-46e5-8b8d-426a92205d2d.png",
+      "path": "icons/calculator.png"
+    },
+    "piano": {
+      "generated": "/Users/zhuzhe/.codex/generated_images/01a0c882-f158-7553-a6a7-9c1c65bc6eb5/exec-fb885c5f-33c3-4ecb-8e6e-6b3713fbddfc.png",
+      "path": "icons/piano.png"
+    },
+    "nes": {
+      "generated": "/Users/zhuzhe/.codex/generated_images/01a0c882-f158-7553-a6a7-9c1c65bc6eb5/exec-ebd012f1-fa8c-4dc4-bdce-4421c291d899.png",
+      "path": "icons/nes.png"
+    },
+    "updates": {
+      "generated": "/Users/zhuzhe/.codex/generated_images/01a0c882-f158-7553-a6a7-9c1c65bc6eb5/exec-0e2b85ea-0e62-4b3e-808f-fd040776cc56.png",
+      "path": "icons/updates.png"
+    },
+    "terminal": {
+      "generated": "/Users/zhuzhe/.codex/generated_images/01a0c882-f158-7553-a6a7-9c1c65bc6eb5/exec-f2aa0cbe-11c6-4396-ad48-92a4339aa022.png",
+      "path": "icons/terminal.png"
+    }
+  }
+}
