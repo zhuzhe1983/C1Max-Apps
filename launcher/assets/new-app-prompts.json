@@ -1,0 +1,23 @@
+{
+  "tool": "image_gen.imagegen",
+  "model": "built-in",
+  "background": "transparent alpha",
+  "icons": {
+    "airtune": {
+      "path": "icons/airtune.png",
+      "prompt": "Use case: product-mockup. Asset type: transparent 1:1 launcher icon for a small 800x340 Linux handheld app. Primary request: a distinctive elegant retro tabletop internet radio icon for an application named Airtune. Subject: compact mid-century cream enamel radio, rounded brushed-chrome trim, deep teal glass tuning window, subtle gold tuning needle, one large champagne-metal knob, small speaker perforations; tiny restrained cyan radio signal arcs floating above. Style: premium tactile 3D product illustration, collectible object, refined industrial design, gentle studio highlights and soft edge shadows. Palette: warm ivory, dark forest teal, muted brass, restrained cyan. Isolated centered object, square PNG, bold at 96 px, no text/logo/watermark/background/floor plane; preserve alpha."
+    },
+    "crosspoint": {
+      "path": "icons/crosspoint.png",
+      "prompt": "Use case: product-mockup. Asset type: transparent 1:1 launcher icon for the CrossPoint ebook reader on a tiny Linux handheld. Subject: a small hardcover book opening into two clean cream pages, a slender dark teal bookmark crossing the gutter like a subtle compass needle; tiny amber page-corner accent. Style: refined tactile 3D illustration, premium miniature object, soft editorial product lighting. Palette: deep ink teal, warm ivory paper, muted copper bookmark, restrained sage. Isolated centered icon, strong silhouette readable at 96 pixels, no text/logo/watermark/background/ground plane; preserve alpha."
+    },
+    "camera": {
+      "path": "icons/camera.png",
+      "prompt": "Use case: product-mockup. Asset type: transparent 1:1 app launcher icon for a Polaroid-style Linux camera app. Subject: compact vintage instant camera, soft mint enamel body, dark lens with subtle rainbow filter ring, a small ivory instant photo emerging below with a tiny abstract sunset and dark mountain silhouette, one coral shutter button. Style: premium tactile 3D product illustration, elegant rather than toy-like, crisp studio highlights. Palette: warm ivory, muted mint, deep graphite, restrained coral and amber. Isolated centered camera and photo, icon-sized readability at 96 pixels; true transparent alpha, no lettering/logo/watermark/floor/background."
+    },
+    "mail": {
+      "path": "icons/mail.png",
+      "prompt": "Use case: product-mockup. Asset type: transparent 1:1 app launcher icon for a pocket email client on a small Linux handheld. Subject: a sealed ivory paper envelope with a deep teal wax-like circular seal, a small coral notification dot on its upper corner, and a fine folded flap. Style: tactile refined 3D editorial illustration, subtle embossed stationery, controlled studio highlights. Palette: warm cream paper, deep petrol teal, muted coral, brass highlight. Isolated centered envelope with a clear silhouette, approximately 78 percent of a square canvas; transparent background and actual alpha; no text/logo/watermark/surface/colored background."
+    }
+  }
+}

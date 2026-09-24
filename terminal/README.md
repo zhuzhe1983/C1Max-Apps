@@ -137,3 +137,5 @@ PTY 和 LVGL 软件渲染，产生 800×340 离屏图像；不需要设备、SDL
 建议补全 bash（历史/行编辑）、less、nano、轻量 SSH 客户端（dbclient 或 ssh）、
 jq 和 sqlite3；网络抓诊断可加 tcpdump/strace，按当前任务实际需要打包。已有
 BusyBox 命令不必再覆盖原系统。统一放 apps 下的 linux-tools，避免覆盖 /bin。
+
+Shift + 音量＋／－可将正文字号在 12–28 px 之间调整，同时更新 PTY 行列数；不改变系统音量，不增加界面提示。

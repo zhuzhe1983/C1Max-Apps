@@ -12,6 +12,8 @@
 #include <stdarg.h>
 #include <time.h>
 #include <signal.h>
+#include <vector>
+#include <initializer_list>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <linux/fb.h>
@@ -19,6 +21,10 @@
 #include "InfoNES.h"
 #include "InfoNES_System.h"
 #include "InfoNES_pAPU.h"
+#include "../../shared/power_hold.hpp"
+extern "C" {
+#include "../../launcher/src/typeface.h"
+}
 #include "tinyalsa/asoundlib.h"
 
 // ---------------- 显示 ----------------
@@ -43,7 +49,18 @@ static int tx_min=0,tx_max=0,ty_min=0,ty_max=0;   // 触摸ABS范围
 static int cur_x=-1,cur_y=-1,touching=0;
 static DWORD padTouch=0,padKeys=0;
 static volatile sig_atomic_t g_quit=0;
+static keyboard::PowerHold power_key;
+static clockid_t input_clock=CLOCK_REALTIME;
+static uint64_t power_hint_until=0;
+static bool power_notice_visible=false;
+static std::vector<uint32_t> power_notice;
 static void quit_signal(int){g_quit=1;}
+static uint64_t monotonic_us(){timespec t{};clock_gettime(CLOCK_MONOTONIC,&t);return uint64_t(t.tv_sec)*1000000ULL+t.tv_nsec/1000;}
+static uint64_t input_clock_ms(){timespec t{};clock_gettime(input_clock,&t);return uint64_t(t.tv_sec)*1000+t.tv_nsec/1000000;}
+static void power_action(keyboard::PowerHold::Action action){
+  if(action==keyboard::PowerHold::Hint)power_hint_until=monotonic_us()+2500000;
+  else if(action==keyboard::PowerHold::Exit)g_quit=1;
+}
 
 // NES pad 位: A=1<<0 B=1<<1 Sel=1<<2 Start=1<<3 Up=1<<4 Down=1<<5 Left=1<<6 Right=1<<7
 enum { NA=1,NB=2,NSEL=4,NSTART=8,NUP=16,NDOWN=32,NLEFT=64,NRIGHT=128 };
@@ -92,6 +109,13 @@ static void draw_controls(){
   fillcirc(700,305,24,gray);
   fillcirc(610,305,24,gray);
 }
+static void update_power_notice(){
+  const bool wanted=monotonic_us()<power_hint_until;
+  if(wanted==power_notice_visible)return;
+  if(wanted){for(int y=0;y<52;y++)for(int x=0;x<200;x++)px(10+x,10+y,power_notice[y*200+x]);}
+  else fillrect(10,10,200,52,rgb(24,24,32));
+  power_notice_visible=wanted;
+}
 
 static int fb_init(){
   fbfd=open("/dev/fb2",O_RDWR); if(fbfd<0){perror("fb2");return -1;}
@@ -107,6 +131,10 @@ static int fb_init(){
   vinfo.xoffset=0; vinfo.yoffset=0;
   ioctl(fbfd,FBIOPAN_DISPLAY,&vinfo);
   memset(fbmem,0,map);   // 全屏清黑(3帧)
+  power_notice.assign(200*52,0xff18252f);
+  for(int x=0;x<200;x++)for(int y=0;y<52;y++)if(x==0||y==0||x==199||y==51)power_notice[y*200+x]=0xff526a76;
+  const char *root=getenv("C1_APPS_ROOT");char font_path[512];snprintf(font_path,sizeof font_path,"%s/shared/NotoSansSC-Regular.ttf",root?root:"/storage/apps/current");
+  if(typeface_open(font_path)){const char *lines[]={"长按五秒","电源键退出"};for(int n=0;n<2;n++){int w=typeface_width(lines[n],15);typeface_draw(power_notice.data(),200,52,(200-w)/2,5+n*22,lines[n],0xffd8eceb,15);}typeface_close();}
   draw_controls();       // 画可见手柄
   // 采样查表
   for(int i=0;i<VP_W;i++) lutx[i]=i*256/VP_W;      // 0..255
@@ -159,6 +187,14 @@ static void input_init(){
   ev_touch=open("/dev/input/event2",O_RDONLY|O_NONBLOCK);
   ev_key=open("/dev/input/event0",O_RDONLY|O_NONBLOCK);
   ev_return=open("/dev/input/event1",O_RDONLY|O_NONBLOCK);
+  bool monotonic=true;clockid_t wanted=CLOCK_MONOTONIC;
+#ifdef EVIOCSCLOCKID
+  for(int fd:{ev_key,ev_return})if(fd>=0&&ioctl(fd,EVIOCSCLOCKID,&wanted)<0)monotonic=false;
+  if(!monotonic){wanted=CLOCK_REALTIME;for(int fd:{ev_key,ev_return})if(fd>=0)ioctl(fd,EVIOCSCLOCKID,&wanted);}
+#else
+  monotonic=false;
+#endif
+  input_clock=monotonic?CLOCK_MONOTONIC:CLOCK_REALTIME;
   if(ev_touch>=0){
     struct input_absinfo ai;
     if(ioctl(ev_touch,EVIOCGABS(ABS_X),&ai)==0){tx_min=ai.minimum;tx_max=ai.maximum;}
@@ -213,14 +249,20 @@ void InfoNES_PadState(DWORD*p1,DWORD*p2,DWORD*sys){
   poll_touch();
   struct input_event e;
   while(ev_key>=0&&read(ev_key,&e,sizeof e)==sizeof e){
+    if(e.type==EV_SYN&&e.code==SYN_DROPPED){power_key.reset();padKeys=0;continue;}
     if(e.type!=EV_KEY)continue;DWORD bit=0;
-    switch(e.code){case KEY_W:bit=NUP;break;case KEY_S:bit=NDOWN;break;case KEY_A:bit=NLEFT;break;case KEY_D:bit=NRIGHT;break;case KEY_J:bit=NA;break;case KEY_K:bit=NB;break;case KEY_Q:bit=NSEL;break;case KEY_E:bit=NSTART;break;case KEY_POWER:if(e.value)g_quit=1;break;default:break;}
+    if(e.code==KEY_POWER){power_action(power_key.event(e.value,uint64_t(e.time.tv_sec)*1000+e.time.tv_usec/1000));continue;}
+    switch(e.code){case KEY_W:bit=NUP;break;case KEY_S:bit=NDOWN;break;case KEY_A:bit=NLEFT;break;case KEY_D:bit=NRIGHT;break;case KEY_J:bit=NA;break;case KEY_K:bit=NB;break;case KEY_Q:bit=NSEL;break;case KEY_E:bit=NSTART;break;default:break;}
     if(e.value)padKeys|=bit;else padKeys&=~bit;
   }
-  while(ev_return>=0&&read(ev_return,&e,sizeof e)==sizeof e)if(e.type==EV_KEY){
+  while(ev_return>=0&&read(ev_return,&e,sizeof e)==sizeof e){
+    if(e.type==EV_SYN&&e.code==SYN_DROPPED){power_key.reset();padKeys=0;continue;}
+    if(e.type!=EV_KEY)continue;
     if(e.code==KEY_ENTER){if(e.value)padKeys|=NSTART;else padKeys&=~NSTART;}
-    else if(e.value&&e.code==KEY_POWER)g_quit=1;
+    else if(e.code==KEY_POWER)power_action(power_key.event(e.value,uint64_t(e.time.tv_sec)*1000+e.time.tv_usec/1000));
   }
+  power_action(power_key.tick(input_clock_ms()));
+  update_power_notice();
   *p1=padTouch|padKeys; *p2=0;
   *sys = g_quit ? PAD_SYS_QUIT : 0;
 }

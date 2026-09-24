@@ -21,6 +21,18 @@
 
 static volatile sig_atomic_t quitting;
 static void stop(int signal_number) { (void)signal_number; quitting = 1; }
+static int app_font_shortcuts(const char *marker,const char *expected) {
+    FILE *f=fopen(marker,"r");long pid=0;
+    if(!f)return 0;int valid=fscanf(f,"%ld",&pid)==1;fclose(f);
+    if(!valid||pid<=1)return 0;
+    char path[80],name[32]={0};snprintf(path,sizeof(path),"/proc/%ld/comm",pid);
+    f=fopen(path,"r");if(!f)return 0;valid=fgets(name,sizeof(name),f)!=NULL;fclose(f);
+    return valid&&!strcmp(name,expected);
+}
+static int font_shortcuts(void) {
+    return app_font_shortcuts("/tmp/c1max-terminal-font.pid","c1max-terminal\n") ||
+           app_font_shortcuts("/tmp/c1max-crosspoint-font.pid","c1max-crosspoin\n");
+}
 
 static uint64_t milliseconds(void) {
     struct timespec now;
@@ -62,6 +74,7 @@ int main(void) {
     struct mixer_ctl *control;
     uint64_t last_action[2] = {0, 0};
     int discarded[2] = {0, 0};
+    int shift[2] = {0,0};
     int active = 0, result = 1;
     pid_t parent = getppid();
     struct sigaction action;
@@ -128,17 +141,22 @@ int main(void) {
             while (!quitting && (count = read(inputs[i].fd, &event, sizeof(event))) == sizeof(event)) {
                 if (event.type == EV_SYN && event.code == SYN_DROPPED) {
                     discarded[i] = 1;
+                    shift[0]=shift[1]=0;
                     continue;
                 }
                 if (discarded[i]) {
                     if (event.type == EV_SYN && event.code == SYN_REPORT) discarded[i] = 0;
                     continue;
                 }
+                if(event.type==EV_KEY&&(event.code==KEY_LEFTSHIFT||event.code==KEY_RIGHTSHIFT)){
+                    shift[event.code==KEY_RIGHTSHIFT]=event.value!=0;continue;
+                }
                 if (event.type != EV_KEY || (event.value != 1 && event.value != 2)) continue;
                 int direction;
                 if (event.code == KEY_VOLUMEUP) direction = 1;
                 else if (event.code == KEY_VOLUMEDOWN) direction = 0;
                 else continue;
+                if((shift[0]||shift[1])&&font_shortcuts())continue;
                 uint64_t now = milliseconds();
                 if (last_action[direction] && now - last_action[direction] < REPEAT_MS) continue;
                 last_action[direction] = now;

@@ -59,9 +59,20 @@ static int send_packet(const unsigned char *bytes, size_t size)
     return result;
 }
 
+static int send_header(const AVFrame *frame)
+{
+    int length;
+    width=frame->width;height=frame->height;aspect_n=aspect_d=1;
+    if(frame->sample_aspect_ratio.num>0&&frame->sample_aspect_ratio.num<=1000000&&
+       frame->sample_aspect_ratio.den>0&&frame->sample_aspect_ratio.den<=1000000){
+        aspect_n=frame->sample_aspect_ratio.num;aspect_d=frame->sample_aspect_ratio.den;
+    }
+    length=snprintf((char*)packet,sizeof(packet),"YUV4MPEG2 W%d H%d F20:1 Ip A%d:%d C420jpeg\n",width,height,aspect_n,aspect_d);
+    return length>0&&length<160&&send_packet(packet,(size_t)length);
+}
 static int start_output(const AVFrame *frame, const char *fifo)
 {
-    int flags, length;
+    int flags;
     version_function version = (version_function)dlsym(RTLD_NEXT, "avutil_version");
     checked = 1;
     if (!version || version() != AV_VERSION_INT(56, 31, 100)) { fail("abi_mismatch"); return 0; }
@@ -81,15 +92,13 @@ static int start_output(const AVFrame *frame, const char *fifo)
      * presentation and can expose a frame early. Audio/video synchronization
      * requires separate authorized on-device audio testing; it is not proven
      * by the silent FIFO or decode tests. No extra frame delay is added here. */
-    length = snprintf((char *)packet, sizeof(packet), "YUV4MPEG2 W%d H%d F20:1 Ip A%d:%d C420jpeg\n",
-                      width, height, aspect_n, aspect_d);
-    return length > 0 && length < 160 && send_packet(packet, (size_t)length);
+    return send_header(frame);
 }
 
 static void emit_frame(const AVFrame *frame)
 {
     const char *fifo = getenv("C1_YUV_FIFO");
-    size_t used = 6;
+    size_t used;
     int plane, row;
     if (failed || !fifo || !*fifo) return;
     /* Check the library version BEFORE accessing any AVFrame member. */
@@ -108,8 +117,16 @@ static void emit_frame(const AVFrame *frame)
             (stride >= 0 ? stride : -stride) < w) { fail("invalid_stride"); return; }
     }
     if (!checked && !start_output(frame, fifo)) return;
-    if (frame->width != width || frame->height != height) { fail("geometry_changed"); return; }
-    memcpy(packet, "FRAME\n", 6);
+    if (frame->width != width || frame->height != height ||
+        (frame->sample_aspect_ratio.num>0&&frame->sample_aspect_ratio.den>0&&
+         (frame->sample_aspect_ratio.num!=aspect_n||frame->sample_aspect_ratio.den!=aspect_d))) {
+        if(!send_header(frame))return;
+    }
+    /* The segment feeder uses MPEG-TS throughout, whose video time base is
+     * 90 kHz. Carry the decoded PTS across FIFO fragmentation so the compositor
+     * can apply a rendition's layout on its first complete frame. */
+    used=(size_t)snprintf((char*)packet,sizeof(packet),"FRAME Xpts=%lld\n",(long long)frame->best_effort_timestamp);
+    if(used>=160){fail("frame_header");return;}
     for (plane = 0; plane < 3; ++plane) {
         int w = plane ? width / 2 : width;
         int h = plane ? height / 2 : height;

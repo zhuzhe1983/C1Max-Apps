@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "streamplayer": {
+    "type": "Emby",
+    "base": "",
+    "username": "",
+    "password": ""
+  },
+  "crosspoint": {
+    "name": "在线书库",
+    "url": "",
+    "user": "",
+    "password": ""
+  }
+}

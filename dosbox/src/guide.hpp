@@ -33,7 +33,7 @@ inline void panel(std::vector<uint32_t>&out,bool font,int mode){
         line(161,"触摸 左键","Touch: LMB",14);
         line(200,"短按拍照","Tap Camera",14,0xffa7dcd8);line(224,"切换前缀","Key prefix");
         line(260,"长按拍照","Hold Camera",14,0xffd6e3eb);line(284,"键盘/画幅菜单","Keys / view",12);
-        line(315,"电源 回应用","Power: home",12);
+        line(315,"电源长按5秒退出","Hold Power 5s",12);
     }else{
         line(20,"一次性前缀","NEXT KEY",16,0xffd6e3eb);
         if(mode==3){line(65,"方向 / 导航","NAV",16,0xffa7dcd8);line(110,"WASD 方向","WASD move");line(145,"Q/E 首/尾","Q/E Home/End",12);line(180,"Z/X 翻页","Z/X PgUp/Dn",12);line(215,"B  Delete","B Delete");line(250,"空格 Tab","Space Tab");}

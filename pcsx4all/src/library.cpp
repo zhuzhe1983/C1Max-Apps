@@ -81,7 +81,8 @@ int main(){
     try{auto s=Json::parse(c1::read_file(c1::data()+"/pcsx4all/settings.json",4096));muted=s.value("muted",true);interpreter=s.value("interpreter",false);}catch(...){}
     if(!screen::open())return 1;font=lv_tiny_ttf_create_file(("A:"+c1::root()+"/shared/NotoSansSC-Regular.ttf").c_str(),20);chinese=font;if(getenv("C1_PSX_ERROR")){message=tr("载入失败，请检查镜像 / BIOS","Load failed; check image / BIOS");unsetenv("C1_PSX_ERROR");}scan();
     while(!stop&&!screen::quit){lv_timer_handler();for(uint32_t k;(k=screen::take_key());){
-        if(k==screen::KEY_HOME){screen::quit=true;break;}if(k>='A'&&k<='Z')k+='a'-'A';
+        if(k==screen::KEY_HOME){message=tr("长按五秒电源键退出游戏","Hold Power for 5 seconds to exit");render();continue;}
+        if(k==screen::KEY_HOME_LONG){screen::quit=true;break;}if(k>='A'&&k<='Z')k+='a'-'A';
         if(k==LV_KEY_ENTER){start();continue;}if(k=='w'&&selected)selected--;if(k=='s'&&selected+1<games.size())selected++;
         if(k=='r'){scan();continue;}if(k=='v'){muted=!muted;settings();}if(k=='c'){interpreter=!interpreter;settings();}render();
     }usleep(12000);}

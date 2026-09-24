@@ -17,7 +17,7 @@ int main(int argc,char**argv){
   auto app=Json{{"id","piano"},{"version","0.1.0"},{"revision",std::string(64,'a')}};
   auto local=Json{{"schema",1},{"platform","c1max-mipsel-linux"},{"apps",Json::array({app})}};
   assert(c1::check_updates(local,local)[0]["state"]=="current");auto remote=local;remote["apps"][0]["version"]="0.2.0";assert(c1::check_updates(local,remote)[0]["state"]=="update");
-  remote=local;remote["apps"][0]["revision"]=std::string(64,'b');assert(c1::check_updates(local,remote)[0]["state"]=="changed");
+  remote=local;remote["apps"][0]["revision"]=std::string(64,'b');assert(c1::check_updates(local,remote)[0]["state"]=="source differs");
   remote=local;remote["apps"][0]["version"]="0.0.9";assert(c1::check_updates(local,remote)[0]["state"]=="local newer");
   remote=local;remote["apps"][0]["id"]="nes";assert(c1::check_updates(local,remote)[0]["state"]=="new");
   for(auto bad:{"../bad","BAD",""}){remote=local;remote["apps"][0]["id"]=bad;bool threw=false;try{c1::check_updates(local,remote);}catch(...){threw=true;}assert(threw);}

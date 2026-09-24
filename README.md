@@ -14,6 +14,10 @@ apps/
 ├── pcsx4all/       PS1 模拟器、游戏库、即时存档（自备游戏）
 ├── dosbox/         DOS 游戏库、命令行与实体键盘（解释器）
 ├── processing/     QuickJS 绘图、四个官方示例改编与物理键盘编辑
+├── airtune/        Radio-Browser 网络电台目录、复古收音机界面
+├── crosspoint/     本地电子书与 OPDS/Calibre 书目浏览
+├── camera/         OV5648 拍立得：四种画幅、实时滤镜、相纸边框与相册
+├── mail/           POP3 收件、SMTP 发件与本地账号配置
 ├── piano/          触屏钢琴
 ├── nes/            InfoNES 平台适配与实验记录
 ├── shared/         LVGL 显示/触摸、网络、tinyalsa、中文字体
@@ -85,6 +89,10 @@ python3 ./tools/deploy.py --serial MagicPen-931f06 --start
 │   ├── pcsx4all/{c1max-pcsx4all,c1max-psx-core,licenses/}
 │   ├── dosbox/{c1max-dosbox,c1max-dos-core,C1LAB.COM,licenses/}
 │   ├── processing/{c1max-processing,api.js,examples/,licenses/}
+│   ├── airtune/c1max-airtune
+│   ├── crosspoint/c1max-crosspoint
+│   ├── camera/c1max-camera
+│   ├── mail/c1max-mail
 │   ├── piano/c1max-piano
 │   ├── nes/c1max-nes
 │   ├── shared/{字体,CA证书,c1max-activate,c1max-volume,c1max-capture}
@@ -98,6 +106,10 @@ python3 ./tools/deploy.py --serial MagicPen-931f06 --start
     ├── pcsx4all/      自备游戏、BIOS、记忆卡和即时存档
     ├── dosbox/        DOS 游戏完整目录、设置与游戏存档
     ├── processing/    my-sketch.js 用户程序
+    ├── airtune/      电台收藏与最近收听站点
+    ├── crosspoint/   books/ 本地书籍、OPDS 书目配置与阅读进度
+    ├── camera/       photos/ 拍摄照片
+    └── mail/         邮箱服务器及认证信息（0600）
     ├── calculator/
     └── nes/roms/      自备合法 .nes 文件
 ```
@@ -118,7 +130,7 @@ python3 ./tools/hotkey_service.py remove --serial MagicPen-931f06
 
 安装器为 `/etc/init.rc` 追加独立 `c1apps-hotkey` 服务及 smartUI 运行时触发器，先备份、校验并原子写入，随后把系统分区恢复只读；不修改永久 ADB 脚本。当前运行直接启动热键监听，开机服务定义在下次启动载入。设备备份在 `/storage/apps/backups/hotkey-*/init.rc.before`，主机备份在 `.runtime/backups/`。常驻监听不抢占键盘，退出 launcher 后继续可用。
 
-所有自定义应用短按电源键回 launcher；launcher 短按电源回原装桌面。进入自定义应用会真正停止 `smartUI` 和其中的原装界面，释放其内存；媒体、网络和 ADB 服务保留。监督器负责正常退出、launcher 崩溃后的原状态恢复。不要直接停掉监督器，也不要直接运行多个 framebuffer 应用。详见 [前台恢复边界](launcher/foreground-notes.md)。原装桌面增加图标需要另外接入厂商菜单；本次没有修改原装桌面二进制，也没有开机替换原桌面。
+普通自定义应用短按电源键回 launcher；游戏模拟器短按显示长按提示，按住五秒退出；launcher 短按电源回原装桌面。进入自定义应用会真正停止 `smartUI` 和其中的原装界面，释放其内存；媒体、网络和 ADB 服务保留。监督器负责正常退出、launcher 崩溃后的原状态恢复。不要直接停掉监督器，也不要直接运行多个 framebuffer 应用。详见 [前台恢复边界](launcher/foreground-notes.md)。原装桌面增加图标需要另外接入厂商菜单；本次没有修改原装桌面二进制，也没有开机替换原桌面。
 
 ## GitHub 更新检查
 
@@ -126,7 +138,7 @@ launcher 的 **App Updates** 打开检查页，访问：
 
 `https://api.github.com/repos/zhuzhe1983/C1Max-Apps/contents/catalog.json?ref=main`
 
-使用 GitHub raw 内容类型读取 JSON，要求 `schema: 1`、`platform: c1max-mipsel-linux`。每项包含 `id`、三段数字 `version`、64 位 SHA-256 `revision`。检查新增应用、版本升级、同版本源码变化；远程旧版本不会报成升级。HTTPS 验证证书，限制大小、超时及格式，不执行远端命令。
+使用 GitHub raw 内容类型读取 JSON，要求 `schema: 1`、`platform: c1max-mipsel-linux`。每项包含 `id`、三段数字 `version`、64 位 SHA-256 `revision`。检查新增应用和更高版本；同版本但源码哈希不同只标为“源码不同”，因为哈希本身不能判断本地还是远端更新。远程旧版本不会报成升级。HTTPS 验证证书，限制大小、超时及格式，不执行远端命令。
 
 按照当前选择，暂时只做公开更新接口，不存 GitHub Token、不自动下载安装。私有仓库/尚未发布清单的 404 明确提示更新源未公开或未发布；断网不显示“已是最新版”。更新源为公开仓库 C1Max-Apps，推送清单后即可检查，发布新应用前运行打包更新 `catalog.json`。源码 revision 用于变更检测，不能替代未来安装包签名。
 
@@ -151,3 +163,7 @@ DOS 的导入与键盘说明见 [DOSBox](dosbox/README.md)。PS1 的镜像路径
 全局物理键盘、Shift 与音量键说明：[键盘映射](docs-keyboard.md)。
 
 新增应用规划及开源 B 站方案：[ROADMAP.md](ROADMAP.md)。图标由 imagegen 生成，原始 PNG 与完整提示词保存在 [launcher/assets](launcher/assets/)。当前待验收项见 [VALIDATION.md](VALIDATION.md)。
+
+### 私有默认服务器
+
+StreamPlayer 与 CrossPoint 的默认地址、账号配置放在 Git 忽略的 `config/default-servers.local.json`。仓库仅包含空白示例；部署时单独同步到设备 data 目录，不进入公开应用包，也不覆盖应用已有设置。详见 [配置说明](config/README.md)。

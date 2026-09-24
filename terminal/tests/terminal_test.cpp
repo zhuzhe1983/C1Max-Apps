@@ -97,5 +97,13 @@ int main() {
         for (int i = 0; i < 20000; ++i) t.feed("\x1b[6n");
         assert(t.output_overflow() && t.take_output().size() <= 65536);
     }
-    std::cout << "terminal parser/input: ANSI, UTF-8, colors, alternate screen, history, replies and keyboard passed\n";
+    {
+        Terminal t(4,12);t.feed("one\r\ntwo\r\nthree\r\nfour\r\nfive\r\n");
+        t.resize(6,20);assert(t.rows()==6&&t.cols()==20);t.scroll_history(100);
+        for(int r=0;r<6;++r)for(int c=0;c<20;++c)(void)t.cell(r,c);
+        t.live();t.feed("\x1b[?1049h");t.resize(3,8);assert(t.alternate());
+        t.feed("\x1b[?1049l");t.resize(7,24);assert(!t.alternate());
+        auto cursor=t.cursor();assert(cursor.row>=0&&cursor.row<7&&cursor.col>=0&&cursor.col<24);
+    }
+    std::cout << "terminal parser/input: ANSI, UTF-8, colors, alternate screen, history, resize, replies and keyboard passed\n";
 }

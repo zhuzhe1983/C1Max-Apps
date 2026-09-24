@@ -24,7 +24,7 @@ inline void panel(std::vector<uint32_t>&out,bool font,bool right,bool interprete
         text(out,font,16,229,"回车  Start","Enter  Start",16,0xffd6e3eb);
         text(out,font,16,254,"空格  Select","Space  Select",16,0xff9caeba);
         text(out,font,16,284,"返回  暂停/存档","Back   Menu/save",16,0xffd6e3eb);
-        text(out,font,16,310,"电源  回菜单","Power  Launcher",16,0xff9caeba);
+        text(out,font,16,310,"电源长按5秒退出","Hold Power 5s",16,0xff9caeba);
     }
 }
 }

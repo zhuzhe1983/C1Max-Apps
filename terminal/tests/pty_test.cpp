@@ -43,6 +43,8 @@ int main() {
         Pty pty;
         assert(pty.start({"/bin/sh", "-i"}, 14, 80, "/", {"PS1=TEST> ", "TERM=vt100", "ENV=/dev/null"}));
         until(pty, "TEST> ");
+        assert(pty.resize(11,66));assert(pty.send("stty size\r"));
+        until(pty,"11 66");assert(pty.running());
         assert(pty.send("sleep 20\r")); usleep(120000);
         assert(pty.send(std::string(1, 3))); // Terminal VINTR must reach foreground process group.
         until(pty, "TEST> ");

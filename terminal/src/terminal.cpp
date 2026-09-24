@@ -46,7 +46,7 @@ VTermScreenCell Terminal::cell(int row, int col) const {
     if (row < 0 || row >= rows_ || col < 0 || col >= cols_) return result;
     if (history_offset_) {
         const auto index = history_.size() - history_offset_ + size_t(row);
-        if (index < history_.size()) return history_[index][size_t(col)];
+        if (index < history_.size()) return size_t(col)<history_[index].size()?history_[index][size_t(col)]:result;
         row = int(index - history_.size());
     }
     vterm_screen_get_cell(screen_, {row, col}, &result);
@@ -81,6 +81,12 @@ void Terminal::scroll_history(int lines) {
     if (history_offset_ != size_t(next)) { history_offset_ = size_t(next); dirty_ = true; }
 }
 void Terminal::live() { if (history_offset_) { history_offset_ = 0; dirty_ = true; } }
+void Terminal::resize(int rows,int cols) {
+    if(rows<1||cols<1||rows>200||cols>400)throw std::invalid_argument("terminal geometry is out of range");
+    // libvterm resizes/reflows its live and alternate screens. History lines
+    // retain their original width and are bounds-checked when displayed.
+    vterm_set_size(term_,rows,cols);rows_=rows;cols_=cols;live();vterm_screen_flush_damage(screen_);dirty_=true;
+}
 bool Terminal::take_dirty() { bool changed = dirty_; dirty_ = false; return changed; }
 int Terminal::damage(VTermRect, void *p) { static_cast<Terminal *>(p)->dirty_ = true; return 1; }
 int Terminal::moved(VTermRect, VTermRect, void *p) { static_cast<Terminal *>(p)->dirty_ = true; return 1; }

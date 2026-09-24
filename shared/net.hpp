@@ -2,6 +2,7 @@
 #include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
+#include <atomic>
 using Json = nlohmann::json;
 namespace c1 {
 std::string root();
@@ -13,7 +14,8 @@ std::string origin(const std::string &url);
 std::string resolve(const std::string &base, const std::string &path);
 struct Response { int status=0; std::string body; };
 Response http(const std::string &method, const std::string &url,
-              const std::vector<std::string> &headers={}, const std::string &body="");
+              const std::vector<std::string> &headers={}, const std::string &body="",
+              const std::atomic<bool> *cancel=nullptr);
 Json request(const std::string &method, const std::string &url,
              const std::vector<std::string> &headers={}, const Json &body=nullptr);
 Json check_updates(const Json &local, const Json &remote);

@@ -11,6 +11,7 @@ class Input {
     std::array<Chord,512> active_{};
     std::array<unsigned,RETROK_LAST> held_{};
     keyboard::Keymap mapper_;
+    keyboard::PowerHold power_;
     uint64_t camera_at_=0;
     bool camera_down_=false,game_=false;
     int prefix_=0;
@@ -40,10 +41,11 @@ public:
         default:return game_?"GAME: WASD arrows, J Ctrl, K Alt, U Space, I Enter, Shift":(mapper_.caps_lock()?"TEXT [CAPS ON]: Shift symbols; double Shift for lowercase; Back = Esc":"TEXT [abc]: Shift symbols; double Shift CAPS; Back = Esc");
         }
     }
-    void clear(){for(unsigned c=0;c<active_.size();c++)release(c);mapper_.lost_events();prefix_=0;camera_down_=false;}
+    void clear(){for(unsigned c=0;c<active_.size();c++)release(c);mapper_.lost_events();power_.reset();prefix_=0;camera_down_=false;}
+    Action tick(uint64_t ms){return power_.tick(ms)==keyboard::PowerHold::Exit?Home:None;}
     Action event(unsigned code,int value,uint64_t ms){
         if(code>=active_.size())return None;
-        if(code==116)return value==1?Home:None;
+        if(code==116){auto action=power_.event(value,ms);return action==keyboard::PowerHold::Hint?Hint:action==keyboard::PowerHold::Exit?Home:None;}
         if(code==410){if(value==1){camera_at_=ms;camera_down_=true;}else if(value==0&&camera_down_){camera_down_=false;if(ms>=camera_at_&&ms-camera_at_>=650){clear();return Menu;}prefix_=(prefix_+1)%6;return Hint;}return None;}
         auto mapped=mapper_.event(code,value,ms);
         if(!value){release(code);return mapped==keyboard::Mode?Hint:None;}

@@ -1,18 +1,23 @@
 #pragma once
 #include <cstdint>
+#include "power_hold.hpp"
 
 // Kernel codes are kept here so the state machine can be tested without Linux
 // headers, a framebuffer or LVGL. This is the C1 Max keycap layout, not a PC.
 namespace keyboard {
-constexpr uint32_t Back=0x10000, Symbol=0x10001, Home=0x10002, Mode=0x10003;
+constexpr uint32_t Back=0x10000, Symbol=0x10001, Home=0x10002, Mode=0x10003, HomeLong=0x10004;
+constexpr uint32_t FontDown=0x10005,FontUp=0x10006;
 class Keymap {
     bool held_[2]={false,false}, used_=false, caps_=false, tap_=false;
     uint64_t down_=0, released_=0;
+    PowerHold power_;
 public:
     bool caps_lock() const { return caps_; }
     void reset() { *this=Keymap{}; }
-    void lost_events() { held_[0]=held_[1]=false; used_=true; tap_=false; }
+    void lost_events() { held_[0]=held_[1]=false; used_=true; tap_=false; power_.reset(); }
+    uint32_t tick(uint64_t ms) { return power_.tick(ms)==PowerHold::Exit?HomeLong:0; }
     uint32_t event(unsigned code,int value,uint64_t ms) {
+        if(code==116){auto action=power_.event(value,ms);return action==PowerHold::Hint?Home:action==PowerHold::Exit?HomeLong:0;}
         if(code==42||code==54) {
             unsigned i=code==54;
             if(value==1) { if(!held_[0]&&!held_[1]) { used_=false; down_=ms; } held_[i]=true; }
@@ -30,6 +35,7 @@ public:
         }
         if(value!=1&&value!=2)return 0;
         used_=true; tap_=false;
+        if((held_[0]||held_[1])&&(code==114||code==115))return code==115?FontUp:FontDown;
         uint32_t key=0;
         if(code>=16&&code<=25) key="qwertyuiop"[code-16];
         else if(code>=30&&code<=38) key="asdfghjkl"[code-30];

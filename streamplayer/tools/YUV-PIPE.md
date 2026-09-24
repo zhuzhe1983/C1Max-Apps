@@ -39,17 +39,17 @@ LD_PRELOAD=/storage/apps/current/streamplayer/c1max-yuv-pipe.so
 C1_YUV_FIFO=/storage/apps/data/streamplayer/frames-PID.y4m
 ```
 
-All currently authorized tests must use **`-ao null`**. Normal audio output must
-remain disabled until the user authorizes an audio test. The hook does not change
-the existing audio implementation, but retaining code paths does not demonstrate
-audio/video synchronization.
+Set `C1_STREAMPLAYER_SILENT=1` for silent QA (`-ao null`). Normal playback uses
+the existing audio implementation; retaining that code path does not demonstrate
+audio/video synchronization. The September 23 segment-switch tests were silent.
 
 The hook writes Y/U/V planes tightly packed, strips line padding, accepts negative
 stride, and preserves sample aspect ratio. Limit: even dimensions up to 512×288,
-8-bit planar YUV420P, progressive frames, fixed geometry per player process.
-Frame-size changes, other formats, and interlaced video fail explicitly. Header
-FPS is the application's server-transcode contract of 20 fps, not a guessed
-device clock. Filters such as scaling/cropping in MPlayer run **after** this tap;
+8-bit planar YUV420P and progressive frames. A dimension or sample-aspect-ratio
+change emits a fresh YUV4MPEG2 header before the next complete frame; the reader
+accepts it at frame boundaries. Other formats and interlaced video fail explicitly.
+Header FPS records the application's requested 20 fps, not the actual server
+output rate or a presentation clock. Filters such as scaling/cropping in MPlayer run **after** this tap;
 request the required size from the server and do display scaling in the app.
 
 FIFO open is nonblocking, symlink substitution is rejected, and `F_GETPIPE_SZ`
@@ -62,7 +62,7 @@ a newly generated SIGPIPE is consumed. The writer buffer is bounded at about
 
 Errors are emitted once to stderr as `C1_YUV_ERROR=<reason>`, where reason is:
 `missing_decoder`, `abi_mismatch`, `unsupported_format`, `invalid_geometry`,
-`interlaced`, `invalid_stride`, `geometry_changed`, `open_fifo`, `not_fifo`,
+`interlaced`, `invalid_stride`, `open_fifo`, `not_fifo`,
 `write_fifo`, or `signal_mask`. Decoder behavior continues unchanged after output
 failure so the parent can perform its existing orderly playback cleanup.
 
@@ -71,6 +71,15 @@ original VO presentation/sleep path. Original loop pacing remains in place, but
 a displayed frame may be early. A buffered FIFO can accumulate additional delay.
 No extra delay is applied in this implementation. Silent frame-rate/pause tests
 do not prove sound-picture alignment; an authorized audio comparison is required.
+
+For HLS rendition changes, the app feeds complete aligned MPEG-TS segments to
+one MPlayer process. The hook optionally includes `FRAME Xpts=...` when a decoded
+frame has a timestamp. Stock MPlayer 1.4's `libmpcodecs/vd_ffmpeg.c` does not copy
+packet PTS into the `AVPacket` passed to `avcodec_decode_video2`, so the device's
+frames have no usable timestamp. The app therefore uses the slave playback clock
+and gates Width/Fit changes on the decoded frame dimensions. It never resizes an
+old frame using the next rendition's layout. The optional timestamp path assumes
+the MPEG-TS clock of 90 kHz and is not used for unrelated container formats.
 
 ## Host verification
 

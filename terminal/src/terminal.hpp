@@ -27,6 +27,7 @@ public:
     static std::string utf8(const VTermScreenCell &cell);
     void scroll_history(int lines);
     void live();
+    void resize(int rows,int cols);
     size_t history_size() const { return history_.size(); }
     size_t history_offset() const { return history_offset_; }
     bool take_dirty();

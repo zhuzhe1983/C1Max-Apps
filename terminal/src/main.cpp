@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
+#include <fcntl.h>
 #include <stdexcept>
 #include <string>
 #include <sys/stat.h>
@@ -15,8 +16,16 @@
 #include <unistd.h>
 
 namespace {
-constexpr int rows = 14, cols = 80, cell_width = 10, cell_height = 22;
-constexpr int body_height = rows * cell_height;
+int rows = 14, cols = 80, cell_width = 10, cell_height = 22,font_size=16;
+constexpr int body_height = 308;
+terminal::Pty *shell_pty=nullptr;
+std::string font_root;
+uint32_t last_resize=0;
+void resize_font(int delta);
+struct FontShortcuts {
+    FontShortcuts(){int fd=open("/tmp/c1max-terminal-font.pid",O_WRONLY|O_CREAT|O_TRUNC|O_CLOEXEC|O_NOFOLLOW,0600);if(fd>=0){dprintf(fd,"%ld\n",(long)getpid());close(fd);}}
+    ~FontShortcuts(){unlink("/tmp/c1max-terminal-font.pid");}
+};
 volatile sig_atomic_t interrupted = 0;
 void signal_handler(int) { interrupted = 1; }
 lv_font_t *regular = nullptr, *bold = nullptr, *cjk = nullptr, *small = nullptr;
@@ -93,6 +102,7 @@ void set_status(const std::string &shell_state = {}) {
     if (text != last_status) { lv_label_set_text(status, text.c_str()); last_status = std::move(text); }
 }
 void key(uint32_t code) {
+    if(code==screen::KEY_FONT_UP||code==screen::KEY_FONT_DOWN){resize_font(code==screen::KEY_FONT_UP?2:-2);return;}
     if (code == screen::KEY_HOME) { screen::quit = true; return; }
     if (code == screen::KEY_MODE) { caps = screen::caps_lock(); return; }
     if (code == screen::KEY_SYMBOL) { input.symbol(); return; }
@@ -114,6 +124,22 @@ void key(uint32_t code) {
 lv_font_t *font_file(const std::string &path, int size, size_t cache) {
     return lv_tiny_ttf_create_file_ex(("A:" + path).c_str(), size, LV_FONT_KERNING_NONE, cache);
 }
+void resize_font(int delta){
+    auto now=screen::tick();if(last_resize&&uint32_t(now-last_resize)<180)return;
+    int size=std::clamp(font_size+delta,12,28);if(size==font_size||!model||!shell_pty)return;
+    auto *next=font_file(font_root+"/terminal/assets/JetBrainsMono-Regular.ttf",size,160);
+    auto *next_bold=font_file(font_root+"/terminal/assets/JetBrainsMono-Bold.ttf",size,96);
+    auto *next_cjk=font_file(font_root+"/shared/NotoSansSC-Regular.ttf",size,96);
+    if(!next){if(next_bold)lv_tiny_ttf_destroy(next_bold);if(next_cjk)lv_tiny_ttf_destroy(next_cjk);return;}
+    int cw=(size*3+4)/5,ch=size+6,new_rows=body_height/ch,new_cols=800/cw;
+    if(!shell_pty->resize(new_rows,new_cols)){for(auto*f:{next,next_bold,next_cjk})if(f)lv_tiny_ttf_destroy(f);return;}
+    if(regular)regular->fallback=nullptr;if(bold)bold->fallback=nullptr;
+    for(auto*f:{regular,bold,cjk})if(f)lv_tiny_ttf_destroy(f);
+    regular=next;bold=next_bold;cjk=next_cjk;regular->fallback=cjk;if(bold)bold->fallback=cjk;
+    font_size=size;cell_width=cw;cell_height=ch;rows=new_rows;cols=new_cols;
+    model->resize(rows,cols);last_resize=now;lv_obj_invalidate(canvas);
+    std::fprintf(stderr,"[terminal] font=%d grid=%dx%d\n",font_size,cols,rows);
+}
 void release_fonts() {
     if (regular) regular->fallback = nullptr;
     if (bold) bold->fallback = nullptr;
@@ -130,7 +156,7 @@ int main() {
     try {
         const auto root = environment("C1_APPS_ROOT", "/storage/apps/current");
         const auto data = environment("C1_APPS_DATA", "/storage/apps/data");
-        const auto assets = root + "/terminal/assets/";
+        const auto assets = root + "/terminal/assets/";font_root=root;FontShortcuts font_shortcuts;
         regular = font_file(assets + "JetBrainsMono-Regular.ttf", 16, 160);
         bold = font_file(assets + "JetBrainsMono-Bold.ttf", 16, 96);
         small = font_file(assets + "JetBrainsMono-Regular.ttf", 13, 96);
@@ -139,7 +165,7 @@ int main() {
         if (cjk) { regular->fallback = cjk; if (bold) bold->fallback = cjk; }
         else persistent_error = "CJK font missing; Latin terminal still available";
         terminal::Terminal term(rows, cols); model = &term;
-        terminal::Pty pty;
+        terminal::Pty pty;shell_pty=&pty;
         auto *screen_root = lv_screen_active();
         lv_obj_remove_flag(screen_root, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_style_bg_color(screen_root, lv_color_hex(0x0c121c), 0);
@@ -183,7 +209,7 @@ int main() {
             argv.push_back("--noprofile"); argv.push_back("--rcfile"); argv.push_back(assets + "shellrc");
         }
         argv.push_back("-i");
-        term.feed("\x1b[36mC1Max Terminal\x1b[0m  80x14  |  Symbol + C: interrupt\r\n");
+        term.feed("\x1b[36mC1Max Terminal\x1b[0m  |  Symbol + C: interrupt\r\n");
         if (!pty.start(argv, rows, cols, home, env)) persistent_error = pty.error();
         std::string shell_state;
         bool finished = false;
@@ -211,7 +237,7 @@ int main() {
             lv_timer_handler();
             usleep(10000);
         }
-        pty.stop();
+        pty.stop();shell_pty=nullptr;
         lv_obj_clean(screen_root); model = nullptr;
     } catch (const std::exception &error) {
         std::fprintf(stderr, "terminal: %s\n", error.what()); result = 1;

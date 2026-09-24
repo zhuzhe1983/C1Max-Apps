@@ -14,5 +14,13 @@
   "dosbox-pure": {
     "url": "https://github.com/schellingb/dosbox-pure.git",
     "commit": "73e03aa145e0549ed4d5a20f8e65532714da33f5"
+  },
+  "libmobi-0.12": {
+    "url": "https://github.com/bfabiszewski/libmobi.git",
+    "commit": "85dcfe803fc2a21020ddcf15c3eb66b93d388add"
+  },
+  "mbedtls-2.28.10": {
+    "url": "https://github.com/Mbed-TLS/mbedtls.git",
+    "commit": "2fc8413bfcb51354c8e679141b17b3f1a5942561"
   }
 }

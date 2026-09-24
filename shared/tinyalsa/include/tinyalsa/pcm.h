@@ -324,6 +324,7 @@ int pcm_set_sw_config(struct pcm *pcm, const struct pcm_config *config);
 unsigned int pcm_format_to_bits(enum pcm_format format);
 
 unsigned int pcm_get_buffer_size(const struct pcm *pcm);
+int pcm_avail_update(struct pcm *pcm);
 
 unsigned int pcm_frames_to_bytes(const struct pcm *pcm, unsigned int frames);
 
@@ -378,4 +379,3 @@ int pcm_ioctl(struct pcm *pcm, int code, ...) TINYALSA_DEPRECATED;
 #endif
 
 #endif
-

@@ -5,6 +5,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <limits>
 
 // Bounded streaming decoder for MPlayer's progressive, planar YUV420 output.
 // A callback sees only a complete frame, regardless of FIFO read boundaries.
@@ -16,8 +17,10 @@ class Y4mReader {
     size_t received_=0;
     int width_=0,height_=0,aspect_n_=1,aspect_d_=1;
     uint64_t count_=0;
+    int64_t pts_=std::numeric_limits<int64_t>::min();
     bool fail(const char *why){state_=Failed;error_=why;return false;}
     bool header(){
+        width_=height_=0;aspect_n_=aspect_d_=1;
         std::istringstream in(line_);std::string word;in>>word;
         if(word!="YUV4MPEG2")return fail("Missing YUV4MPEG2 header");
         bool progressive=true,color=true;
@@ -58,8 +61,13 @@ public:
             }else{
                 char c=char(*data++);--size;
                 if(c=='\n'){
-                    if(state_==Header){if(!header())return false;}
-                    else if(line_=="FRAME"||line_.rfind("FRAME ",0)==0){received_=0;state_=Pixels;}
+                    if(state_==Header||line_.rfind("YUV4MPEG2 ",0)==0){if(!header())return false;}
+                    else if(line_=="FRAME"||line_.rfind("FRAME ",0)==0){
+                        pts_=std::numeric_limits<int64_t>::min();
+                        auto pos=line_.find(" Xpts=");
+                        if(pos!=std::string::npos){try{pts_=std::stoll(line_.substr(pos+6));}catch(...){return fail("Invalid frame timestamp");}}
+                        received_=0;state_=Pixels;
+                    }
                     else return fail("Invalid YUV frame boundary");
                     line_.clear();
                 }else{if(line_.size()>=1024)return fail("YUV header too long");line_+=c;}
@@ -69,4 +77,5 @@ public:
     }
     const std::string& error()const{return error_;}
     uint64_t frames()const{return count_;}
+    int64_t pts()const{return pts_;} // MPEG-TS 90 kHz clock, or INT64_MIN.
 };

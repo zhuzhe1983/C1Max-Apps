@@ -13,6 +13,7 @@
 #define LV_FONT_MONTSERRAT_18 1
 #define LV_FONT_DEFAULT &lv_font_montserrat_18
 #define LV_USE_TINY_TTF 1
+#define LV_USE_LODEPNG 1
 #define LV_TINY_TTF_FILE_SUPPORT 1
 #define LV_USE_FS_STDIO 1
 #define LV_FS_STDIO_LETTER 'A'

@@ -45,7 +45,7 @@ std::string resolve(const std::string&base,const std::string&p){
     return (!p.empty()&&p[0]=='/')?o+p:base+"/"+p;
 }
 struct TempDir {std::string path; TempDir(){char t[]="/tmp/c1apps-http-XXXXXX";char*p=mkdtemp(t);if(!p)throw std::runtime_error("Cannot create request directory");path=p;}~TempDir(){for(auto s:{"/config","/body","/log"})unlink((path+s).c_str());rmdir(path.c_str());}};
-Response http(const std::string&method,const std::string&url,const std::vector<std::string>&headers,const std::string&body){
+Response http(const std::string&method,const std::string&url,const std::vector<std::string>&headers,const std::string&body,const std::atomic<bool>*cancel){
     origin(url);TempDir tmp;
     std::string cfg="check_certificate = on\nmax_redirect = 0\ntries = 1\ntimeout = 8\n";
     for(auto &h:headers){if(h.find_first_of("\r\n")!=std::string::npos)throw std::runtime_error("Invalid HTTP header");cfg+="header = "+h+"\n";}
@@ -62,7 +62,7 @@ Response http(const std::string&method,const std::string&url,const std::vector<s
         pollfd p{pipefd[0],POLLIN,0};poll(&p,1,100);char buf[8192];ssize_t n;
         while((n=read(pipefd[0],buf,sizeof(buf)))>0){r.body.append(buf,n);if(r.body.size()>1048576){failed=true;break;}}
         if(n==0)done=true;
-        if(failed||canceled.load()||std::chrono::steady_clock::now()-start>std::chrono::milliseconds(request_timeout.load())){failed=true;kill(pid,SIGKILL);break;}
+        if(failed||canceled.load()||(cancel&&cancel->load())||std::chrono::steady_clock::now()-start>std::chrono::milliseconds(request_timeout.load())){failed=true;kill(pid,SIGKILL);break;}
     }close(pipefd[0]);int status=0;while(waitpid(pid,&status,0)<0&&errno==EINTR){}
     std::string logtext=read_file(tmp.path+"/log",65536);std::smatch match;
     std::regex code("HTTP/[0-9.]+ ([0-9]{3})");
@@ -79,7 +79,7 @@ static void validate(const Json&j){
     for(auto&a:j["apps"]){auto id=a.at("id").get<std::string>();auto v=a.at("version").get<std::string>();auto rev=a.at("revision").get<std::string>();if(!std::regex_match(id,std::regex("[a-z][a-z0-9-]{0,31}"))||!std::regex_match(v,std::regex("[0-9]{1,5}\\.[0-9]{1,5}\\.[0-9]{1,5}"))||!std::regex_match(rev,std::regex("[0-9a-f]{64}"))||std::find(ids.begin(),ids.end(),id)!=ids.end())throw std::runtime_error("Invalid app catalog");ids.push_back(id);}
 }
 static std::vector<int> version(std::string s){std::vector<int> a;size_t n;do{n=s.find('.');a.push_back(std::stoi(s.substr(0,n)));if(n!=std::string::npos)s.erase(0,n+1);}while(n!=std::string::npos);return a;}
-Json check_updates(const Json&local,const Json&remote){validate(local);validate(remote);Json out=Json::array();for(auto&r:remote["apps"]){auto it=std::find_if(local["apps"].begin(),local["apps"].end(),[&](const Json&l){return l["id"]==r["id"];});std::string state="current";if(it==local["apps"].end())state="new";else if(version(r["version"])>version((*it)["version"]))state="update";else if(version(r["version"])==version((*it)["version"])&&r["revision"]!=(*it)["revision"])state="changed";else if(version(r["version"])<version((*it)["version"]))state="local newer";out.push_back({{"id",r["id"]},{"version",r["version"]},{"state",state}});}return out;}
+Json check_updates(const Json&local,const Json&remote){validate(local);validate(remote);Json out=Json::array();for(auto&r:remote["apps"]){auto it=std::find_if(local["apps"].begin(),local["apps"].end(),[&](const Json&l){return l["id"]==r["id"];});std::string state="current";if(it==local["apps"].end())state="new";else if(version(r["version"])>version((*it)["version"]))state="update";else if(version(r["version"])==version((*it)["version"])&&r["revision"]!=(*it)["revision"])state="source differs";else if(version(r["version"])<version((*it)["version"]))state="local newer";out.push_back({{"id",r["id"]},{"version",r["version"]},{"state",state}});}return out;}
 Json updates(){
     const std::string url="https://api.github.com/repos/zhuzhe1983/C1Max-Apps/contents/catalog.json?ref=main";
     auto r=http("GET",url,{"Accept: application/vnd.github.raw+json","User-Agent: C1Max-Apps/0.1.0"});

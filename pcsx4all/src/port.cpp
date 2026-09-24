@@ -9,6 +9,7 @@
 #include "guide.hpp"
 #include "video.hpp"
 #include "../../launcher/src/font8x8.h"
+#include "../../shared/power_hold.hpp"
 #include <algorithm>
 #include <csignal>
 #include <string>
@@ -20,6 +21,7 @@
 #include <linux/input.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <time.h>
 
 static unsigned short frame[320*240];
 unsigned short *SCREEN=frame;
@@ -30,12 +32,21 @@ static size_t map_size=0;
 static fb_var_screeninfo initial{};
 static unsigned short pad=0xffff;
 static volatile sig_atomic_t stop_requested=0;
+static keyboard::PowerHold power_key;
+static clockid_t input_clock=CLOCK_REALTIME;
+static uint64_t power_hint_until=0;
 static bool initialized=false,headless=false,library=false,interpreter_mode=false;
 static unsigned smoke_frames=0,vsyncs=0;
+static uint64_t perf_window_us=0,perf_window_cpu_us=0;
+static unsigned perf_window_frames=0;
+static bool display_blanked=false;
+static unsigned display_blank_vsync=0;
+static uint64_t display_blank_us=0;
 static std::string data_dir,state_path;
 static psxvideo::Source source;
 static psxvideo::Map mapping;
 static std::vector<uint32_t> guides[2];
+static std::vector<uint32_t> power_notice;
 static int page_width[3]={};
 static bool wide=false;
 static std::string display_path;
@@ -48,6 +59,28 @@ static void toggle_display(){wide=!wide;save_display();}
 
 static void stop(int){stop_requested=1;}
 unsigned get_ticks(){timespec t;clock_gettime(CLOCK_MONOTONIC,&t);return unsigned(t.tv_sec*1000000ULL+t.tv_nsec/1000);}
+static uint64_t monotonic_us(){timespec t{};clock_gettime(CLOCK_MONOTONIC,&t);return uint64_t(t.tv_sec)*1000000ULL+t.tv_nsec/1000;}
+static uint64_t process_cpu_us(){
+    rusage usage{};if(getrusage(RUSAGE_SELF,&usage))return 0;
+    return uint64_t(usage.ru_utime.tv_sec+usage.ru_stime.tv_sec)*1000000ULL+
+        uint64_t(usage.ru_utime.tv_usec+usage.ru_stime.tv_usec);
+}
+static void report_performance(){
+    uint64_t now=monotonic_us(),cpu=process_cpu_us();
+    if(!perf_window_us){perf_window_us=now;perf_window_cpu_us=cpu;return;}
+    ++perf_window_frames;
+    uint64_t elapsed=now-perf_window_us;if(elapsed<1000000)return;
+    double fps=double(perf_window_frames)*1000000.0/double(elapsed);
+    double cpu_percent=double(cpu-perf_window_cpu_us)*100.0/double(elapsed);
+    printf("C1MAX_PSX_PERF fps=%.1f cpu=%.1f%% frames=%u elapsed_ms=%llu\n",
+        fps,cpu_percent,perf_window_frames,(unsigned long long)(elapsed/1000));
+    fflush(stdout);perf_window_us=now;perf_window_cpu_us=cpu;perf_window_frames=0;
+}
+static uint64_t input_clock_ms(){timespec t{};clock_gettime(input_clock,&t);return uint64_t(t.tv_sec)*1000+t.tv_nsec/1000000;}
+static void power_action(keyboard::PowerHold::Action action){
+    if(action==keyboard::PowerHold::Hint)power_hint_until=monotonic_us()+2500000;
+    else if(action==keyboard::PowerHold::Exit)stop_requested=1;
+}
 void wait_ticks(unsigned us){usleep(us);}
 void video_clear(){memset(frame,0,sizeof frame);}
 void port_printf(int x,int y,const char *s){
@@ -77,6 +110,8 @@ void video_flip(){
         uint16_t p=frame[(y*240/340)*320+x*320/453];uint32_t r=(p>>11)&31,g=(p>>5)&63,b=p&31;
         *(uint32_t*)(dst+size_t(799-(173+x))*stride+y*4)=0xff000000|((r*255/31)<<16)|((g*255/63)<<8)|(b*255/31);
     }
+    if(monotonic_us()<power_hint_until&&!power_notice.empty())for(int x=0;x<psxguide::Width;x++)for(int y=0;y<52;y++)
+        *(uint32_t*)(dst+size_t(799-x)*stride+(8+y)*4)=power_notice[y*psxguide::Width+x];
     end_frame(v);
 }
 void video_frame(const uint16_t *vram,int x,int y,int width,int height,int active,bool rgb24){
@@ -84,15 +119,22 @@ void video_frame(const uint16_t *vram,int x,int y,int width,int height,int activ
         printf("C1MAX_PSX_VIDEO source=%dx%d active=%d rgb=%d\n",width,height,active,rgb24?24:15);fflush(stdout);
     }
     source={vram,x,y,width,height,active,rgb24};if(!source.valid())return;
+    if(display_blanked){uint64_t now=monotonic_us();printf("C1MAX_PSX_DISPLAY_RESTORED blank_vsyncs=%u blank_ms=%llu\n",vsyncs-display_blank_vsync,(unsigned long long)((now-display_blank_us)/1000));fflush(stdout);display_blanked=false;}
     if(headless)return;
     mapping.set(source,wide);fb_var_screeninfo v{};auto *dst=begin_frame(mapping.width,v);if(!dst)return;
     for(int i=0;i<mapping.width;i++){
         auto *col=(uint32_t*)(dst+size_t(799-mapping.left-i)*stride);
         for(int j=0;j<340;j++)col[j]=psxvideo::sample(source,mapping.row[j],mapping.x[i]);
     }
+    if(monotonic_us()<power_hint_until&&!power_notice.empty()){
+        int left=mapping.width==453?0:280;
+        for(int x=0;x<psxguide::Width;x++)for(int y=0;y<52;y++)
+            *(uint32_t*)(dst+size_t(799-left-x)*stride+(8+y)*4)=power_notice[y*psxguide::Width+x];
+    }
     end_frame(v);
 }
 void video_blank(){
+    if(!display_blanked){display_blanked=true;display_blank_vsync=vsyncs;display_blank_us=monotonic_us();printf("C1MAX_PSX_DISPLAY_BLANK vsync=%u\n",vsyncs);fflush(stdout);}
     fb_var_screeninfo v{};int width=wide?800:453,left=wide?0:173;auto *dst=begin_frame(width,v);if(!dst)return;
     for(int x=left;x<left+width;x++)memset(dst+size_t(799-x)*stride,0,340*4);
     end_frame(v);
@@ -106,8 +148,20 @@ static bool open_display(){
     const char *root=getenv("C1_APPS_ROOT");std::string font_path=std::string(root?root:"/storage/apps/current")+"/shared/NotoSansSC-Regular.ttf";
     bool font=typeface_open(font_path.c_str());
     for(int side=0;side<2;side++)psxguide::panel(guides[side],font,side,interpreter_mode);
+    power_notice.assign(psxguide::Width*52,0xff18252f);
+    for(int x=0;x<psxguide::Width;x++)for(int y=0;y<52;y++)if(x==0||y==0||x==psxguide::Width-1||y==51)power_notice[y*psxguide::Width+x]=0xff526a76;
+    if(font){const char *lines[]={"长按五秒","电源键退出"};for(int n=0;n<2;n++){int w=typeface_width(lines[n],14);typeface_draw(power_notice.data(),psxguide::Width,52,(psxguide::Width-w)/2,5+n*20,lines[n],0xffd8eceb,14);}}
     typeface_close();
-    for(int i=0;i<2;i++){std::string path="/dev/input/event"+std::to_string(i);keys[i]=open(path.c_str(),O_RDONLY|O_NONBLOCK|O_CLOEXEC);input_event e;while(read(keys[i],&e,sizeof e)==sizeof e){}}
+    for(int i=0;i<2;i++){std::string path="/dev/input/event"+std::to_string(i);keys[i]=open(path.c_str(),O_RDONLY|O_NONBLOCK|O_CLOEXEC);}
+    bool monotonic=true;clockid_t wanted=CLOCK_MONOTONIC;
+#ifdef EVIOCSCLOCKID
+    for(int fd:keys)if(fd>=0&&ioctl(fd,EVIOCSCLOCKID,&wanted)<0)monotonic=false;
+    if(!monotonic){wanted=CLOCK_REALTIME;for(int fd:keys)if(fd>=0)ioctl(fd,EVIOCSCLOCKID,&wanted);}
+#else
+    monotonic=false;
+#endif
+    input_clock=monotonic?CLOCK_MONOTONIC:CLOCK_REALTIME;
+    input_event e;for(int fd:keys)while(fd>=0&&read(fd,&e,sizeof e)==sizeof e){}
     return true;
 }
 static void cleanup(){
@@ -122,6 +176,7 @@ static int fail(const char *message,int code=1){
     return code;
 }
 static void finish(){
+    if(display_blanked){uint64_t now=monotonic_us();printf("C1MAX_PSX_DISPLAY_STILL_BLANK blank_vsyncs=%u blank_ms=%llu\n",vsyncs-display_blank_vsync,(unsigned long long)((now-display_blank_us)/1000));display_blanked=false;}
     struct rusage ru;getrusage(RUSAGE_SELF,&ru);printf("C1MAX_PCSX_DONE vsyncs=%u rss_peak_kb=%ld\n",vsyncs,ru.ru_maxrss);
     cleanup();
     fflush(stdout);
@@ -129,16 +184,18 @@ static void finish(){
     exit(0);
 }
 static void menu(){
-    pl_pause();sioSyncMcds();pad=0xffff;int selected=0;bool done=false,dirty=true;std::string message;
+    pl_pause();sioSyncMcds();pad=0xffff;int selected=0;bool done=false,dirty=true,notice_shown=false;std::string message;
     while(!done&&!stop_requested){
+        bool notice=monotonic_us()<power_hint_until;if(notice!=notice_shown)dirty=true;
         if(dirty){dirty=false;
         video_clear();port_printf(56,28,"PCSX4all / C1Max");
         const char *items[]={"Resume",wide?"Display: full width":"Display: 4:3 + key guide","Save state (slot 1)","Load state (slot 1)","Game library"};
         for(int i=0;i<5;i++){port_printf(12,56+i*25,i==selected?">":" ");port_printf(28,56+i*25,items[i]);}
         port_printf(24,196,"W/S move  Enter select");port_printf(24,210,"Camera: width / Back: resume");port_printf(24,228,message.c_str());video_flip();}
-        for(int fd:keys){input_event e;while(read(fd,&e,sizeof e)==sizeof e){if(e.type!=EV_KEY||e.value!=1)continue;
+        for(int fd:keys){input_event e;while(read(fd,&e,sizeof e)==sizeof e){if(e.type==EV_SYN&&e.code==SYN_DROPPED){power_key.reset();continue;}if(e.type!=EV_KEY)continue;
+            if(e.code==KEY_POWER){power_action(power_key.event(e.value,uint64_t(e.time.tv_sec)*1000+e.time.tv_usec/1000));dirty=true;continue;}
+            if(e.value!=1)continue;
             dirty=true;
-            if(e.code==KEY_POWER){stop_requested=1;break;}
             if(e.code==14){done=true;break;}
             if(e.code==410)toggle_display();
             if(e.code==KEY_W)selected=(selected+4)%5;if(e.code==KEY_S)selected=(selected+1)%5;
@@ -149,23 +206,24 @@ static void menu(){
                 if(selected==3){if(access(state_path.c_str(),R_OK)!=0)message="No saved state";else if(LoadState(state_path.c_str())==0){message="State loaded";done=true;}else message="Load failed";}
                 if(selected==4){library=true;stop_requested=1;}
             }
-        }}usleep(20000);
+        }}notice_shown=notice;power_action(power_key.tick(input_clock_ms()));usleep(20000);
     }
     video_clear();pad=0xffff;pl_resume();
 }
 void pad_update(){
-    ++vsyncs;if(stop_requested||(smoke_frames&&vsyncs>=smoke_frames))finish();
+    ++vsyncs;report_performance();if(stop_requested||(smoke_frames&&vsyncs>=smoke_frames))finish();
     for(int fd:keys){input_event e;while(read(fd,&e,sizeof e)==sizeof e){
-        if(e.type==EV_SYN&&e.code==SYN_DROPPED){pad=0xffff;continue;}
+        if(e.type==EV_SYN&&e.code==SYN_DROPPED){pad=0xffff;power_key.reset();continue;}
         if(e.type!=EV_KEY)continue;int bit=-1;
         switch(e.code){case KEY_W:bit=4;break;case KEY_D:bit=5;break;case KEY_S:bit=6;break;case KEY_A:bit=7;break;
         case KEY_Q:bit=10;break;case KEY_E:bit=11;break;case KEY_Z:bit=8;break;case KEY_C:bit=9;break;
         case KEY_I:bit=12;break;case KEY_K:bit=13;break;case KEY_J:bit=14;break;case KEY_U:bit=15;break;
-        case KEY_ENTER:bit=3;break;case KEY_SPACE:bit=0;break;case KEY_POWER:if(e.value==1)stop_requested=1;break;
+        case KEY_ENTER:bit=3;break;case KEY_SPACE:bit=0;break;case KEY_POWER:power_action(power_key.event(e.value,uint64_t(e.time.tv_sec)*1000+e.time.tv_usec/1000));break;
         case 410:if(e.value==1)toggle_display();break;
         case 14:if(e.value==1)menu();break;default:break;}
         if(bit>=0){if(e.value)pad&=~(1<<bit);else pad|=1<<bit;}
     }}
+    power_action(power_key.tick(input_clock_ms()));
     if(stop_requested)finish();
 }
 unsigned short pad_read(int n){return n==0?pad:0xffff;}

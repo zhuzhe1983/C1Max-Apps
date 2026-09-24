@@ -10,6 +10,7 @@
 #include <linux/input.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <time.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <ctime>
@@ -21,10 +22,11 @@ class Platform {
     uint8_t *mapped_=nullptr,*page_=nullptr;
     size_t size_=0;
     fb_var_screeninfo initial_{},current_{};
-    std::vector<uint32_t> last_,guides_[9];
+    std::vector<uint32_t> last_,guides_[9],notice_,notice_large_;
     unsigned width_=0,height_=0;
-    bool dirty_=true,last_stretch_=false,last_game_=true,last_caps_=false;
+    bool dirty_=true,last_stretch_=false,last_game_=true,last_caps_=false,last_power_notice_=false;
     int last_prefix_=0;
+    clockid_t event_clock_=CLOCK_REALTIME;
     std::string last_hint_;
     void begin(){ioctl(fb_,FBIOGET_VSCREENINFO,&current_);unsigned p=pages_>1?(current_.yoffset/800+1)%pages_:0;current_.yoffset=p*800;page_=mapped_+size_t(p)*stride_*800;}
     bool end(){__sync_synchronize();current_.xoffset=0;current_.activate=FB_ACTIVATE_VBL;return ioctl(fb_,FBIOPAN_DISPLAY,&current_)==0;}
@@ -48,12 +50,30 @@ public:
                 dosguide::panel(panel,font,mode);guides_[mode].resize(dosguide::Width*340);
                 for(int x=0;x<dosguide::Width;x++)for(int y=0;y<340;y++)guides_[mode][x*340+y]=panel[y*dosguide::Width+x];
             }
+            notice_.assign(98*44,0xff18252f);
+            for(int x=0;x<98;x++)for(int y=0;y<44;y++)if(x==0||y==0||x==97||y==43)notice_[y*98+x]=0xff526a76;
+            notice_large_.assign(260*48,0xff18252f);
+            if(font){
+                const char *lines[]={"长按五秒","电源键退出"};
+                for(int n=0;n<2;n++){int w=typeface_width(lines[n],13);typeface_draw(notice_.data(),98,44,(98-w)/2,3+n*19,lines[n],0xffd8eceb,13);}
+                const char *message="长按五秒电源键退出";int w=typeface_width(message,16);typeface_draw(notice_large_.data(),260,48,(260-w)/2,8,message,0xffd8eceb,16);
+            }
             typeface_close();
             for(int n=0;n<pages_;n++){page_=mapped_+size_t(n)*stride_*800;blank(0);}
         }
-        for(int i=0;i<3;i++){auto path="/dev/input/event"+std::to_string(i);keys_[i]=::open(path.c_str(),O_RDONLY|O_NONBLOCK|O_CLOEXEC);input_event e{};while(keys_[i]>=0&&read(keys_[i],&e,sizeof e)==sizeof e){}}
+        for(int i=0;i<3;i++){auto path="/dev/input/event"+std::to_string(i);keys_[i]=::open(path.c_str(),O_RDONLY|O_NONBLOCK|O_CLOEXEC);}
+        bool monotonic=true;clockid_t wanted=CLOCK_MONOTONIC;
+#ifdef EVIOCSCLOCKID
+        for(auto fd:keys_)if(fd>=0&&ioctl(fd,EVIOCSCLOCKID,&wanted)<0)monotonic=false;
+        if(!monotonic){wanted=CLOCK_REALTIME;for(auto fd:keys_)if(fd>=0)ioctl(fd,EVIOCSCLOCKID,&wanted);}
+#else
+        monotonic=false;
+#endif
+        event_clock_=monotonic?CLOCK_MONOTONIC:CLOCK_REALTIME;
+        input_event e{};for(auto fd:keys_)while(fd>=0&&read(fd,&e,sizeof e)==sizeof e){}
         return true;
     }
+    uint64_t event_clock_ms()const{timespec t{};clock_gettime(event_clock_,&t);return uint64_t(t.tv_sec)*1000+t.tv_nsec/1000000;}
     void close(){
         if(mapped_){initial_.activate=FB_ACTIVATE_VBL;ioctl(fb_,FBIOPAN_DISPLAY,&initial_);munmap(mapped_,size_);mapped_=nullptr;}
         if(fb_>=0)::close(fb_);fb_=-1;for(auto &fd:keys_){if(fd>=0)::close(fd);fd=-1;}
@@ -84,8 +104,8 @@ public:
         if(!changed)return false;
         width_=w;height_=h;last_.resize(size_t(w)*h);for(unsigned y=0;y<h;y++)memcpy(last_.data()+size_t(y)*w,(const char*)data+y*pitch,w*4);dirty_=true;return true;
     }
-    void present(const std::string&hint={},bool game=true,int prefix=0,bool caps=false){
-        if(!mapped_||last_.empty()||(!dirty_&&stretch==last_stretch_&&hint==last_hint_&&game==last_game_&&prefix==last_prefix_&&caps==last_caps_))return;begin();blank(0);int vw=viewport_width(),left=viewport_left();unsigned yy[340];for(unsigned y=0;y<340;y++)yy[y]=(y*height_/340)*width_;
+    void present(const std::string&hint={},bool game=true,int prefix=0,bool caps=false,bool power_notice=false){
+        if(!mapped_||last_.empty()||(!dirty_&&stretch==last_stretch_&&hint==last_hint_&&game==last_game_&&prefix==last_prefix_&&caps==last_caps_&&power_notice==last_power_notice_))return;begin();blank(0);int vw=viewport_width(),left=viewport_left();unsigned yy[340];for(unsigned y=0;y<340;y++)yy[y]=(y*height_/340)*width_;
         for(int x=0;x<vw;x++){unsigned sx=x*width_/vw;auto *p=(uint32_t*)(page_+size_t(799-left-x)*stride_);for(int y=0;y<340;y++)p[y]=last_[yy[y]+sx]|0xff000000;}
         for(int side=0;side<2;side++){
             int edge=side?left+vw:0,available=side?800-edge:left;
@@ -94,14 +114,20 @@ public:
             int mode=side?2:prefix>=1&&prefix<=5?prefix+2:game?0:caps?8:1;
             for(int x=0;x<dosguide::Width;x++)memcpy(page_+size_t(799-panel_left-x)*stride_,guides_[mode].data()+x*340,340*4);
         }
-        if(end()){dirty_=false;last_stretch_=stretch;last_hint_=hint;last_game_=game;last_prefix_=prefix;last_caps_=caps;}
+        if(power_notice){
+            const int panel_left=(left-dosguide::Width)/2,banner_w=98,banner_h=44,bx=panel_left,by=8;
+            for(int y=0;y<banner_h;y++)for(int x=0;x<banner_w;x++)pixel(bx+x,by+y,notice_[y*banner_w+x]);
+        }
+        if(end()){dirty_=false;last_stretch_=stretch;last_hint_=hint;last_game_=game;last_prefix_=prefix;last_caps_=caps;last_power_notice_=power_notice;}
     }
-    void menu(int selected,const std::vector<std::string>&items,const std::string&hint){
+    void menu(int selected,const std::vector<std::string>&items,const std::string&hint,bool power_notice=false){
         if(!mapped_)return;dirty_=true;begin();blank(0x111c2b);text(30,20,"DOSBox / C1Max",0x8bddd2,3);
         for(size_t i=0;i<items.size();i++){text(30,75+34*i,int(i)==selected?">":" ",0xf0c778);text(60,75+34*i,items[i],int(i)==selected?0xf0c778:0xe4ecf1);}
         text(30,260,"W/S select   Enter confirm   Back resume",0xa4b5c2,2);
         text(30,294,"Camera tap: NAV / F1-F12 / Ctrl / Alt / symbols",0xa4b5c2,1);
-        text(30,312,hint,0x8bddd2,1);end();
+        text(30,312,hint,0x8bddd2,1);
+        if(power_notice)for(int y=0;y<48;y++)for(int x=0;x<260;x++)pixel(270+x,175+y,notice_large_[y*260+x]);
+        end();
     }
 };
 }

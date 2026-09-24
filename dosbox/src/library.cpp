@@ -46,10 +46,10 @@ void action(int id){
 void button(const char *s,int x,int y,int w,int id){auto *o=lv_button_create(lv_screen_active());lv_obj_set_pos(o,x,y);lv_obj_set_size(o,w,42);lv_obj_set_style_bg_color(o,lv_color_hex(0x293e55),0);lv_obj_set_style_shadow_width(o,0,0);auto *l=lv_label_create(o);lv_label_set_text(l,s);lv_obj_center(l);lv_obj_add_event_cb(o,[](lv_event_t *e){action(int(intptr_t(lv_event_get_user_data(e))));},LV_EVENT_CLICKED,(void*)intptr_t(id));}
 void render(){
     auto *root=lv_screen_active();lv_obj_clean(root);lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_style_bg_color(root,lv_color_hex(0x111c2b),0);lv_obj_set_style_text_color(root,lv_color_hex(0xeaf0f6),0);if(font)lv_obj_set_style_text_font(root,font,0);
-    label("DOSBox",18,12,175);label(help?tr("H 返回游戏库 · 电源返回菜单","H library · Power home"):tr("W/S 选择 · 回车开始 · R 刷新","W/S select · Enter start · R refresh"),205,13,575,0xa8bccf);
+    label("DOSBox",18,12,175);label(help?tr("H 返回游戏库 · 长按电源键退出","H library · Hold Power to exit"):tr("W/S 选择 · 回车开始 · R 刷新","W/S select · Enter start · R refresh"),205,13,575,0xa8bccf);
     if(help){
-        label(tr("长按拍照键：暂停菜单；电源键：回 launcher\n文本模式：Shift 输入数字/符号，双击 Shift 切换大写\n右上退格 / 中间 Esc / 右下回车；触摸作为鼠标左键\n短按拍照键切换一次性前缀：方向 → F键 → Ctrl → Alt → 符号\n方向：WASD；F1–F12：QWERTYUIOPAS\n游戏模式：WASD 方向；J Ctrl、K Alt、U 空格、I 回车",
-        "Hold Camera: pause menu. Power: launcher.\nText: Shift numbers/symbols; double Shift CAPS.\nBackspace / Esc / Enter. Touch = left mouse button.\nTap Camera: NAV -> F1-F12 -> Ctrl -> Alt -> symbols.\nNAV: WASD; F1-F12: QWERTYUIOPAS.\nGame: WASD arrows, J Ctrl, K Alt, U Space, I Enter."),18,52,766,0xd7e4ed);
+        label(tr("长按拍照键：暂停菜单；电源短按提示，长按五秒退出\n文本模式：Shift 输入数字/符号，双击 Shift 切换大写\n右上退格 / 中间 Esc / 右下回车；触摸作为鼠标左键\n短按拍照键切换一次性前缀：方向 → F键 → Ctrl → Alt → 符号\n方向：WASD；F1–F12：QWERTYUIOPAS\n游戏模式：WASD 方向；J Ctrl、K Alt、U 空格、I 回车",
+        "Hold Camera: pause menu. Tap Power for hint, hold 5s to exit.\nText: Shift numbers/symbols; double Shift CAPS.\nBackspace / Esc / Enter. Touch = left mouse button.\nTap Camera: NAV -> F1-F12 -> Ctrl -> Alt -> symbols.\nNAV: WASD; F1-F12: QWERTYUIOPAS.\nGame: WASD arrows, J Ctrl, K Alt, U Space, I Enter."),18,52,766,0xd7e4ed);
         button(muted?tr("V 声音关闭","V Sound off"):tr("V 声音开启","V Sound on"),18,240,178,4);
         button((std::string("C ")+std::to_string(cycles)+" cycles").c_str(),210,240,178,5);
         button((std::string("M ")+std::to_string(memory)+" MB").c_str(),402,240,178,6);
@@ -78,7 +78,8 @@ int main(){
     if(!screen::open())return 1;font=lv_tiny_ttf_create_file(("A:"+c1::root()+"/shared/NotoSansSC-Regular.ttf").c_str(),20);chinese=font;
     if(getenv("C1_DOS_ERROR")){message=getenv("C1_DOS_ERROR");unsetenv("C1_DOS_ERROR");}scan();
     while(!stop&&!screen::quit){lv_timer_handler();for(uint32_t k;(k=screen::take_key());){
-        if(k==screen::KEY_HOME){screen::quit=true;break;}if(k>='A'&&k<='Z')k+='a'-'A';
+        if(k==screen::KEY_HOME){message=tr("长按五秒电源键退出游戏","Hold Power for 5 seconds to exit");render();continue;}
+        if(k==screen::KEY_HOME_LONG){screen::quit=true;break;}if(k>='A'&&k<='Z')k+='a'-'A';
         if(k=='h'||(k==screen::KEY_EXIT&&help)){action(3);continue;}
         if(help){if(k=='v')action(4);if(k=='c')action(5);if(k=='m')action(6);if(k=='t')action(7);continue;}
         if(k==LV_KEY_ENTER){start();continue;}if(k=='w'&&selected)selected--;if(k=='s'&&selected+1<games.size())selected++;

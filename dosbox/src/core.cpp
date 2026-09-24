@@ -19,7 +19,7 @@ retro_keyboard_event_t keyboard_callback=nullptr;
 volatile sig_atomic_t stop_requested=0;
 bool shutdown_requested=false,menu_requested=false,library_requested=false,headless=false,audio_enabled=false;
 unsigned frames=0,frame_limit=0,cycles=2750,memsize=8;
-uint64_t hash=0,last_present=0,hint_until=0;
+uint64_t hash=0,last_present=0,hint_until=0,power_hint_until=0;
 double fps=70.086;
 std::string directory,root;
 dos::Platform platform;
@@ -50,7 +50,7 @@ void video(const void *data,unsigned width,unsigned height,size_t pitch){
     for(unsigned y=0;y<height;y+=8)for(unsigned x=0;x<width;x+=8){uint32_t pixel;memcpy(&pixel,p+y*pitch+x*4,4);h^=pixel;h*=1099511628211ULL;}hash=h;
     if(frames==1){printf("DOS_VIDEO %ux%u pitch=%zu\n",width,height,pitch);fflush(stdout);}
     auto now=dos::micros();
-    if(!headless&&now-last_present>=33333){platform.frame(data,width,height,pitch);platform.present(now<hint_until?keys.hint():"",keys.game(),keys.prefix(),keys.caps());last_present=now;}
+    if(!headless&&now-last_present>=33333){platform.frame(data,width,height,pitch);platform.present(now<hint_until?keys.hint():"",keys.game(),keys.prefix(),keys.caps(),now<power_hint_until);last_present=now;}
 }
 void sample(int16_t,int16_t){}
 size_t batch(const int16_t *data,size_t n){
@@ -63,9 +63,11 @@ void poll(){
         if(menu_requested)return;
         auto action=keys.event(code,value,ms);
         if(action==dos::Input::Home)stop_requested=1;
+        if(action==dos::Input::Hint)power_hint_until=dos::micros()+2500000;
         if(action==dos::Input::Menu){menu_requested=true;platform.touching=false;}
         if(action==dos::Input::Hint)hint_until=dos::micros()+3000000;
     });
+    if(!menu_requested&&keys.tick(platform.event_clock_ms())==dos::Input::Home)stop_requested=1;
 }
 int16_t input(unsigned,unsigned device,unsigned,unsigned id){
     if(device==RETRO_DEVICE_KEYBOARD)return keys.down(id);
@@ -74,15 +76,17 @@ int16_t input(unsigned,unsigned device,unsigned,unsigned id){
     return 0;
 }
 void menu(){
-    keys.clear();platform.touching=false;int selected=0;bool dirty=true;
+    keys.clear();platform.touching=false;int selected=0;bool dirty=true,last_notice=false;
     while(menu_requested&&!stop_requested){
-        if(dirty){platform.menu(selected,{"Resume",keys.game()?"Keyboard: GAME":"Keyboard: TEXT",platform.stretch?"Display: 16:9":"Display: 4:3","Game library"},keys.hint());dirty=false;}
-        platform.poll([&](unsigned code,int value,uint64_t){
+        bool notice=dos::micros()<power_hint_until;
+        if(dirty||notice!=last_notice){platform.menu(selected,{"Resume",keys.game()?"Keyboard: GAME":"Keyboard: TEXT",platform.stretch?"Display: 16:9":"Display: 4:3","Game library"},keys.hint(),notice);dirty=false;last_notice=notice;}
+        platform.poll([&](unsigned code,int value,uint64_t ms){
+            if(code==116){auto action=keys.event(code,value,ms);if(action==dos::Input::Hint){power_hint_until=dos::micros()+2500000;dirty=true;}if(action==dos::Input::Home)stop_requested=1;return;}
             if(value!=1)return;
-            if(code==116){stop_requested=1;return;}if(code==14){menu_requested=false;return;}
+            if(code==14){menu_requested=false;return;}
             if(code==17){selected=(selected+3)%4;dirty=true;}if(code==31){selected=(selected+1)%4;dirty=true;}
             if(code==28){if(selected==0)menu_requested=false;if(selected==1){keys.set_game(!keys.game());dirty=true;}if(selected==2){platform.stretch=!platform.stretch;dirty=true;}if(selected==3){library_requested=true;stop_requested=1;}}
-        });usleep(12000);
+        });if(keys.tick(platform.event_clock_ms())==dos::Input::Home)stop_requested=1;usleep(12000);
     }
     keys.clear();platform.touching=false;platform.present("",keys.game(),keys.prefix(),keys.caps());hint_until=dos::micros()+2500000;
 }

@@ -17,6 +17,7 @@ public:
     std::string read(size_t budget = 32768);
     bool send(const std::string &bytes);
     void pump();
+    bool resize(int rows,int cols);
     bool running();
     bool eof() const { return eof_; }
     int status() const { return status_; }

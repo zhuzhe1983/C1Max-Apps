@@ -20,8 +20,11 @@ static uint32_t buffer[800*24];
 static fb_var_screeninfo video_saved{};
 static bool video_has_saved=false,video_active=false,video_visible=true,video_dirty=false;
 static bool video_pan_error=false,video_width_fill=true;
+static bool video_full_overlay=false;
 static uint32_t *video_ui=nullptr,video_last_refresh=0;
 static std::vector<uint32_t> video_rgb;
+static std::vector<uint32_t> caption_pixels;
+static VideoCaption video_caption_image;
 static VideoLayout video_layout;
 static int video_width=0,video_height=0,video_aspect_n=1,video_aspect_d=1;
 static constexpr int native_width=340,native_height=800;
@@ -57,9 +60,15 @@ void video_fit(bool width_fill){
     if(video_width>0)video_layout.configure(video_width,video_height,video_aspect_n,video_aspect_d,width_fill);
     video_dirty=true;
 }
-void video_controls(bool visible){
-    video_visible=visible;video_dirty=true;
+void video_controls(bool visible,bool full){
+    video_visible=visible;video_full_overlay=full;video_dirty=true;
     if(video_active&&visible&&lv_screen_active())lv_obj_invalidate(lv_screen_active());
+}
+void video_caption(const uint32_t*argb,int width,int height){
+    if(argb&&width>0&&width<=752&&height>0&&height<=112){
+        caption_pixels.assign(argb,argb+size_t(width)*height);video_caption_image={caption_pixels.data(),width,height};
+    }else{caption_pixels.clear();video_caption_image={};}
+    video_dirty=true;
 }
 void video_refresh(bool){
     if(!video_active||!memory||!video_ui||!video_dirty)return;
@@ -74,7 +83,7 @@ void video_refresh(bool){
         if(end<=v.yoffset||start>=uint64_t(v.yoffset)+800){page=candidate;break;}
     }
     if(page<0)return;
-    video_layout.compose(memory+size_t(page)*stride*800,stride,video_rgb.empty()?nullptr:video_rgb.data(),video_width,video_ui,video_visible);
+    video_layout.compose(memory+size_t(page)*stride*800,stride,video_rgb.empty()?nullptr:video_rgb.data(),video_width,video_ui,video_visible,video_full_overlay,&video_caption_image);
     __sync_synchronize();v.xoffset=0;v.yoffset=page*800;v.activate=FB_ACTIVATE_VBL;
     if(ioctl(fb,FBIOPAN_DISPLAY,&v)!=0){if(!video_pan_error)perror("[display] Present complete frame");video_pan_error=true;return;}
     video_pan_error=false;video_dirty=false;video_last_refresh=now;
@@ -83,6 +92,7 @@ void video_end(){
     video_active=false;
     if(video_has_saved&&fb>=0){auto v=video_saved;v.activate=FB_ACTIVATE_VBL;if(ioctl(fb,FBIOPAN_DISPLAY,&v)!=0)perror("[display] Restore framebuffer page");}
     video_has_saved=false;video_dirty=false;video_rgb.clear();
+    caption_pixels.clear();video_caption_image={};
     delete[] video_ui;video_ui=nullptr;
 }
 static int input_x=0,input_y=0,input_down=0;

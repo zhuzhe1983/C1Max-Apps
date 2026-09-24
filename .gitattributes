@@ -1,0 +1,3 @@
+
+# Preserve the pinned upstream TinyXML-2 files byte-for-byte (including CRLF).
+crosspoint/vendor/tinyxml2/tinyxml2.* -text -whitespace

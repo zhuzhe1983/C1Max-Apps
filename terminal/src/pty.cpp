@@ -15,6 +15,11 @@
 namespace terminal {
 Pty::~Pty() { stop(); }
 void Pty::fail(const char *operation) { error_ = std::string(operation) + ": " + std::strerror(errno); }
+bool Pty::resize(int rows,int cols) {
+    if(master_<0||rows<1||cols<1||rows>200||cols>400)return false;
+    winsize size{};size.ws_row=rows;size.ws_col=cols;size.ws_xpixel=800;size.ws_ypixel=308;
+    if(ioctl(master_,TIOCSWINSZ,&size)){fail("Resize PTY");return false;}return true;
+}
 bool Pty::start(const std::vector<std::string> &argv, int rows, int cols,
                 const std::string &directory, const std::vector<std::string> &environment) {
     stop(); error_.clear(); eof_ = false; reaped_ = false; status_ = 0;

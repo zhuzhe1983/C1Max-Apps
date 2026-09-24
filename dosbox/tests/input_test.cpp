@@ -19,6 +19,9 @@ int main(){
     for(int n=0;n<5;n++)tap(410);press(21);assert(in.down(RETROK_PERIOD)&&in.down(RETROK_LSHIFT));release(21);
     for(int n=0;n<5;n++)tap(410);press(20);assert(in.down(RETROK_COMMA)&&in.down(RETROK_LSHIFT));release(20);
     tap(410);assert(in.prefix()==1);tap(14);assert(in.prefix()==0&&!in.down(RETROK_ESCAPE));
-    in.event(410,1,now);assert(in.event(410,0,now+800)==dos::Input::Menu);assert(in.event(116,1,now+900)==dos::Input::Home);
+    in.event(410,1,now);assert(in.event(410,0,now+800)==dos::Input::Menu);
+    uint64_t power=now+900;assert(in.event(116,1,power)==dos::Input::Hint);assert(in.tick(power+4999)==dos::Input::None);assert(in.tick(power+5000)==dos::Input::Home);
+    assert(in.event(116,0,power+5001)==dos::Input::None);power+=6000;
+    assert(in.event(116,1,power)==dos::Input::Hint);assert(in.event(116,0,power+5000)==dos::Input::Home);
     puts("PASS DOS held keys, Shift numbers/caps, Backspace/Esc/Enter, prefixes, game mode and releases");
 }
