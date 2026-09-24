@@ -31,9 +31,16 @@ apps/
 
 旧的顶层 `launcher/`、`piano/`、`emu/` 已分别迁入这里，tinyalsa 合并到 `shared/`。来源是 CardputerZero 的应用保留在各自 README 中；未改写原工程。
 
+## 新增应用
+
+- **[Airtune 网络电台](airtune/README.md)**：拟物收音机界面，提供热门、国家、风格、心情和分组浏览，分类缓存后在后台刷新。SAVED 是本地电台列表，可收藏、手动添加 HTTP(S) 音频地址和删除；播放区显示连接状态与系统音量。电台目录来自 Radio-Browser，音频直接连接电台源。
+- **[CrossPoint 电子书](crosspoint/README.md)**：本地 EPUB、AZW3/MOBI、PDF、TXT、Markdown 文字阅读，以及 OPDS/Calibre 分类浏览、搜索、分页和下载。EPUB 按章节读取，W/S 换章、A/D 翻页；Shift＋音量 ± 调字号并保存。当前不渲染 EPUB 插图/完整 CSS，PDF 只提取文字，扫描版不适用。
+- **[拍立得](camera/README.md)**：OV5648 实时取景，4:3、3:4、1:1、16:9 四种裁切画幅，六种滤镜，以及白相纸、奶油纸、黑胶片透明边框。空格／实体拍摄键拍照，带白闪和快门音；相册可浏览、确认删除。16:9 是裁切画幅，不是光学广角。
+- **[邮件](mail/README.md)**：POP3S/STLS 收取最近八封邮件，SMTP TLS 编写、发送纯文本邮件，账号保存在设备私有配置中。当前没有 IMAP、附件、OAuth 或完整 HTML/MIME 阅读。下图展示未发送的演示草稿，尚未用真实邮箱完成收发验收。
+
 ## 设备截图
 
-下图均为 C1 Max 设备画面。模拟器截图展示实际运行中的内容；PS1 镜像及 NES ROM 由用户自行提供，仓库不包含游戏镜像。DOSBox 图为项目自带的 DOS LAB 小游戏。点图可查看 800×340 原图。
+下图均为 C1 Max 设备画面。模拟器截图展示实际运行中的内容；PS1 镜像及 NES ROM 由用户自行提供，仓库不包含游戏镜像。DOSBox 图为项目自带的 DOS LAB 小游戏。点图可查看 800×340 原图。新增截图使用已部署应用：CrossPoint 为原创演示 EPUB，邮件为未发送的演示草稿；[截图说明](docs/screenshots/README.md)记录来源与拍摄方式。
 
 <table>
   <tr>
@@ -58,7 +65,15 @@ apps/
   </tr>
   <tr>
     <td><strong>Processing</strong><br><a href="docs/screenshots/processing.png"><img src="docs/screenshots/processing.png" alt="Processing 运行 Koch 分形示例" width="400"></a><br>Processing 风格的绘图示例与 sketch 控制栏。</td>
-    <td></td>
+    <td><strong>Airtune 网络电台</strong><br><a href="docs/screenshots/airtune.png"><img src="docs/screenshots/airtune.png" alt="Airtune 本地 SAVED 电台列表、播放状态与音量面板" width="400"></a><br>本地收藏、自定义电台地址与音量显示；<a href="airtune/README.md">使用说明</a>。</td>
+  </tr>
+  <tr>
+    <td><strong>CrossPoint 电子书</strong><br><a href="docs/screenshots/crosspoint.png"><img src="docs/screenshots/crosspoint.png" alt="CrossPoint 真机阅读原创演示 EPUB，底部显示章节与翻页操作" width="400"></a><br>OPDS 下载、按章阅读与实体组合键调字号；<a href="crosspoint/README.md">格式和按键说明</a>。</td>
+    <td><strong>拍立得</strong><br><a href="docs/screenshots/camera-preview.png"><img src="docs/screenshots/camera-preview.png" alt="拍立得真机取景界面，使用 4:3 画幅、复古滤镜和白相纸" width="400"></a><br>实时滤镜、四种画幅、相纸边框和相册管理；<a href="camera/README.md">拍摄说明与相纸截图</a>。</td>
+  </tr>
+  <tr>
+    <td><strong>邮件</strong><br><a href="docs/screenshots/mail.png"><img src="docs/screenshots/mail.png" alt="邮件客户端写信界面，内容为尚未发送的演示草稿" width="400"></a><br>实体键盘编写纯文本邮件；<a href="mail/README.md">配置与支持范围</a>。</td>
+    <td><strong>Launcher 第二页</strong><br><a href="docs/screenshots/launcher-apps.png"><img src="docs/screenshots/launcher-apps.png" alt="Launcher 第二页显示 PCSX4all、Processing、DOSBox 及四个新增应用" width="400"></a><br>A/D 或横向滑动翻页，进入新增应用。</td>
   </tr>
 </table>
 
@@ -106,10 +121,11 @@ python3 ./tools/deploy.py --serial MagicPen-931f06 --start
     ├── pcsx4all/      自备游戏、BIOS、记忆卡和即时存档
     ├── dosbox/        DOS 游戏完整目录、设置与游戏存档
     ├── processing/    my-sketch.js 用户程序
-    ├── airtune/      电台收藏与最近收听站点
-    ├── crosspoint/   books/ 本地书籍、OPDS 书目配置与阅读进度
-    ├── camera/       photos/ 拍摄照片
-    └── mail/         邮箱服务器及认证信息（0600）
+    ├── airtune/       本地电台列表与分类缓存
+    ├── crosspoint/    books/ 本地书籍、OPDS 服务器与字号设置
+    ├── camera/        photos/ 拍摄照片、画幅/滤镜/相纸设置
+    ├── mail/          邮箱服务器及认证信息（0600）
+    ├── default-servers.json  单独部署的私有默认服务器（0600）
     ├── calculator/
     └── nes/roms/      自备合法 .nes 文件
 ```

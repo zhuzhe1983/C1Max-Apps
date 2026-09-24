@@ -2,6 +2,12 @@
 
 Native MIPS/Linux reading app: a local EPUB/TXT/Markdown/Kindle/PDF text shelf and an OPDS 1.x browser for Calibre Content Server. This port follows the upstream CrossPoint Reader's OPDS interaction model; its ESP32/e-paper firmware is not flashed onto this Linux device.
 
+## Device screenshot
+
+![CrossPoint reading an original demonstration EPUB](../docs/screenshots/crosspoint.png)
+
+Actual C1 Max rendering of an original demonstration EPUB, stored in an isolated shelf for documentation. W/S changes chapters, A/D turns pages, and Shift + Volume +/− adjusts the body font. Personal books, server addresses and credentials are not included in this screenshot.
+
 ## Online library
 
 Open server settings with **S** on the shelf. Enter a full `https://server/opds` URL; leave both login fields blank for anonymous access. **O** opens the saved catalog. Settings live in `$C1_APPS_DATA/crosspoint/servers.json` with mode `0600`, outside application releases. Optional [private server defaults](../config/README.md) seed a fresh install and are deployed outside public releases; existing saved settings take priority. Existing additional server records are preserved; the current UI edits and opens the first server. Browsing child catalogs never overwrites the saved root address.

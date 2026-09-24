@@ -2,6 +2,14 @@
 
 Native LVGL/V4L2 camera for the C1 Max's OV5648 and Ingenic ISP (`/dev/video4`). A dark, full-height viewfinder replaces the old white card. Four image ratios, six filters and four paper choices share one rendering pipeline: the crop, look and paper seen in the preview are also saved into the JPEG.
 
+## Device screenshots
+
+| Live preview | Paper selection |
+| --- | --- |
+| [![Live viewfinder with white paper](../docs/screenshots/camera-preview.png)](../docs/screenshots/camera-preview.png) | [![Paper selection sheet](../docs/screenshots/camera.png)](../docs/screenshots/camera.png) |
+
+These are framebuffer captures from the deployed C1 Max app. They show the complete composition and the four paper choices. Only preview/settings were used for these documentation images; no new photo was added to the user's album.
+
 ## Picture and paper
 
 | Image ratio | JPEG image without paper | Composition |
