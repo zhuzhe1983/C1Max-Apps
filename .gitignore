@@ -15,3 +15,17 @@ data/
 *.pem
 *.key
 config/*.local.json
+
+# Private application and its source, tests, artwork and verification records.
+/tox/
+/tests/tox/
+/docs/*-tox-*.md
+/docs/previews/tox-*
+/docs/screenshots/tox*.png
+/launcher/assets/icons/tox.png
+/launcher/assets/tox-prompt.json
+
+# Optional local build/package extensions (never published).
+/config/*.local.cmake
+/config/*.local.py
+/config/Dockerfile.local

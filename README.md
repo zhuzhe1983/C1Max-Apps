@@ -88,6 +88,8 @@ apps/
 python3 ./tools/deploy.py --serial MagicPen-931f06 --start
 ```
 
+默认构建与打包只包含公开应用，并排除 Git 忽略的本地素材。可选的本地应用通过 `./tools/build.sh --local` 启用：`config/apps.local.cmake` 添加构建目标，`config/dependencies.local.json` 提供额外依赖（不可覆盖公开版本），`config/Dockerfile.local` 扩展工具链。`config/package.local.py` 接收 `root`、`payload`、`catalog` 三个变量，可添加本地安装文件与清单；这些配置均被 Git 忽略。单独打包使用 `python3 tools/package.py --local`，本地清单只写入 `.build/device/catalog.json`，不会覆盖公开的 `catalog.json`。
+
 构建固定 LVGL / InfoNES / PCSX4all / DOSBox Pure 的提交及 QuickJS / zlib 源码校验值，编译静态 MIPS ELF，生成运行包。部署先传到新的 release 目录、逐文件校验 SHA-256，再通过 `rename(2)` 原子切换 `current`。保留旧版本，不覆盖用户数据；运行中的 launcher 必须先退出。
 
 ```text

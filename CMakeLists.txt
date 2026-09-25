@@ -98,3 +98,9 @@ set(NO_FONTCONFIG ON CACHE BOOL "" FORCE)
 add_subdirectory(.deps/xpdf-4.06 "${CMAKE_BINARY_DIR}/xpdf" EXCLUDE_FROM_ALL)
 set_target_properties(pdftotext PROPERTIES OUTPUT_NAME c1max-pdftotext RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 add_dependencies(c1max-crosspoint pdftotext)
+
+# Optional applications stay local; a clean checkout builds only public apps.
+option(C1_BUILD_LOCAL_APPS "Build applications from ignored local configuration" OFF)
+if(C1_BUILD_LOCAL_APPS)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/config/apps.local.cmake" OPTIONAL)
+endif()

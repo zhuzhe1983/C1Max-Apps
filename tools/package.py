@@ -1,9 +1,19 @@
 #!/usr/bin/env python3
 """Produce a device payload; data/secrets/ROMs are never bundled."""
-import hashlib, json, pathlib, shutil
+import argparse, hashlib, json, pathlib, runpy, shutil, subprocess
 from PIL import Image, ImageOps
 root=pathlib.Path(__file__).resolve().parents[1]
 ids=['launcher','piano','nes','streamplayer','calendar','calculator','terminal','gomoku','pcsx4all','processing','dosbox','airtune','crosspoint','camera','mail']
+parser=argparse.ArgumentParser()
+parser.add_argument('--local',action='store_true',help='Apply ignored config/package.local.py to the device payload')
+parser.add_argument('--source-list',type=pathlib.Path,help='NUL-separated git ls-files output from the host for container builds')
+args=parser.parse_args()
+# Ignore private build inputs when computing the public revisions.
+# Include new non-ignored sources as well as existing tracked files.
+source_list=args.source_list.read_bytes() if args.source_list else subprocess.check_output(
+    ['git','-c','safe.directory='+str(root),'ls-files','--cached','--others','--exclude-standard','-z'],cwd=root
+)
+public_files={pathlib.Path(p.decode()) for p in source_list.split(b'\0') if p}
 tool_payload=root/'linux-tools/.build/linux-tools'
 tool_verification=root/'linux-tools/.build/verification.json'
 if not tool_verification.is_file():raise SystemExit('Run apps/linux-tools/build.sh before packaging')
@@ -16,6 +26,7 @@ for name in ids:
     digest=hashlib.sha256()
     for folder in [root/name,root/'shared',root/'tools',root/'linux-tools']:
         for p in sorted(folder.rglob('*')):
+            if p.relative_to(root) not in public_files:continue
             if not p.is_file() or any(x in p.parts for x in ['build','.build','.deps','__pycache__']):continue
             if p.suffix in ['.nes','.7z','.o']:continue
             if p.suffix == '.png' and 'assets' not in p.parts:continue
@@ -24,7 +35,7 @@ for name in ids:
         digest.update((root/filename).read_bytes())
     apps.append({'id':name,'version':'0.3.1' if name=='crosspoint' else '0.3.0' if name=='calendar' else '0.1.2' if name=='dosbox' else '0.1.1' if name=='pcsx4all' else '0.1.0' if name in ['terminal','gomoku','processing'] else '0.2.0','revision':digest.hexdigest()})
 catalog={'schema':1,'platform':'c1max-mipsel-linux','apps':apps}
-(root/'catalog.json').write_text(json.dumps(catalog,indent=2)+'\n')
+if not args.local:(root/'catalog.json').write_text(json.dumps(catalog,indent=2)+'\n')
 out=root/'.build/device'
 if out.exists():shutil.rmtree(out)  # Generated payload only, never the runtime data tree.
 out.mkdir(parents=True)
@@ -40,6 +51,7 @@ shutil.copy2(root/'.build/mips/c1max-yuv-pipe.so',out/'streamplayer')
 shutil.copy2(root/'streamplayer/vendor/ffmpeg42/COPYING.LGPLv2.1',out/'streamplayer/licenses/FFmpeg-LGPL-2.1.txt')
 (out/'launcher/icons').mkdir()
 for icon in sorted((root/'launcher/assets/icons').glob('*.png')):
+    if icon.relative_to(root) not in public_files:continue
     with Image.open(icon) as source:
         fitted=ImageOps.contain(source.convert('RGBA'),(96,96),Image.Resampling.LANCZOS)
         pixels=Image.new('RGBA',(96,96));pixels.paste(fitted,((96-fitted.width)//2,(96-fitted.height)//2))
@@ -79,7 +91,12 @@ font=root/'shared/fonts/NotoSansSC-Regular.ttf'
 if font.exists():shutil.copy2(font,out/'shared')
 shutil.copy2(root/'shared/fonts/OFL.txt',out/'shared/NotoSansSC-OFL.txt')
 shutil.copytree(root/'shared/licenses',out/'shared/licenses')
-shutil.copy2(root/'catalog.json',out)
+# This opt-in hook may append private manifests/assets/menu entries to the
+# in-memory catalog. The resulting catalog is written only inside .build.
+hook=root/'config/package.local.py'
+if args.local and hook.is_file():
+    runpy.run_path(str(hook),init_globals={'root':root,'payload':out,'catalog':catalog})
+(out/'catalog.json').write_text(json.dumps(catalog,indent=2)+'\n')
 checks=[]
 for p in sorted(out.rglob('*')):
     if p.is_file():checks.append(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+str(p.relative_to(out)))

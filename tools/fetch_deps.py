@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
-import hashlib, json, pathlib, subprocess, tarfile, tempfile
+import argparse, hashlib, json, pathlib, subprocess, tarfile, tempfile
 root = pathlib.Path(__file__).resolve().parents[1]
-for name, spec in json.loads((root/'dependencies.json').read_text()).items():
+parser=argparse.ArgumentParser()
+parser.add_argument('--local',action='store_true',help='Also fetch ignored config/dependencies.local.json')
+args=parser.parse_args()
+dependencies=json.loads((root/'dependencies.json').read_text())
+local=root/'config/dependencies.local.json'
+if args.local and local.is_file():
+    additions=json.loads(local.read_text())
+    if dependencies.keys() & additions.keys():raise SystemExit('Local dependencies cannot override public pins')
+    dependencies.update(additions)
+for name, spec in dependencies.items():
     dest = root/'.deps'/name
     if not dest.exists():
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -11,6 +20,8 @@ for name, spec in json.loads((root/'dependencies.json').read_text()).items():
     if current != spec['commit']:
         subprocess.run(['git','-C',str(dest),'fetch','origin',spec['commit']],check=True)
         subprocess.run(['git','-C',str(dest),'checkout','--detach',spec['commit']],check=True)
+    if spec.get('submodules'):
+        subprocess.run(['git','-C',str(dest),'submodule','update','--init','--recursive'],check=True)
 for name, spec in json.loads((root/'archives.json').read_text()).items():
     dest=root/'.deps'/name
     marker=dest/'.c1-source-sha256'
