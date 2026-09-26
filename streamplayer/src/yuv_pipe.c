@@ -20,6 +20,7 @@ struct AVPacket;
 typedef int (*decode_function)(struct AVCodecContext *, AVFrame *, int *, const struct AVPacket *);
 typedef unsigned (*version_function)(void);
 static int output_fd = -1, checked = 0, failed = 0, width = 0, height = 0;
+static int source_width = 0, source_height = 0;
 static int aspect_n = 1, aspect_d = 1;
 static decode_function original_decode;
 static unsigned char packet[512 * 288 * 3 / 2 + 160];
@@ -62,7 +63,13 @@ static int send_packet(const unsigned char *bytes, size_t size)
 static int send_header(const AVFrame *frame)
 {
     int length;
-    width=frame->width;height=frame->height;aspect_n=aspect_d=1;
+    source_width=width=frame->width;source_height=height=frame->height;aspect_n=aspect_d=1;
+    if(getenv("C1_YUV_SCALE")) {
+        if(width>400){height=(height*400/width)&~1;width=400;}
+        if(height>288){width=(width*288/height)&~1;height=288;}
+        if(width<2)width=2;
+        if(height<2)height=2;
+    }
     if(frame->sample_aspect_ratio.num>0&&frame->sample_aspect_ratio.num<=1000000&&
        frame->sample_aspect_ratio.den>0&&frame->sample_aspect_ratio.den<=1000000){
         aspect_n=frame->sample_aspect_ratio.num;aspect_d=frame->sample_aspect_ratio.den;
@@ -107,7 +114,12 @@ static void emit_frame(const AVFrame *frame)
         if (!version || version() != AV_VERSION_INT(56, 31, 100)) { fail("abi_mismatch"); return; }
     }
     if (frame->format != AV_PIX_FMT_YUV420P) { fail("unsupported_format"); return; }
-    if (frame->width < 2 || frame->height < 2 || frame->width > 512 || frame->height > 288 ||
+    /* Direct 360p is opt-in. Existing Emby/Jellyfin contracts remain unchanged.
+     * Scaling bounds only the IPC/display work, not the source decoder cost. */
+    int scaled=getenv("C1_YUV_SCALE")!=NULL;
+    if (frame->width < 2 || frame->height < 2 ||
+        (scaled ? (frame->width>960||frame->height>960||frame->width*frame->height>307200) :
+                  (frame->width>512||frame->height>288)) ||
         (frame->width & 1) || (frame->height & 1)) { fail("invalid_geometry"); return; }
     if (frame->interlaced_frame) { fail("interlaced"); return; }
     for (plane = 0; plane < 3; ++plane) {
@@ -117,7 +129,7 @@ static void emit_frame(const AVFrame *frame)
             (stride >= 0 ? stride : -stride) < w) { fail("invalid_stride"); return; }
     }
     if (!checked && !start_output(frame, fifo)) return;
-    if (frame->width != width || frame->height != height ||
+    if (frame->width != source_width || frame->height != source_height ||
         (frame->sample_aspect_ratio.num>0&&frame->sample_aspect_ratio.den>0&&
          (frame->sample_aspect_ratio.num!=aspect_n||frame->sample_aspect_ratio.den!=aspect_d))) {
         if(!send_header(frame))return;
@@ -130,8 +142,11 @@ static void emit_frame(const AVFrame *frame)
     for (plane = 0; plane < 3; ++plane) {
         int w = plane ? width / 2 : width;
         int h = plane ? height / 2 : height;
+        int sw=plane?source_width/2:source_width,sh=plane?source_height/2:source_height;
         for (row = 0; row < h; ++row) {
-            memcpy(packet + used, frame->data[plane] + (ptrdiff_t)row * frame->linesize[plane], (size_t)w);
+            const unsigned char *src=frame->data[plane]+(ptrdiff_t)(row*sh/h)*frame->linesize[plane];
+            if(w==sw)memcpy(packet+used,src,(size_t)w);
+            else {int col;for(col=0;col<w;++col)packet[used+(size_t)col]=src[col*sw/w];}
             used += (size_t)w;
         }
     }

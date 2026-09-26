@@ -14,3 +14,4 @@ Airtune|/storage/apps/current/airtune/c1max-airtune||||airtune
 CrossPoint|/storage/apps/current/crosspoint/c1max-crosspoint||||crosspoint
 拍立得|/storage/apps/current/camera/c1max-camera||||camera
 邮件|/storage/apps/current/mail/c1max-mail||||mail
+Bilibili|/storage/apps/current/bilibili/c1max-bilibili||||bilibili

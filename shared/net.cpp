@@ -67,6 +67,10 @@ Response http(const std::string&method,const std::string&url,const std::vector<s
     std::string logtext=read_file(tmp.path+"/log",65536);std::smatch match;
     std::regex code("HTTP/[0-9.]+ ([0-9]{3})");
     for(std::sregex_iterator it(logtext.begin(),logtext.end(),code),end;it!=end;++it){int status_code=std::stoi((*it)[1]);if(status_code>=200)r.status=status_code;}
+    // Retain only Set-Cookie, not the complete diagnostic log or request URL.
+    std::regex cookie("(?:^|\\n)[ \\t]*[Ss]et-[Cc]ookie:[ \\t]*([^\\r\\n]+)");
+    for(std::sregex_iterator it(logtext.begin(),logtext.end(),cookie),end;it!=end;++it)
+        if(r.set_cookies.size()<32&&(*it)[1].length()<4096)r.set_cookies.push_back((*it)[1]);
     if(failed)throw std::runtime_error("Request timed out or response too large");
     if(!r.status)throw std::runtime_error("Network/TLS failed. Check Wi-Fi, server and clock.");
     if(!WIFEXITED(status)||WEXITSTATUS(status)!=0){if(r.status>=200&&r.status<300)throw std::runtime_error("Incomplete server response");}

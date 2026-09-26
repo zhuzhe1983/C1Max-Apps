@@ -1,0 +1,5 @@
+{
+  "tool": "image_gen (built-in)",
+  "use": "Bilibili launcher icon, transparent PNG, rendered at 96×96",
+  "prompt": "Use case: logo-brand. Asset type: transparent PNG launcher icon for a tiny handheld Bilibili video app, rendered finally at 96x96. Create a single playful premium small pink retro television with two short antennas, a charcoal glass screen and a crisp white play triangle, subtly tactile clay/ceramic 3D style, clean front three-quarter view, uncluttered silhouette. Genuine alpha transparency everywhere outside the object; no square tile, no opaque background, no ground, no cast shadow extending far outside object, no lettering or watermark. Object centered with generous 12% transparent padding on all sides. Coral-pink shell with subtle highlight, dark screen and white triangular playback symbol. Save the image as a usable PNG."
+}

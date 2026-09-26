@@ -14,6 +14,7 @@ apps/
 ├── pcsx4all/       PS1 模拟器、游戏库、即时存档（自备游戏）
 ├── dosbox/         DOS 游戏库、命令行与实体键盘（解释器）
 ├── processing/     QuickJS 绘图、四个官方示例改编与物理键盘编辑
+├── bilibili/       B 站热门、搜索、分 P、扫码登录与 360p MP4 直连播放
 ├── airtune/        Radio-Browser 网络电台目录、复古收音机界面
 ├── crosspoint/     本地电子书与 OPDS/Calibre 书目浏览
 ├── camera/         OV5648 拍立得：四种画幅、实时滤镜、相纸边框与相册
@@ -33,6 +34,8 @@ apps/
 
 ## 新增应用
 
+- **[Bilibili](bilibili/README.md)**：参考 wiliwili 的接口，为本机重写轻量界面。热门、搜索／BV 号、分 P、扫码登录、本机收藏和历史；优先直连 360p H.264/AAC MP4，无需自建转码服务。支持暂停、跳转、音量和填宽／完整画面。首版未实现 DASH-only、番剧、直播和弹幕，验证范围见应用说明。
+
 - **[Airtune 网络电台](airtune/README.md)**：拟物收音机界面，提供热门、国家、风格、心情和分组浏览，分类缓存后在后台刷新。SAVED 是本地电台列表，可收藏、手动添加 HTTP(S) 音频地址和删除；播放区显示连接状态与系统音量。电台目录来自 Radio-Browser，音频直接连接电台源。
 - **[CrossPoint 电子书](crosspoint/README.md)**：本地 EPUB、AZW3/MOBI、PDF、TXT、Markdown 文字阅读，以及 OPDS/Calibre 分类浏览、搜索、分页和下载。EPUB 按章节读取，W/S 换章、A/D 翻页；Shift＋音量 ± 调字号并保存。当前不渲染 EPUB 插图/完整 CSS，PDF 只提取文字，扫描版不适用。
 - **[拍立得](camera/README.md)**：OV5648 实时取景，4:3、3:4、1:1、16:9 四种裁切画幅，六种滤镜，以及白相纸、奶油纸、黑胶片透明边框。空格／实体拍摄键拍照，带白闪和快门音；相册可浏览、确认删除。16:9 是裁切画幅，不是光学广角。
@@ -40,7 +43,7 @@ apps/
 
 ## 设备截图
 
-下图均为 C1 Max 设备画面。模拟器截图展示实际运行中的内容；PS1 镜像及 NES ROM 由用户自行提供，仓库不包含游戏镜像。DOSBox 图为项目自带的 DOS LAB 小游戏。点图可查看 800×340 原图。新增截图使用已部署应用：CrossPoint 为原创演示 EPUB，邮件为未发送的演示草稿；[截图说明](docs/screenshots/README.md)记录来源与拍摄方式。
+下图均为 C1 Max 设备画面。Bilibili 的目录图为真实 API 缓存，播放图为未转码视频的本地静音测试；尚不代表设备网络播放验收。模拟器截图展示实际运行中的内容；PS1 镜像及 NES ROM 由用户自行提供，仓库不包含游戏镜像。DOSBox 图为项目自带的 DOS LAB 小游戏。点图可查看 800×340 原图。新增截图使用已部署应用：CrossPoint 为原创演示 EPUB，邮件为未发送的演示草稿；[截图说明](docs/screenshots/README.md)记录来源与拍摄方式。
 
 <table>
   <tr>
@@ -75,6 +78,10 @@ apps/
     <td><strong>邮件</strong><br><a href="docs/screenshots/mail.png"><img src="docs/screenshots/mail.png" alt="邮件客户端写信界面，内容为尚未发送的演示草稿" width="400"></a><br>实体键盘编写纯文本邮件；<a href="mail/README.md">配置与支持范围</a>。</td>
     <td><strong>Launcher 第二页</strong><br><a href="docs/screenshots/launcher-apps.png"><img src="docs/screenshots/launcher-apps.png" alt="Launcher 第二页显示 PCSX4all、Processing、DOSBox 及四个新增应用" width="400"></a><br>A/D 或横向滑动翻页，进入新增应用。</td>
   </tr>
+  <tr>
+    <td><strong>Bilibili</strong><br><a href="docs/screenshots/bilibili.png"><img src="docs/screenshots/bilibili.png" alt="Bilibili 真机显示热门目录缓存与三个封面" width="400"></a><br>热门目录缓存、搜索、分 P 和扫码登录；<a href="bilibili/README.md">功能与限制</a>。</td>
+    <td><strong>Bilibili 播放控制</strong><br><a href="docs/screenshots/bilibili-playback.png"><img src="docs/screenshots/bilibili-playback.png" alt="Bilibili 原始 360p 视频本地静音验证与控制条" width="400"></a><br>原始 360p MP4 本地静音测试；网络连续播放尚待 Wi-Fi 恢复后验证。</td>
+  </tr>
 </table>
 
 ## 构建、同步与启动
@@ -106,7 +113,8 @@ python3 ./tools/deploy.py --serial MagicPen-931f06 --start
 │   ├── pcsx4all/{c1max-pcsx4all,c1max-psx-core,licenses/}
 │   ├── dosbox/{c1max-dosbox,c1max-dos-core,C1LAB.COM,licenses/}
 │   ├── processing/{c1max-processing,api.js,examples/,licenses/}
-│   ├── airtune/c1max-airtune
+│   ├── bilibili/       B 站热门、搜索、分 P、扫码登录与 360p MP4 直连播放
+├── airtune/c1max-airtune
 │   ├── crosspoint/c1max-crosspoint
 │   ├── camera/c1max-camera
 │   ├── mail/c1max-mail
@@ -123,7 +131,8 @@ python3 ./tools/deploy.py --serial MagicPen-931f06 --start
     ├── pcsx4all/      自备游戏、BIOS、记忆卡和即时存档
     ├── dosbox/        DOS 游戏完整目录、设置与游戏存档
     ├── processing/    my-sketch.js 用户程序
-    ├── airtune/       本地电台列表与分类缓存
+    ├── bilibili/       B 站热门、搜索、分 P、扫码登录与 360p MP4 直连播放
+├── airtune/       本地电台列表与分类缓存
     ├── crosspoint/    books/ 本地书籍、OPDS 服务器与字号设置
     ├── camera/        photos/ 拍摄照片、画幅/滤镜/相纸设置
     ├── mail/          邮箱服务器及认证信息（0600）

@@ -239,7 +239,7 @@ DOSBox 0.1.0：DOSBox Pure 固定提交 `73e03aa145e0549ed4d5a20f8e65532714da33f
 
 源码依赖固定提交或 SHA-256；首次 Git 依赖抓取显式 checkout，避免 `clone --no-checkout` 恰好位于目标提交时留下空目录。QuickJS 导出头文件隔离于 `VERSION`，避免 macOS 大小写不敏感目录覆盖 C++ `<version>`。完整 MIPS 构建、打包脚本语法、部署校验通过。证据保存在忽略目录 `.build/qa/processing/`、`.build/qa/pcsx4all/`、`.build/qa/gomoku/` 和部署日志。
 
-仍待用户数据或独立环境验证：PS1 商业游戏/BIOS/光盘音轨/3D 帧率，声音及音画同步，Google 日历源在设备网络下的连通性。Processing 仅支持 README 列出的 2D API；电子书、2048、B 站和 EasyRPG 尚未移植。
+仍待用户数据或独立环境验证：PS1 商业游戏/BIOS/光盘音轨/3D 帧率，声音及音画同步，Google 日历源在设备网络下的连通性。Processing 仅支持 README 列出的 2D API；CrossPoint 电子书已实现；B 站已有轻量客户端，边界见 bilibili/README.md。2048 和 EasyRPG 尚未移植。
 
 ---
 
@@ -297,3 +297,8 @@ DOSBox 0.1.0：DOSBox Pure 固定提交 `73e03aa145e0549ed4d5a20f8e65532714da33f
 - 全局快捷入口：短按 Shift+Enter 不启动，保持至少 1.5 秒并松开后打开 launcher；退出恢复原装桌面。热键状态机与真实/陈旧前台锁的回归通过 ASan/UBSan。安装独立 init 服务后完整重启，`smartUI` 与 `c1apps-hotkey` 均为 running，root ADB 自动恢复。
 
 Jellyfin 仅完成兼容 API 适配，尚未用独立服务器联测。NES 尚无用户 ROM，未验证具体游戏兼容性。未公开仓库、未上传凭据或自动安装远程应用。
+
+
+## Bilibili（2026-09-26 至 09-27）
+
+新客户端及共享 YUV 缩放适配的编译、API、回归、真机静音验证和未验收项见 [专项记录](docs/2026-09-26-bilibili-qa.md)。

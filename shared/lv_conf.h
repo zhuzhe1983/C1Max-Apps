@@ -18,6 +18,7 @@
 #define LV_USE_FS_STDIO 1
 #define LV_FS_STDIO_LETTER 'A'
 #define LV_USE_KEYBOARD 0
+#define LV_USE_QRCODE 1
 #define LV_BUILD_EXAMPLES 0
 #define LV_USE_DEMO_WIDGETS 0
 #endif

@@ -1,6 +1,6 @@
 # C1 Max 后续应用与 B 站适配方案
 
-更新于 2026-09-23。目标：MIPS32r2 Linux、128 MB RAM、800×340、触屏与实体键盘。五子棋已完成并实测；PCSX4all 与 Processing 2D 已加入，详见各自 README。电子书、2048 和 B 站仍是规划。
+更新于 2026-09-23。目标：MIPS32r2 Linux、128 MB RAM、800×340、触屏与实体键盘。五子棋已完成并实测；PCSX4all 与 Processing 2D 已加入，详见各自 README。CrossPoint 电子书已完成；B 站已实现轻量直连客户端，见 [Bilibili](bilibili/README.md)。2048 仍是规划。
 
 ## 优先顺序
 
@@ -23,7 +23,9 @@
 
 依据：[wiliwili 构建文件](https://github.com/xfangfang/wiliwili/blob/yoga/CMakeLists.txt)、[bilibili-cli 依赖声明](https://github.com/public-clis/bilibili-cli/blob/main/pyproject.toml)、各项目 README。wiliwili 存在 CPU 视频渲染选项，因此问题不是简单的“没有 GPU 就不能运行”；主要代价是整套 UI/播放器依赖的移植和这台设备上的性能验证。
 
-## 建议实现路线
+## 最初评估路线（已由直连实现替代）
+
+2026-09-26：实测 B 站仍提供合并音视频的 360p MP4，真机原始片源播放约 28–29 fps。因此当前实现采用设备直接访问 B 站 API/CDN，服务器转码不再是前置要求。以下保留早期方案供 DASH／高负载视频的后续适配参考。
 
 1. 先把 StreamPlayer 新的完整帧合成路径、暂停/拖动/裁切和电源返回在真机验收，记录 CPU、可用内存与连续播放稳定性。
 2. 在用户自己的服务器运行 B 站接口适配层，优先借鉴/调用 bilibili-cli 的只读功能；输出有大小上限的搜索、详情、分 P JSON。扫码登录令牌由服务端私有保存，设备只保存自己的访问凭据。
@@ -31,4 +33,4 @@
 4. 新建 apps/bilibili，用现有 LVGL 列表、键盘和播放器模块接入。首版不做弹幕渲染、评论发布和投稿。禁止把账号权限错误、接口风控或网络失败显示成“没有视频”。
 5. 验收至少覆盖游客/扫码后、分 P、暂停/定位/停止、令牌过期、网络中断和有声无帧。API 可能变化，候选项目的现状不代表日后所有端点可用。
 
-本轮只完成代码库调研和可执行路线，没有访问 B 站账号、架设服务、复制候选代码或承诺本机完整客户端已可用。
+上面的服务器路线是早期调研结果，不代表当前实现；功能和实测边界以 bilibili/README.md 为准。

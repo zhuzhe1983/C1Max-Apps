@@ -92,6 +92,15 @@ add_executable(c1max-mail mail/src/main.cpp mail/src/protocol.cpp shared/display
 target_link_libraries(c1max-mail c1net lvgl mbedtls mbedx509 mbedcrypto m)
 target_include_directories(c1max-mail PRIVATE .deps/lvgl/src/libs/tiny_ttf)
 
+add_executable(c1max-bilibili bilibili/src/main.cpp bilibili/src/api.cpp bilibili/src/player.cpp shared/display.cpp shared/keyboard.cpp)
+target_include_directories(c1max-bilibili PRIVATE .deps/lvgl/src/libs/tiny_ttf streamplayer/src)
+target_link_libraries(c1max-bilibili c1net lvgl tinyalsa mbedcrypto m)
+
+add_executable(c1max-bilibili-test EXCLUDE_FROM_ALL bilibili/tests/api_test.cpp bilibili/src/api.cpp)
+target_include_directories(c1max-bilibili-test PRIVATE bilibili/src)
+target_compile_options(c1max-bilibili-test PRIVATE -UNDEBUG)
+target_link_libraries(c1max-bilibili-test c1net mbedcrypto)
+
 # A compact Xpdf text extractor provides actual PDF text support without
 # carrying a Qt viewer or rasterizer into the 128 MB target.
 set(NO_FONTCONFIG ON CACHE BOOL "" FORCE)

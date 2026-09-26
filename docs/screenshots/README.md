@@ -16,3 +16,11 @@
 本次应用截图操作使用临时应用数据目录，完成后清理。图像不包含个人服务器地址、访问令牌或邮箱凭据。没有将演示邮件包装成真实收发验证。
 
 原有 StreamPlayer、日历、计算器、钢琴、终端、五子棋、NES、PCSX4all、DOSBox、Processing 截图保留。PCSX4all 展示用户提供游戏的运行画面；NES 当前是设备渲染/输入自测；DOSBox 展示随项目提供的 DOS LAB。游戏镜像不在仓库中。
+
+## Bilibili（2026-09-26 至 09-27）
+
+- `bilibili.png`：真机渲染真实 API 目录缓存，三个封面；底栏标明缓存刷新。
+- `bilibili-playback.png`：真实公开视频原始 360p MP4 的本地静音播放测试，未转码，展示 Fit 与控制条。
+- `bilibili-search.png`：实体输入、Backspace 删除后的搜索页。
+
+这三张均为设备 framebuffer 截图。因设备 Wi-Fi 未连通，目录缓存由电脑抓取后写入独立 QA 目录；播放截图不是网络端到端播放证明。没有登录凭据，临时视频不随仓库发布。详情见 [Bilibili QA](../2026-09-26-bilibili-qa.md)。
