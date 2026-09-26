@@ -34,7 +34,7 @@ apps/
 
 ## 新增应用
 
-- **[Bilibili](bilibili/README.md)**：参考 wiliwili 的接口，为本机重写轻量界面。热门、搜索／BV 号、分 P、扫码登录、本机收藏和历史；优先直连 360p H.264/AAC MP4，无需自建转码服务。支持暂停、跳转、音量和填宽／完整画面。首版未实现 DASH-only、番剧、直播和弹幕，验证范围见应用说明。
+- **[Bilibili](bilibili/README.md)**：参考 wiliwili 的接口，为本机重写轻量界面。热门、竖屏精选、搜索／BV 号、分 P、扫码登录、本机收藏和历史；优先直连 360p H.264/AAC MP4，无需自建转码服务。L 右转 90°，P/O 直接切换视频；支持暂停、跳转、音量和填宽／完整画面。未实现 DASH-only、番剧、直播和弹幕，验证范围见应用说明。
 
 - **[Airtune 网络电台](airtune/README.md)**：拟物收音机界面，提供热门、国家、风格、心情和分组浏览，分类缓存后在后台刷新。SAVED 是本地电台列表，可收藏、手动添加 HTTP(S) 音频地址和删除；播放区显示连接状态与系统音量。电台目录来自 Radio-Browser，音频直接连接电台源。
 - **[CrossPoint 电子书](crosspoint/README.md)**：本地 EPUB、AZW3/MOBI、PDF、TXT、Markdown 文字阅读，以及 OPDS/Calibre 分类浏览、搜索、分页和下载。EPUB 按章节读取，W/S 换章、A/D 翻页；Shift＋音量 ± 调字号并保存。当前不渲染 EPUB 插图/完整 CSS，PDF 只提取文字，扫描版不适用。
@@ -83,6 +83,14 @@ apps/
     <td><strong>Bilibili 播放控制</strong><br><a href="docs/screenshots/bilibili-playback.png"><img src="docs/screenshots/bilibili-playback.png" alt="Bilibili 原始 360p 视频网络播放与控制条" width="400"></a><br>原始 360p MP4 直连播放；暂停、跳转和完整画面模式。</td>
   </tr>
 </table>
+
+0.2.0 增加竖屏播放：控件和文字一起右转，控制区在设备横放时的左侧；切换视频不返回列表，开始播放后隐藏控件。
+
+| 竖屏控件（设备横放方向） | 切换视频后的画面 |
+| --- | --- |
+| ![Bilibili 竖屏播放与左侧控件](docs/screenshots/bilibili-portrait.png) | ![新视频开始后隐藏控件](docs/screenshots/bilibili-next-hidden.png) |
+
+[查看竖握方向的截图](docs/screenshots/bilibili-portrait-upright.png) · [竖屏分类](docs/screenshots/bilibili-portrait-list.png)
 
 ## 构建、同步与启动
 

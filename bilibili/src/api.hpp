@@ -17,6 +17,7 @@ public:
     explicit Api(Transport transport={});
     Json cookies=Json::object();
     Json popular(int page);
+    Json portrait(int page);
     Json search(const std::string&query,int page);
     Json detail(const std::string&bvid);
     Stream stream(const std::string&bvid,int64_t cid);

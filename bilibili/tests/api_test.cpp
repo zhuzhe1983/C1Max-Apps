@@ -8,6 +8,7 @@ int main(int argc,char**argv){
         try{Api live;auto home=live.popular(1);std::cout<<"popular="<<home.at("items").size()<<std::endl;
             auto d=live.detail(home["items"][0]["bvid"]);auto stream=live.stream(d["bvid"],d["pages"][0]["cid"]);std::cout<<"pages="<<d["pages"].size()<<" quality="<<stream.quality<<std::endl;
             auto search=live.search("processing",1);std::cout<<"search="<<search.at("items").size()<<std::endl;
+            auto vertical=live.portrait(1);for(auto&v:vertical["items"])assert(v["width"]>0&&v["height"]>v["width"]);std::cout<<"portrait="<<vertical["items"].size()<<std::endl;
             auto p=live.poster(home["items"][0]);std::cout<<"poster="<<(!p.empty())<<std::endl;
             auto qr=live.qr();auto state=live.poll(qr["key"]);std::cout<<"qr_generated=1 pending_code="<<state.at("code")<<std::endl;
             return 0;
@@ -22,6 +23,23 @@ int main(int argc,char**argv){
     for(auto s:{"file:///etc/passwd","https://abc.bilivideo.com.evil.test/x","https://user@abc.bilivideo.com/x","https://127.0.0.1/x","https://abc.bilivideo.com/x\r\nHeader:1"})assert(!media_url(s));
     assert(sign({{"foo","a!b(c)*'"},{"bar","hello world"}},"test",1700000000)=="bar=hello%20world&foo=abc&wts=1700000000&w_rid=bbf7ed1a7181005cf63f307ce8915bfb");
     auto v=summary({{"bvid","BV14Dho6WE66"},{"title","<em>测试</em>"},{"duration","07:16"},{"author","UP主"}});assert(v["title"]=="测试"&&v["duration"]==436);
+    assert(v["width"]==0&&v["height"]==0);
+    v=summary({{"bvid","BV14Dho6WE66"},{"dimension",{{"width",1920},{"height",1080},{"rotate",90}}}});
+    assert(v["width"]==1080&&v["height"]==1920&&summary(v)["width"]==1080);
+    int batches=0;
+    Api vertical([&](const std::string&u,auto&)->c1::Response{
+        ++batches;assert(u.find("pn="+std::to_string(batches))!=std::string::npos);
+        return {200,Json{{"code",0},{"data",{{"no_more",false},{"list",Json::array({
+            {{"bvid","BV14Dho6WE66"},{"dimension",{{"width",1080},{"height",1920}}}},
+            {{"bvid","BV1XLhd6tEZ3"},{"dimension",{{"width",1920},{"height",1080}}}},
+            {{"bvid","BV1qdey6GE1x"},{"dimension",{{"width",1080},{"height",1080}}}},
+            {{"bvid","BV1R5hH6cEje"}}
+        })}}}}.dump()};
+    });
+    auto filtered=vertical.portrait(1);assert(batches==3&&filtered["items"].size()==1&&filtered["more"]==true);
+    assert(vertical.portrait(35)["items"].empty()&&batches==3);
+    int end_calls=0;Api end([&](const std::string&u,auto&)->c1::Response{++end_calls;assert(u.find("pn=100")!=std::string::npos);return {200,"{\"code\":0,\"data\":{\"list\":[],\"no_more\":false}}"};});
+    assert(end.portrait(34)["more"]==false&&end_calls==1);
     const Json nav={{"code",-101},{"data",{{"isLogin",false},{"wbi_img",{{"img_url","https://i0.hdslb.com/bfs/wbi/0123456789abcdef0123456789abcdef.png"},{"sub_url","https://i0.hdslb.com/bfs/wbi/fedcba9876543210fedcba9876543210.png"}}}}}};
     int nav_requests=0;bool signed_seen=false;
     Api api([&](const std::string&url,const std::vector<std::string>&h)->c1::Response{

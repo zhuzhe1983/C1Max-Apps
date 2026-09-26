@@ -56,5 +56,30 @@ int main(){
     assert(pixel(400,100)==0xff3355ee); // Full subtitle selection overlay.
     for(int i=0;i<16;i++)assert(output[i]==0xa5&&output[output.size()-1-i]==0xa5);
     for(int row=0;row<800;row++)for(int pad=1360;pad<stride;pad++)assert(output[16+row*stride+pad]==0xa5);
+    // All touch points round-trip through the same transform used by the UI.
+    // A logical portrait origin appears at the top-right in landscape: CW 90°.
+    for(bool portrait:{false,true}){ScreenOrientation o{portrait};
+        for(int y=0;y<o.height();++y)for(int x=0;x<o.width();++x){int nx=o.native_x(x,y),ny=o.native_y(x,y);assert(nx>=0&&nx<340&&ny>=0&&ny<800);assert(o.logical_x(nx,ny)==x&&o.logical_y(nx,ny)==y);}
+    }
+    ScreenOrientation landscape,portrait{true};
+    assert(landscape.logical_x(portrait.native_x(0,0),portrait.native_y(0,0))==799);
+    assert(landscape.logical_y(portrait.native_x(0,0),portrait.native_y(0,0))==0);
+    assert(landscape.logical_x(portrait.native_x(339,799),portrait.native_y(339,799))==0);
+    assert(landscape.logical_y(portrait.native_x(339,799),portrait.native_y(339,799))==339);
+    layout.configure(4,8,1,1,true,true);layout.controls_top=60;layout.controls_bottom=526;
+    std::vector<uint32_t> vertical(32);for(int y=0;y<8;y++)for(int x=0;x<4;x++)vertical[y*4+x]=0xff000000|((y+1)<<16)|((x+1)<<8);
+    assert(layout.xs[0]==0&&layout.xs[339]==3&&layout.ys[59]==-1&&layout.ys[60]==0&&layout.ys[739]==7&&layout.ys[740]==-1);
+    auto native_pixel=[&](int x,int y){uint32_t c;std::memcpy(&c,output.data()+16+size_t(y)*stride+x*4,4);return c;};
+    layout.compose(output.data()+16,stride,vertical.data(),4,ui.data(),false);
+    assert(native_pixel(42,102)==vertical[0]&&native_pixel(297,697)==vertical[31]);
+    assert(native_pixel(42,0)==0xff000000);
+    layout.compose(output.data()+16,stride,vertical.data(),4,ui.data(),true);
+    assert(native_pixel(42,30)==0xff3355ee&&native_pixel(42,600)==0xff3355ee&&native_pixel(42,102)==vertical[0]);
+    layout.compose(output.data()+16,stride,vertical.data(),4,ui.data(),true,true);
+    assert(native_pixel(42,102)==0xff3355ee);
+    for(int i=0;i<16;i++)assert(output[i]==0xa5&&output[output.size()-1-i]==0xa5);
+    for(int row=0;row<800;row++)for(int pad=1360;pad<stride;pad++)assert(output[16+row*stride+pad]==0xa5);
+    // Returning to landscape restores the exact old crop calculation.
+    layout.configure(320,180,1,1,true);assert(layout.xs[0]==0&&layout.xs[799]==319&&layout.ys[0]==22&&layout.ys[339]==157);
     std::cout<<"video: fragmented reads, full-frame publication, bounds, crop/fit, controls and stride PASS\n";
 }

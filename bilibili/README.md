@@ -2,14 +2,15 @@
 
 参考 [wiliwili](https://github.com/xfangfang/wiliwili) 的 B 站接口、WBI 签名和扫码登录流程，为 C1 Max 编写的轻量 LVGL 客户端。它不是 wiliwili 完整移植，不需要浏览器、Python 或自建转码服务器。
 
-## 首版功能
+## 功能
 
-- 热门列表、关键词／BV 号／视频链接搜索、视频详情与分 P。
+- 热门列表、竖屏精选、关键词／BV 号／视频链接搜索、视频详情与分 P。
 - 每页三张封面，后台加载；最多缓存 60 张 192×108 PNG，不整库下载；热门首页保留上次目录，刷新失败时仍可显示。
 - 手机哔哩哔哩扫码登录：等待扫码、手机确认、过期／刷新、退出账号。
 - 本机收藏与最近观看，各最多 100 条；与 B 站账号收藏、历史相互独立。
 - 优先请求 **360p 单文件 H.264/AAC MP4**，设备直接连接 B 站 CDN 并解码，无服务器转码。
 - 默认填满宽度，可切换完整画面；暂停、进度拖动、±10 秒／±1 分钟、音量与静音、自动隐藏控制条。
+- L 将视频、文字和触摸控件一起右转 90°，竖屏控件位于设备横放时的屏幕左侧。P／O 直接播放当前列表的上一个／下一个视频，保留方向和缩放模式，切换期间不返回列表，新视频开始后隐藏控件。
 - 网络失败、权限限制和接口风控显示错误，不当成空列表。
 
 ## 按键
@@ -19,10 +20,14 @@
 | 所有页面 | 电源回 Launcher；中间返回键返回上一级 |
 | 浏览 | W/S 切分类；A/D 翻页；J/K 选视频；Enter 打开；R 刷新 |
 | 搜索框 | 实体键输入，右上 Backspace 删除；Enter 搜索；返回结束输入；双击 Shift 大写 |
-| 详情 | W/S 选分 P；Enter 播放；F 加入／移除本机收藏 |
+| 详情 | W/S 选分 P；Enter 播放；P 上一个／O 下一个视频；F 加入／移除本机收藏 |
 | 收藏／历史 | Backspace 删除选中条目 |
 | 账号 | Enter／R 生成或刷新二维码 |
-| 播放 | Enter／空格暂停；A/D ±10 秒；Q/E ±1 分钟；F 切画面；H 显隐控制条；V 静音；实体音量键有效；返回停止 |
+| 播放 | L 切横竖屏（右转 90°）；P 上一个／O 下一个视频；Enter／空格暂停；A/D ±10 秒；Q/E ±1 分钟；F 切画面；H／点击画面显隐控件；V 静音；实体音量键有效；返回停止 |
+
+“竖屏 · 热门精选”从每组三页热门数据（最多 60 条）中筛选高度大于宽度的视频，忽略尺寸未知的条目；它不是 B 站官方 Story 流。打开该分类中的视频时默认竖屏，播放中可用 L 自行切换。P／O 到达当前接口页边缘时继续请求相邻页；网络失败或取消会保留当前视频。切换只显示简短加载提示，Back 可以取消正在进行的切换。
+
+当前设备固件没有暴露可用的 IMU／加速度计接口，因此采用手动旋转；这不代表已经确认主板上没有传感器。
 
 ## 播放与限制
 
@@ -36,7 +41,7 @@
 
 ## 配置、构建与隐私
 
-数据目录 `/storage/apps/data/bilibili/`：`session.json` 保存扫码登录 Cookie（0600），`library.json` 保存本机收藏／历史，`posters/` 保存封面，`home.json` 保存热门目录缓存。没有预置账号或服务器。账号 Cookie 只发送到 B 站 API／Passport，封面和视频 CDN 不接收 Cookie；不会将带鉴权参数的视频直链写进应用日志。
+数据目录 `/storage/apps/data/bilibili/`：`session.json` 保存扫码登录 Cookie（0600），`library.json` 保存本机收藏／历史，`posters/` 保存封面，`home.json`／`portrait.json` 保存热门／竖屏目录缓存。没有预置账号或服务器。账号 Cookie 只发送到 B 站 API／Passport，封面和视频 CDN 不接收 Cookie；不会将带鉴权参数的视频直链写进应用日志。
 
 ```sh
 ./tools/build.sh
@@ -62,3 +67,9 @@ C1_APPS_ROOT=/work/.build/device C1_APPS_DATA=/work/.runtime/bilibili-qa qemu-mi
 ![未转码视频的网络播放](../docs/screenshots/bilibili-playback.png)
 
 以上为真实设备联网截图，数据保存在独立 QA 目录；播放图来自 B 站 CDN 原始码流，没有服务器转码。
+
+![竖屏精选分类](../docs/screenshots/bilibili-portrait-list.png)
+
+![竖屏视频与左侧旋转控件](../docs/screenshots/bilibili-portrait.png)
+
+[竖握方向查看](../docs/screenshots/bilibili-portrait-upright.png)。P/O 切换后默认隐藏控件，见[切换后的截图](../docs/screenshots/bilibili-next-hidden.png)；测试范围见 [0.2.0 QA](../docs/2026-09-27-bilibili-portrait-qa.md)。

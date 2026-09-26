@@ -24,3 +24,12 @@
 - `bilibili-search.png`：实体按键事件输入 processing 后的真实联网搜索结果。
 
 这三张均为设备 framebuffer 截图，替换了首版的离线验证图。数据使用独立 QA 目录，没有账号凭据；临时视频不随仓库发布。详情见 [Bilibili QA](../2026-09-26-bilibili-qa.md)。
+
+## Bilibili 横竖屏与直接切换视频（0.2.0）
+
+- `bilibili-portrait-list.png`：真实热门数据按宽高筛出的竖屏精选分类。
+- `bilibili-portrait.png`：视频、标题和触摸控件一起右转 90°，控制区在横放设备的左侧。
+- `bilibili-portrait-upright.png`：上一张的原生 340×800 方向，便于竖握阅读；没有重新绘制界面。
+- `bilibili-next-hidden.png`：点击下一条后直接播放新视频，控件保持隐藏。
+
+均来自独立 QA 会话的真机 framebuffer，使用公开 B 站视频，没有登录账号。只做 BGRA 到 PNG 的颜色格式转换及阅读方向旋转。视频未转码、未下载到仓库。验证记录见 [横竖屏 QA](../2026-09-27-bilibili-portrait-qa.md)。

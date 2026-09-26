@@ -26,6 +26,7 @@ static std::vector<uint32_t> video_rgb;
 static std::vector<uint32_t> caption_pixels;
 static VideoCaption video_caption_image;
 static VideoLayout video_layout;
+static ScreenOrientation orientation;
 static int video_width=0,video_height=0,video_aspect_n=1,video_aspect_d=1;
 static constexpr int native_width=340,native_height=800;
 uint32_t take_key(){return keyboard::take();}
@@ -42,7 +43,7 @@ bool video_begin(){
     if(!video_ui)return false;
     std::fill_n(video_ui,native_width*native_height,0xff111827);
     video_has_saved=video_active=video_visible=video_dirty=true;
-    video_width=video_height=0;video_rgb.clear();video_layout.configure(2,2,1,1,true);
+    video_width=video_height=0;video_rgb.clear();video_layout.configure(2,2,1,1,true,orientation.portrait);
     video_last_refresh=tick()-40;video_refresh();
     if(lv_screen_active())lv_obj_invalidate(lv_screen_active());return true;
 }
@@ -51,18 +52,23 @@ void video_frame(const uint32_t *rgb,int width,int height,int aspect_n,int aspec
     video_rgb.assign(rgb,rgb+size_t(width)*height);
     if(video_width!=width||video_height!=height||video_aspect_n!=aspect_n||video_aspect_d!=aspect_d){
         video_width=width;video_height=height;video_aspect_n=aspect_n;video_aspect_d=aspect_d;
-        video_layout.configure(width,height,aspect_n,aspect_d,video_width_fill);
+        video_layout.configure(width,height,aspect_n,aspect_d,video_width_fill,orientation.portrait);
     }
     video_dirty=true;
 }
 void video_fit(bool width_fill){
     video_width_fill=width_fill;
-    if(video_width>0)video_layout.configure(video_width,video_height,video_aspect_n,video_aspect_d,width_fill);
+    if(video_width>0)video_layout.configure(video_width,video_height,video_aspect_n,video_aspect_d,width_fill,orientation.portrait);
     video_dirty=true;
 }
 void video_controls(bool visible,bool full){
     video_visible=visible;video_full_overlay=full;video_dirty=true;
     if(video_active&&visible&&lv_screen_active())lv_obj_invalidate(lv_screen_active());
+}
+void video_controls_area(int top,int bottom){
+    video_layout.controls_top=std::clamp(top,0,orientation.height());
+    video_layout.controls_bottom=std::clamp(bottom,video_layout.controls_top,orientation.height());
+    video_dirty=true;
 }
 void video_caption(const uint32_t*argb,int width,int height){
     if(argb&&width>0&&width<=752&&height>0&&height<=112){
@@ -96,13 +102,26 @@ void video_end(){
     delete[] video_ui;video_ui=nullptr;
 }
 static int input_x=0,input_y=0,input_down=0;
+static bool ignore_touch_until_release=false;
+void portrait(bool enabled){
+    if(orientation.portrait==enabled)return;
+    orientation.portrait=enabled;
+    ignore_touch_until_release=input_down;
+    lv_indev_reset(nullptr,nullptr);
+    lv_display_set_resolution(lv_display_get_default(),orientation.width(),orientation.height());
+    lv_display_set_buffers(lv_display_get_default(),buffer,nullptr,sizeof(buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);
+    if(video_ui)std::fill_n(video_ui,native_width*native_height,0xff000000);
+    video_fit(video_width_fill);
+    if(lv_screen_active())lv_obj_invalidate(lv_screen_active());
+}
 uint32_t tick(){timespec t;clock_gettime(CLOCK_MONOTONIC,&t);return uint32_t(t.tv_sec*1000+t.tv_nsec/1000000);}
 static void flush(lv_display_t*d,const lv_area_t*a,uint8_t*p){
     if(memory){auto src=reinterpret_cast<uint32_t*>(p);for(int y=a->y1;y<=a->y2;y++)for(int x=a->x1;x<=a->x2;x++){
         auto color=*src++ | 0xff000000;
-        if(x<0||x>=native_height||y<0||y>=native_width)continue;
-        if(video_active&&video_ui)video_ui[size_t(799-x)*native_width+y]=color;
-        else if(!playing)for(int f=0;f<frames;f++)*reinterpret_cast<uint32_t*>(memory+f*stride*800+(799-x)*stride+y*4)=color;
+        if(x<0||x>=orientation.width()||y<0||y>=orientation.height())continue;
+        int nx=orientation.native_x(x,y),ny=orientation.native_y(x,y);
+        if(video_active&&video_ui)video_ui[size_t(ny)*native_width+nx]=color;
+        else if(!playing)for(int f=0;f<frames;f++)*reinterpret_cast<uint32_t*>(memory+f*stride*800+ny*stride+nx*4)=color;
     }}
     if(video_active)video_dirty=true;
     lv_display_flush_ready(d);
@@ -116,7 +135,8 @@ static void input(lv_indev_t*,lv_indev_data_t*d){
         if(e.type==EV_SYN&&e.code==SYN_REPORT){d->continue_reading=true;break;}
     }
 
-    d->point.x=LV_CLAMP(0,799-y,799);d->point.y=LV_CLAMP(0,x,339);d->state=down?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;
+    if(!down)ignore_touch_until_release=false;
+    d->point.x=LV_CLAMP(0,orientation.logical_x(x,y),orientation.width()-1);d->point.y=LV_CLAMP(0,orientation.logical_y(x,y),orientation.height()-1);d->state=down&&!ignore_touch_until_release?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;
 }
 bool open(){
     fb=::open("/dev/fb2",O_RDWR|O_CLOEXEC);fb_var_screeninfo v{};fb_fix_screeninfo f{};

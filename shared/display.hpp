@@ -4,6 +4,8 @@
 namespace screen {
 bool open();
 void close();
+// Playback may reflow LVGL to 340x800; the default remains 800x340.
+void portrait(bool enabled);
 extern bool quit;
 extern bool playing;
 extern bool tap;
@@ -22,6 +24,7 @@ bool video_begin();
 void video_frame(const uint32_t *rgb,int width,int height,int aspect_n=1,int aspect_d=1);
 void video_fit(bool width_fill);
 void video_controls(bool visible,bool full=false);
+void video_controls_area(int top,int bottom);
 // Straight-alpha ARGB caption, independent of source video crop/scale.
 // Kept within the panel and raised above the controls when they are visible.
 void video_caption(const uint32_t*argb,int width,int height);

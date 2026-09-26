@@ -6,6 +6,7 @@
 #include <ctime>
 #include <filesystem>
 #include <regex>
+#include <set>
 #include <stdexcept>
 namespace bili {
 static const char* ua="User-Agent: Mozilla/5.0";
@@ -38,8 +39,12 @@ Json summary(const Json&v){
     auto id=video_id(str(v,"bvid"));if(id.empty())throw std::runtime_error("视频缺少 BV 号");
     auto owner=v.value("owner",Json::object());int64_t duration=number(v,"duration");
     if(!duration&&v.contains("duration")&&v["duration"].is_string()){std::string d=v["duration"];std::smatch m;if(std::regex_match(d,m,std::regex("([0-9]{1,4}):([0-9]{2})")))duration=std::stoi(m[1])*60+std::stoi(m[2]);}
+    auto dim=v.value("dimension",Json::object());if(!dim.is_object())dim=Json::object();
+    auto width=number(dim,"width",number(v,"width")),height=number(dim,"height",number(v,"height"));
+    auto rotation=(number(dim,"rotate")%360+360)%360;if(rotation==90||rotation==270)std::swap(width,height);
+    if(width<=0||height<=0||width>32768||height>32768)width=height=0;
     return {{"bvid",id},{"title",clean(str(v,"title","未命名视频"),256)},{"author",clean(str(owner,"name",str(v,"author")),128)},
-        {"pic",str(v,"pic")},{"duration",std::clamp<int64_t>(duration,0,86400)},{"cid",number(v,"cid")}};
+        {"pic",str(v,"pic")},{"duration",std::clamp<int64_t>(duration,0,86400)},{"cid",number(v,"cid")},{"width",width},{"height",height}};
 }
 Api::Api(Transport t):transport_(std::move(t)){if(!transport_)transport_=[](auto&u,auto&h){return c1::http("GET",u,h);};}
 Json Api::request(const std::string&path,Params params,bool signed_request,bool passport,bool raw){
@@ -59,7 +64,18 @@ Json Api::request(const std::string&path,Params params,bool signed_request,bool 
     }
     return raw?j:j.value("data",Json::object());
 }
-Json Api::popular(int page){auto d=request("/x/web-interface/popular",{{"pn",std::to_string(std::clamp(page,1,100))},{"ps","20"}});Json list=Json::array();for(auto&v:d.at("list")){try{list.push_back(summary(v));}catch(...){}if(list.size()==20)break;}return {{"items",list},{"more",!d.value("no_more",false)}};}
+Json Api::popular(int page){auto d=request("/x/web-interface/popular",{{"pn",std::to_string(std::clamp(page,1,100))},{"ps","20"}});Json list=Json::array();for(auto&v:d.at("list")){try{list.push_back(summary(v));}catch(...){}if(list.size()==20)break;}return {{"items",list},{"more",page<100&&!d.value("no_more",false)}};}
+Json Api::portrait(int page){
+    // A bounded local filter of public popular results, not an undocumented
+    // phone recommendation feed. Unknown/square dimensions are not portrait.
+    Json list=Json::array();std::set<std::string> seen;bool more=false;
+    if(page<1||page>34)return {{"items",list},{"more",false}};
+    for(int n=(page-1)*3+1;n<=std::min(page*3,100);++n){auto batch=popular(n);
+        for(auto&v:batch["items"])if(v.value("width",0)>0&&v.value("height",0)>v.value("width",0)&&seen.insert(v["bvid"]).second)list.push_back(v);
+        more=batch.value("more",false);if(!more)break;
+    }
+    return {{"items",list},{"more",more}};
+}
 Json Api::search(const std::string&q,int page){
     if(q.empty()||q.size()>160)throw std::runtime_error("请输入关键词或 BV 号");auto id=video_id(q);if(!id.empty())return {{"items",Json::array({summary(detail(id))})},{"more",false}};
     auto d=request("/x/web-interface/wbi/search/type",{{"keyword",q},{"search_type","video"},{"page",std::to_string(std::clamp(page,1,100))},{"page_size","20"},{"order","totalrank"}},true);
