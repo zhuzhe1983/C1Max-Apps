@@ -101,6 +101,11 @@ target_include_directories(c1max-bilibili-test PRIVATE bilibili/src)
 target_compile_options(c1max-bilibili-test PRIVATE -UNDEBUG)
 target_link_libraries(c1max-bilibili-test c1net mbedcrypto)
 
+# Run only on C1 Max with an explicit public BV id and temporary data directory.
+add_executable(c1max-bilibili-player-test EXCLUDE_FROM_ALL bilibili/tests/player_device_test.cpp bilibili/src/api.cpp bilibili/src/player.cpp)
+target_include_directories(c1max-bilibili-player-test PRIVATE bilibili/src streamplayer/src)
+target_link_libraries(c1max-bilibili-player-test c1net lvgl mbedcrypto m)
+
 # A compact Xpdf text extractor provides actual PDF text support without
 # carrying a Qt viewer or rasterizer into the 128 MB target.
 set(NO_FONTCONFIG ON CACHE BOOL "" FORCE)

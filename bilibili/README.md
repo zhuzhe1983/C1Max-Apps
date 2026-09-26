@@ -26,11 +26,13 @@
 
 ## 播放与限制
 
+0.1.1 修复了原厂播放器没有给 HTTPS CDN 传递 Referer 导致的 403。真机还发现其 HTTPS 流在跳转时触发 SIGBUS；当前视频走同一 CDN 的原生 HTTP／Range 通道，视频传输不加密。账号登录、接口、封面仍用 HTTPS，CDN 请求不携带账号 Cookie。
+
 使用原厂 MPlayer 和 StreamPlayer 的完整帧适配器，MPlayer 不直接写 framebuffer；客户端统一合成视频和控件。`C1_YUV_SCALE` 只在本应用的播放器子进程启用，将原始 360p 画面缩至最多 400×288 再传给显示端；源尺寸限制为每边不超过 960、总像素不超过 307200。StreamPlayer 的原有转码尺寸校验保持不变。
 
 首版只支持 B 站返回的单文件 360p MP4。DASH-only、多段 durl、番剧专用播放接口、付费／地区限制、直播、弹幕、评论、关注动态、云端收藏和 B 站字幕尚未实现。不会绕过登录、付费或地区权限。自动 Cookie 刷新未实现，登录过期时需重新扫码。
 
-静音本地原始 640×360 H.264/AAC 测试约 28–29 fps；客户端 RSS 约 4.3 MB，**不含 MPlayer**。该测试不等于网络连续播放或有声同步验收；不同片源的码率、帧率和网络状况会影响流畅度。详细验证记录见 [QA](../docs/2026-09-26-bilibili-qa.md)。
+真机已联网取得热门、搜索、详情、360p MP4、封面和登录二维码。原始 640×360 H.264/AAC 网络播放稳定段约 30 fps，用户确认有声音；客户端 RSS 约 4.3 MB，**不含 MPlayer**。网络偶有缓冲，尚未做长时间稳定性或精确音画同步测量；不同片源的码率、帧率和网络状况会影响流畅度。详细验证记录见 [QA](../docs/2026-09-26-bilibili-qa.md)。
 
 ## 配置、构建与隐私
 
@@ -47,14 +49,16 @@ C1_APPS_ROOT=/work/.build/device C1_APPS_DATA=/work/.runtime/bilibili-qa qemu-mi
 /storage/apps/current/bilibili/c1max-bilibili --probe
 ```
 
+真机播放器回归可单独构建 `c1max-bilibili-player-test`：设置临时 `C1_APPS_DATA`，传入一个超过 90 秒的公开视频 BV 号。该程序实际连接 CDN、解码和测试暂停／跳转，始终静音，不访问 framebuffer 或键盘。运行前应通过前台监督器退出其他应用、停止原装桌面，以免并发解码耗尽内存；完成后恢复桌面。它不包含在应用包中。
+
 可用 `C1_BILI_SILENT=1` 临时将播放音频输出到 null。`--open BV...` 打开指定视频详情，不会自动播放。依赖同一个应用包里的 `streamplayer/c1max-yuv-pipe.so`、中文字体和系统音量监督器。
 
 本应用采用 GPL-3.0-or-later；上游来源、版本和第三方许可见 [licenses/NOTICE.md](licenses/NOTICE.md)。透明 Launcher 图标使用内置 imagegen 生成，完整提示词见 [bilibili-prompt.json](../launcher/assets/bilibili-prompt.json)。
 
 ## 设备截图
 
-![热门目录缓存](../docs/screenshots/bilibili.png)
+![联网热门视频](../docs/screenshots/bilibili.png)
 
-![未转码样本的本地播放验证](../docs/screenshots/bilibili-playback.png)
+![未转码视频的网络播放](../docs/screenshots/bilibili-playback.png)
 
-以上为真实设备截图；首页是电脑获取后写入独立 QA 目录的真实热门缓存，播放图是原始视频的本地静音验证。设备网络连续播放待 Wi-Fi 恢复后验证。
+以上为真实设备联网截图，数据保存在独立 QA 目录；播放图来自 B 站 CDN 原始码流，没有服务器转码。

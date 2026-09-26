@@ -21,6 +21,6 @@ private:
     std::string fifo_,lines_;
     Y4mReader reader_;
     uint32_t started_=0,last_frame_=0,last_query_=0,last_stats_=0;
-    void command(const std::string&text);
+    bool command(const std::string&text,const char*prefix="pausing_keep_force ");
 };
 }

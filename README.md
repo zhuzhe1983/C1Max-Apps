@@ -43,7 +43,7 @@ apps/
 
 ## 设备截图
 
-下图均为 C1 Max 设备画面。Bilibili 的目录图为真实 API 缓存，播放图为未转码视频的本地静音测试；尚不代表设备网络播放验收。模拟器截图展示实际运行中的内容；PS1 镜像及 NES ROM 由用户自行提供，仓库不包含游戏镜像。DOSBox 图为项目自带的 DOS LAB 小游戏。点图可查看 800×340 原图。新增截图使用已部署应用：CrossPoint 为原创演示 EPUB，邮件为未发送的演示草稿；[截图说明](docs/screenshots/README.md)记录来源与拍摄方式。
+下图均为 C1 Max 设备画面。Bilibili 的热门、搜索和播放画面来自真机联网测试。模拟器截图展示实际运行中的内容；PS1 镜像及 NES ROM 由用户自行提供，仓库不包含游戏镜像。DOSBox 图为项目自带的 DOS LAB 小游戏。点图可查看 800×340 原图。新增截图使用已部署应用：CrossPoint 为原创演示 EPUB，邮件为未发送的演示草稿；[截图说明](docs/screenshots/README.md)记录来源与拍摄方式。
 
 <table>
   <tr>
@@ -79,8 +79,8 @@ apps/
     <td><strong>Launcher 第二页</strong><br><a href="docs/screenshots/launcher-apps.png"><img src="docs/screenshots/launcher-apps.png" alt="Launcher 第二页显示 PCSX4all、Processing、DOSBox 及四个新增应用" width="400"></a><br>A/D 或横向滑动翻页，进入新增应用。</td>
   </tr>
   <tr>
-    <td><strong>Bilibili</strong><br><a href="docs/screenshots/bilibili.png"><img src="docs/screenshots/bilibili.png" alt="Bilibili 真机显示热门目录缓存与三个封面" width="400"></a><br>热门目录缓存、搜索、分 P 和扫码登录；<a href="bilibili/README.md">功能与限制</a>。</td>
-    <td><strong>Bilibili 播放控制</strong><br><a href="docs/screenshots/bilibili-playback.png"><img src="docs/screenshots/bilibili-playback.png" alt="Bilibili 原始 360p 视频本地静音验证与控制条" width="400"></a><br>原始 360p MP4 本地静音测试；网络连续播放尚待 Wi-Fi 恢复后验证。</td>
+    <td><strong>Bilibili</strong><br><a href="docs/screenshots/bilibili.png"><img src="docs/screenshots/bilibili.png" alt="Bilibili 真机联网加载热门视频与三个封面" width="400"></a><br>联网热门、搜索、分 P 和扫码登录；<a href="bilibili/README.md">功能与限制</a>。</td>
+    <td><strong>Bilibili 播放控制</strong><br><a href="docs/screenshots/bilibili-playback.png"><img src="docs/screenshots/bilibili-playback.png" alt="Bilibili 原始 360p 视频网络播放与控制条" width="400"></a><br>原始 360p MP4 直连播放；暂停、跳转和完整画面模式。</td>
   </tr>
 </table>
 
