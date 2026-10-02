@@ -61,6 +61,23 @@ if [ -f "$STATE/adb.onboot" ]; then
     log 'adb.onboot present; enabling ADB'
     setprop service.adb.tcp.port 5555 || true
     /usr/bin/enable_adb.sh true || true
+    # adb.onboot is the debug-convenience master switch (ADB at boot).
+    # The screen-off policy is a user preference owned by the settings app,
+    # persisted as lock=/timer= lines in /storage/apps/data/settings/screenoff.
+    screenoff=/storage/apps/data/settings/screenoff
+    if [ -f "$screenoff" ]; then
+        while IFS='=' read -r k v || [ -n "$k" ]; do
+            case "$k" in
+                lock) setprop sys.backlight.lock "$v" || true ;;
+                timer) setprop sys.backlight.timer "$v" || true ;;
+            esac
+        done < "$screenoff"
+        log "Applied screen-off preference from $screenoff"
+    else
+        # No saved preference yet: debug default keeps the screen on.
+        setprop sys.backlight.lock 1 || true
+    fi
+    setprop sys.backlight.timer.reset 1 || true
 fi
 
 rm -f "$HEARTBEAT"

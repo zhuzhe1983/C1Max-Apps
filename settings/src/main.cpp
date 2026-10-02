@@ -862,8 +862,13 @@ std::vector<Item> display_page() {
     off.key = "c:screenoff";
     off.label = "自动熄屏";
     for (auto &o : kScreenOff) off.options.push_back(o.label);
-    const bool never = prop("sys.backlight.lock") == "1";
-    const long ms = to_long(prop("sys.backlight.timer"), 1200000);
+    // The persisted preference wins over the live (volatile) properties;
+    // only when the file is absent do we infer the choice from them.
+    const std::string saved = read_file((data_dir() + "/screenoff").c_str());
+    const bool never = !saved.empty() ? value_after(saved, "lock") == "1"
+                                      : prop("sys.backlight.lock") == "1";
+    const long ms = !saved.empty() ? to_long(value_after(saved, "timer"), 1200000)
+                                   : to_long(prop("sys.backlight.timer"), 1200000);
     off.option = kScreenOffCount - 1;
     if (!never) {
         int best = 0;
@@ -876,6 +881,9 @@ std::vector<Item> display_page() {
         if (o.ms) set_prop("sys.backlight.timer", std::to_string(o.ms));
         set_prop("sys.backlight.lock", o.ms ? "0" : "1");
         set_prop("sys.backlight.timer.reset", "1");
+        // Persist the choice; desktop-service.sh reapplies it at boot.
+        ::mkdir(data_dir().c_str(), 0700);
+        write_file(data_dir() + "/screenoff", format("lock=%d\ntimer=%ld\n", o.ms ? 0 : 1, o.ms));
     };
     v.push_back(std::move(off));
 

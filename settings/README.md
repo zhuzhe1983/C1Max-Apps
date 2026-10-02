@@ -26,7 +26,7 @@ C1 Max 系统设置，0.2.0。800×340，跟计算器同一套 `shared/display` 
    - 扫描和连接不阻塞界面。连接时轮询 `wpa_cli status`，网络被标记 `TEMP-DISABLED` 时提示密码错误，25 秒内没连上则提示超时。失败、取消或退出应用时删除临时条目，恢复原来各网络的启用/停用状态和连接；原本断开时仍保持断开。
    - 只在连接成功后 `save_config`，保存失败会明确提示。使用原密码连接会复用已保存条目；修改密码时先用临时条目试连，成功后才替换旧条目，因此输错密码不会覆盖原密码。连接期间网络详情提供取消按钮。
    - SSID 用十六进制写入，中文名可以正常连接和显示。命令一律以参数数组传给 `wpa_cli`，不经过 shell，所以密码可以包含任意可打印字符。
-2. **显示与熄屏**：亮度 1–15，写入 `/sys/class/backlight/backlight/brightness`，与原厂一样同步 `sys.backlight.percent`，并保存到 `$C1_APPS_DATA/settings/brightness`；熄屏唤醒时 `c1max-volume` 按这个值恢复亮度。自动熄屏可选 30 秒到 30 分钟，写 `sys.backlight.timer`；「永不」写 `sys.backlight.lock=1`。休眠计时和休眠锁只显示，不修改。
+2. **显示与熄屏**：亮度 1–15，写入 `/sys/class/backlight/backlight/brightness`，与原厂一样同步 `sys.backlight.percent`，并保存到 `$C1_APPS_DATA/settings/brightness`；熄屏唤醒时 `c1max-volume` 按这个值恢复亮度。自动熄屏可选 30 秒到 30 分钟，写 `sys.backlight.timer`；「永不」写 `sys.backlight.lock=1`。选择同时持久化到 `$C1_APPS_DATA/settings/screenoff`（`lock=`/`timer=` 两行），开机时由 desktop-service.sh 重新应用；本页回显以该文件为准，文件不存在才按当前属性推断。休眠计时和休眠锁只显示，不修改。
 3. **声音**：媒体音量直接调整 `softvolume`（与侧边音量键是同一个控件），显示当前输出是扬声器还是耳机。回到原厂桌面时，launcher 会恢复进入前的混音器状态。
 4. **USB**：显示当前模式和 USB 线是否连接；可以切换 ADB 调试和文件传输（MTP）。切到 MTP 会断开 ADB，需要确认，之后可以在本页切回。
 5. **无线调试**：读 `/proc/net/tcp` 判断 5555（`15B3`）是否在监听，监听时显示 `adb connect IP:5555`。这台 adbd 只在启动时读 `service.adb.tcp.port`，而 `ctl.restart adbd` 或 `adb tcpip` 会拆掉 USB gadget，所以本页**不**重启 adbd：「下次启动时开启」只写入 5555，「清除设置」写入 0。

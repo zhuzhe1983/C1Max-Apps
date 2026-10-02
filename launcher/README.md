@@ -57,6 +57,17 @@ PNG 解码库，支持透明通道；图标缺失或长度错误时显示备用�
 显示和输入 fd 在 exec 时关闭；TERM 会回收当前子应用进程组。前台互斥、
 音量键和恢复限制见 [foreground-notes.md](foreground-notes.md)。
 
+## 开机服务与息屏策略
+
+`desktop-service.sh` 是 init 一次性服务：等 smartUI 稳定后启动自定义桌面，
+用心跳文件判定 launcher 真的拿到 framebuffer，拿不到就回退原厂 UI。
+`/storage/apps/data/launcher/adb.onboot` 存在时（调试便利总开关）额外开启 ADB，
+并按 `/storage/apps/data/settings/screenoff`（设置应用写入的 `lock=`/`timer=`
+两行）重放息屏偏好，缺行跳过对应项，最后重置一次原厂空闲计时
+（`sys.backlight.timer.reset`）。文件不存在时回退调试默认
+`sys.backlight.lock=1`（屏幕常亮）。息屏策略是用户偏好，设置应用可随时改，
+重启后保持；`adb.onboot` 本身不再强制屏幕常亮。
+
 分页、末页选择和手势互斥逻辑可在电脑直接测试，无需连接设备：
 
 ```sh
