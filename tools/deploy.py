@@ -15,6 +15,10 @@ if any(not re.fullmatch('[a-z][a-z0-9_-]{0,31}',name) for name in ids):raise Sys
 adb=['adb','-s',a.serial]
 def call(*args):subprocess.run(adb+list(args),check=True)
 def shell(cmd):return subprocess.check_output(adb+['shell',cmd],text=True).replace('\r','').strip()
+device_arch=shell('uname -m')
+if device_arch not in ('mips', 'mipsel', 'mips64', 'mips64el'):
+    raise SystemExit(f'Incompatible device architecture: {device_arch or "unknown"}; this release targets MIPS32')
+hash_tool=shell('command -v sha256sum || true') or '/sbin/busybox sha256sum'
 if shell('test -d /storage/apps/data/launcher/run.lock && echo active || true')=='active':raise SystemExit('Exit the launcher before deploying a new release')
 tag=datetime.datetime.now().strftime('%Y%m%d-%H%M%S')+'-'+hashlib.sha256((payload/'SHA256SUMS').read_bytes()).hexdigest()[:8]
 archive=root/'.build'/('apps-'+tag+'.tar')
@@ -26,10 +30,10 @@ call('shell','mkdir -p '+stage+' '+' '.join(folders)+'; chmod 700 '+base+'/data 
 call('push',str(archive),stage+'/payload.tar')
 # Globs expand on the device: archives made on Windows hosts carry no exec bits.
 executables=['launcher/run.sh','launcher/desktop-service.sh','pcsx4all/c1max-psx-core','dosbox/c1max-dos-core','nes/c1max-nes-browser','hidpilot/c1max-hidpilot-usb','shared/c1max-*','linux-tools/bin/*']+[name+'/c1max-'+name for name in ids]
-cmd=f'cd {stage} && tar xf payload.tar && sha256sum -c SHA256SUMS && rm payload.tar && chmod 755 '+ ' '.join(executables)
+cmd=f'cd {stage} && tar xf payload.tar && {hash_tool} -c SHA256SUMS && rm payload.tar && chmod 755 '+ ' '.join(executables)
 if 'OK' not in shell(cmd):raise SystemExit('Device verification failed; current release unchanged')
 # old BusyBox adb does not propagate remote exit statuses, so verify explicitly.
-verify=shell(f'cd {stage} && sha256sum -c SHA256SUMS >/dev/null 2>&1 && echo VERIFIED')
+verify=shell(f'cd {stage} && {hash_tool} -c SHA256SUMS >/dev/null 2>&1 && echo VERIFIED')
 if verify!='VERIFIED':raise SystemExit('Checksum mismatch; current release unchanged')
 print('Previous release:',shell('readlink /storage/apps/current || true'))
 result=shell(f'chmod 755 {stage}/shared/c1max-activate && {stage}/shared/c1max-activate {stage}')

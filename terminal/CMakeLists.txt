@@ -11,4 +11,4 @@ target_include_directories(c1vterm PRIVATE ${VTERM_SOURCE_DIR}/src)
 add_executable(c1max-terminal src/main.cpp src/terminal.cpp src/pty.cpp
     ../shared/display.cpp ../shared/keyboard.cpp)
 target_include_directories(c1max-terminal PRIVATE ../shared)
-target_link_libraries(c1max-terminal c1vterm lvgl m)
+target_link_libraries(c1max-terminal c1vterm c1ime lvgl m)

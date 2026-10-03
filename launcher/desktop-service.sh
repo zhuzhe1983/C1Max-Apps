@@ -7,6 +7,8 @@ set -u
 PATH=/usr/bin:/bin:/usr/sbin:/sbin
 export PATH
 BASE=/storage/apps
+export C1_APPS_ROOT="$BASE/current"
+export C1_APPS_DATA="$BASE/data"
 STATE="$BASE/data/launcher"
 LOG="$STATE/desktop-boot.log"
 HEARTBEAT="$STATE/desktop.heartbeat"
@@ -61,6 +63,34 @@ if [ -f "$STATE/adb.onboot" ]; then
     log 'adb.onboot present; enabling ADB'
     setprop service.adb.tcp.port 5555 || true
     /usr/bin/enable_adb.sh true || true
+    # adb.onboot is the debug-convenience master switch (ADB at boot).
+    # The screen-off policy is a user preference owned by the settings app,
+    # persisted as lock=/timer= lines in /storage/apps/data/settings/screenoff.
+    screenoff=/storage/apps/data/settings/screenoff
+    if [ -f "$screenoff" ]; then
+        while IFS='=' read -r k v || [ -n "$k" ]; do
+            case "$k" in
+                lock) setprop sys.backlight.lock "$v" || true ;;
+                timer) setprop sys.backlight.timer "$v" || true ;;
+            esac
+        done < "$screenoff"
+        log "Applied screen-off preference from $screenoff"
+    else
+        # No saved preference yet: debug default keeps the screen on.
+        setprop sys.backlight.lock 1 || true
+    fi
+    setprop sys.backlight.timer.reset 1 || true
+fi
+
+SSH_DATA="$C1_APPS_DATA/terminal/dropbear"
+SSHD="$C1_APPS_ROOT/terminal/assets/bin/sshd"
+if [ -f "$SSH_DATA/enabled" ] && [ "$(cat "$SSH_DATA/enabled" 2>/dev/null || true)" = 1 ]; then
+    if [ -x "$SSHD" ]; then
+        log 'ssh.enabled present; starting Dropbear SSH server'
+        "$SSHD" boot >>"$STATE/sshd.log" 2>&1 &
+    else
+        log 'ssh.enabled present but sshd is missing'
+    fi
 fi
 
 rm -f "$HEARTBEAT"

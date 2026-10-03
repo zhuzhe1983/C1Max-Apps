@@ -21,7 +21,8 @@ set(CONFIG_LV_USE_THORVG_INTERNAL OFF CACHE BOOL "" FORCE)
 add_subdirectory("{apps}/.deps/lvgl" lvgl EXCLUDE_FROM_ALL)
 file(GLOB vterm_sources "{root}/vendor/libvterm/src/*.c")
 add_executable(terminal-render "{root}/src/main.cpp" "{root}/src/terminal.cpp"
-    "{root}/src/pty.cpp" "{root}/tests/headless_display.cpp" ${{vterm_sources}})
+    "{root}/src/pty.cpp" "{root}/tests/headless_display.cpp"
+    "{root}/tests/c1ime_stub.cpp" ${{vterm_sources}})
 target_include_directories(terminal-render PRIVATE "{apps}/shared" "{root}/vendor/libvterm/include")
 target_link_libraries(terminal-render lvgl m)
 ''')

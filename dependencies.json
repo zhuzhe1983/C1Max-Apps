@@ -36,5 +36,14 @@
   "quirc": {
     "url": "https://github.com/dlbeer/quirc.git",
     "commit": "927d680904dc95fdff4cd9d022eb374b438ff8f2"
+  },
+  "librime": {
+    "url": "https://github.com/adam-ikari/librime.git",
+    "commit": "1d7c2618bbaaa28f1987d57a0d26f33921f391be",
+    "submodules": true
+  },
+  "term-ime-dict": {
+    "url": "https://github.com/adam-ikari/term-ime-dict.git",
+    "commit": "6155542fbfa63a6e527a1610531dd66fc050b82f"
   }
 }

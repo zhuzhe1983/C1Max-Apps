@@ -1,0 +1,6 @@
+#!/bin/sh
+# Keep the stock GNU Wget, but give terminal sessions the application's CA bundle.
+if [ -z "${WGETRC:-}" ] && [ -f /storage/apps/current/terminal/assets/wgetrc ]; then
+    export WGETRC=/storage/apps/current/terminal/assets/wgetrc
+fi
+exec /usr/bin/wget "$@"

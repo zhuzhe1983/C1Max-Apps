@@ -33,4 +33,7 @@ if __name__ == '__main__':
         fetch(source)
         for patch in source['patches']:
             fetch(patch)
-    print('Verified 5 source archives and 20 Bash patches against sources.json')
+    manifest = json.loads((ROOT / 'sources.json').read_text())
+    archives = len(manifest['sources'])
+    patches = sum(len(source['patches']) for source in manifest['sources'])
+    print(f'Verified {archives} source archives and {patches} patches against sources.json')

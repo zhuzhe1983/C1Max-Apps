@@ -1,0 +1,229 @@
+#!/bin/sh
+# One controller for Settings, boot startup and terminal use.
+set -eu
+umask 077
+PATH=/usr/bin:/bin:/usr/sbin:/sbin
+export PATH
+root=${C1_APPS_ROOT:-/storage/apps/current}
+data=${C1_APPS_DATA:-/storage/apps/data}/terminal/dropbear
+auth=${C1_SSH_AUTH_DIR:-/storage/terminal/dropbear}
+server="$root/linux-tools/bin/dropbear"
+keygen="$root/linux-tools/bin/dropbearkey"
+key="$data/dropbear_ed25519_host_key"
+authorized="$auth/authorized_keys"
+pidfile="$data/dropbear.pid"
+identity="$data/dropbear.identity"
+runport="$data/running-port"
+logfile="$data/server.log"
+boot_id=$(cat /proc/sys/kernel/random/boot_id)
+
+fail() { echo "sshd: $*" >&2; exit 1; }
+usage() { echo 'usage: sshd start|stop|restart|status [--machine]|enable|disable|port N|authorize FILE|boot' >&2; exit 2; }
+valid_port() {
+    case "$1" in ''|*[!0-9]*|0*) return 1 ;; esac
+    [ "${#1}" -le 5 ] && [ "$1" -ge 1024 ] && [ "$1" -le 65535 ]
+}
+configured_port() {
+    value=2222
+    if [ -f "$data/port" ]; then value=$(cat "$data/port"); fi
+    valid_port "$value" || fail 'invalid saved port (allowed: 1024-65535)'
+    echo "$value"
+}
+# starttime is field 22; comm may contain spaces or ')'. Also reject zombies.
+process_stamp() {
+    case "$1" in ''|*[!0-9]*|0|1) return 1 ;; esac
+    line=$(cat "/proc/$1/stat" 2>/dev/null) || return 1
+    fields=${line##*) }
+    set -- $fields
+    [ "$#" -ge 20 ] && [ "$1" != Z ] || return 1
+    shift 19
+    printf '%s:%s\n' "$boot_id" "$1"
+}
+running() {
+    [ -s "$pidfile" ] && [ -s "$identity" ] && [ -s "$runport" ] || return 1
+    pid=$(cat "$pidfile")
+    saved=$(cat "$identity")
+    [ -n "$saved" ] && [ "$(process_stamp "$pid" || true)" = "$saved" ] || return 1
+    executable=$(readlink "/proc/$pid/exe" 2>/dev/null || true)
+    case "$executable" in */linux-tools/bin/dropbear|*/linux-tools/bin/dropbear\ \(deleted\)) ;; *) return 1 ;; esac
+    live_port=$(cat "$runport")
+    valid_port "$live_port"
+}
+listening() {
+    running || return 1
+    sockets=''
+    for descriptor in /proc/"$pid"/fd/*; do
+        target=$(readlink "$descriptor" 2>/dev/null || true)
+        case "$target" in socket:\[*\]) sockets="$sockets ${target#socket:[}"; sockets=${sockets%]}; esac
+    done
+    [ -n "$sockets" ] || return 1
+    hex=$(printf '%04X' "$live_port")
+    awk -v port="$hex" -v sockets="$sockets" '
+        BEGIN { n=split(sockets,a," "); for(i=1;i<=n;i++) owned[a[i]]=1 }
+        # On the C1Max kernel, /proc/net/tcp puts the socket inode in field 10.
+        # Keep the match tied to the device format rather than assuming a
+        # desktop kernel extended columns.
+        $4 == "0A" && owned[$10] && substr($2,length($2)-3) == port { ok=1 }
+        END { exit !ok }
+    ' /proc/net/tcp /proc/net/tcp6 2>/dev/null
+}
+private_dir() {
+    [ ! -L "$1" ] || fail "symlink directory: $1"
+    mkdir -p "$1" || fail "cannot create $1"
+    chmod 700 "$1" || fail "cannot protect $1"
+}
+auth_permissions() {
+    path="$auth"
+    while :; do
+        mode=$(stat -c %a "$path") || return 1
+        owner=$(stat -c %u "$path") || return 1
+        [ "$owner" = 0 ] && [ "$((0$mode & 022))" = 0 ] || return 1
+        [ "$path" != / ] || break
+        path=${path%/*}
+        [ -n "$path" ] || path=/
+    done
+}
+atomic_write() {
+    [ ! -L "$1" ] || fail "symlink file: $1"
+    printf '%s\n' "$2" > "$1.tmp"
+    chmod 600 "$1.tmp"
+    mv "$1.tmp" "$1"
+}
+prepare() {
+    private_dir "$data"
+    # /storage/apps is world-writable on stock devices. Auth keys must live
+    # outside that tree so Dropbear can verify every parent directory.
+    if [ "$auth" = /storage/terminal/dropbear ]; then private_dir /storage/terminal; fi
+    private_dir "$auth"
+    auth_permissions || fail 'authorized_keys parents must be root-owned and not writable by group/others'
+    [ ! -L "$authorized" ] || fail 'authorized_keys must not be a symlink'
+    if [ ! -f "$authorized" ]; then : > "$authorized"; fi
+    chmod 600 "$authorized"
+}
+start_server() {
+    port=$(configured_port)
+    if running; then
+        listening || fail 'managed Dropbear exists but is not listening; stop it before retrying'
+        echo "sshd already running on port $live_port (pid $pid)"
+        return
+    fi
+    [ -x "$server" ] && [ -x "$keygen" ] || fail 'Dropbear tools are missing from this release'
+    prepare
+    [ ! -L "$key" ] || fail 'host key must not be a symlink'
+    if [ ! -s "$key" ]; then
+        "$keygen" -t ed25519 -f "$key.new" > "$data/keygen.log" 2>&1 || fail "host-key generation failed; see $data/keygen.log"
+        chmod 600 "$key.new"
+        mv "$key.new" "$key"
+        if [ -f "$key.new.pub" ]; then mv "$key.new.pub" "$key.pub"; fi
+    fi
+    "$keygen" -y -f "$key" > "$data/hostkey.txt" 2>&1 || fail 'stored host key is invalid; retained for inspection'
+    chmod 600 "$key"
+    rm -f "$pidfile" "$identity" "$runport"
+    if [ -f "$logfile" ] && [ "$(wc -c < "$logfile")" -gt 262144 ]; then mv "$logfile" "$logfile.1"; fi
+    # Separate session and close flock fd: GUI exit/release changes must not
+    # terminate the listener or keep the control lock held forever.
+    setsid "$server" -F -D "$auth" -r "$key" -p "$port" -P "$pidfile" \
+        </dev/null >>"$logfile" 2>&1 9>&- &
+    child=$!
+    stamp=''
+    attempt=0
+    while [ -z "$stamp" ] && [ "$attempt" -lt 10 ]; do
+        stamp=$(process_stamp "$child" || true)
+        [ -n "$stamp" ] || { sleep .05; attempt=$((attempt+1)); }
+    done
+    [ -n "$stamp" ] || fail "Dropbear exited; see $logfile"
+    atomic_write "$identity" "$stamp"
+    atomic_write "$runport" "$port"
+    attempt=0
+    while [ "$attempt" -lt 30 ]; do
+        if listening; then echo "sshd started on port $port (pid $pid)"; return; fi
+        [ "$(process_stamp "$child" || true)" = "$stamp" ] || break
+        sleep .1; attempt=$((attempt+1))
+    done
+    if [ "$(process_stamp "$child" || true)" = "$stamp" ]; then kill -TERM "$child" 2>/dev/null || true; fi
+    rm -f "$pidfile" "$identity" "$runport"
+    fail "server did not bind port $port; see $logfile"
+}
+stop_server() {
+    if running; then
+        expected=$(cat "$identity")
+        target_pid=$pid
+        kill -TERM "$target_pid" 2>/dev/null || true
+        attempt=0
+        while [ "$(process_stamp "$target_pid" || true)" = "$expected" ] && [ "$attempt" -lt 30 ]; do
+            sleep .1; attempt=$((attempt+1))
+        done
+        [ "$(process_stamp "$target_pid" || true)" != "$expected" ] || fail 'listener did not exit; state retained'
+    fi
+    rm -f "$pidfile" "$identity" "$runport"
+    echo 'sshd stopped'
+}
+key_count() {
+    if [ -f "$authorized" ]; then
+        awk '$1 ~ /^ssh-/ || $1 ~ /^ecdsa-/ {n++} END {print n+0}' "$authorized"
+    else echo 0; fi
+}
+status() {
+    active=0; bound=0; pid=0; live_port=0
+    if running; then active=1; fi
+    if listening; then bound=1; fi
+    port=$(configured_port)
+    enabled=0
+    [ "$(cat "$data/enabled" 2>/dev/null || true)" != 1 ] || enabled=1
+    if [ "${2:-}" = --machine ]; then
+        printf 'running=%s\nlistening=%s\npid=%s\nport=%s\nrunning_port=%s\nenabled=%s\nkeys=%s\n' "$active" "$bound" "$pid" "$port" "$live_port" "$enabled" "$(key_count)"
+        exit 0
+    fi
+    if [ "$bound" = 1 ]; then echo "sshd running on port $live_port (pid $pid)"; else echo 'sshd stopped'; exit 1; fi
+}
+authorize() {
+    [ "$#" = 2 ] && [ -r "$2" ] || fail 'copy an Ed25519 public key to /storage/ssh.pub first'
+    prepare
+    # Public input is data, never shell code. Only standard Ed25519 keys are
+    # imported here; manually managed authorized_keys options remain untouched.
+    awk '
+        NF && $1 !~ /^#/ {
+            if ($1 != "ssh-ed25519" || length($2) != 68 || $2 !~ /^AAAAC3NzaC1lZDI1NTE5AAAAI/ || $2 ~ /[^A-Za-z0-9+\/]/) bad=1
+            else { print $1 " " $2; n++ }
+        }
+        END { if(bad || !n || n>16) exit 1 }
+    ' "$2" > "$data/import.tmp" || { rm -f "$data/import.tmp"; fail 'invalid public key file; expected 1-16 Ed25519 public keys'; }
+    awk 'NR==FNR {seen[$2]=1; print; next} !seen[$2]++ {print}' "$authorized" "$data/import.tmp" > "$authorized.tmp"
+    chmod 600 "$authorized.tmp"
+    mv "$authorized.tmp" "$authorized"
+    rm -f "$data/import.tmp"
+    echo "sshd authorized keys: $(key_count)"
+}
+[ "$#" -ge 1 ] || usage
+case "$1" in
+    status) [ "$#" -le 2 ] || usage; status "$@" ;;
+    boot) [ "$(cat "$data/enabled" 2>/dev/null || true)" = 1 ] || exit 0 ;;
+    start|stop|restart|enable|disable) [ "$#" = 1 ] || usage ;;
+    port) [ "$#" = 2 ] && valid_port "$2" || usage ;;
+    authorize) [ "$#" = 2 ] || usage ;;
+    *) usage ;;
+esac
+private_dir "$data"
+exec 9>"$data/control.lock"
+flock -n 9 || fail 'another SSH service operation is still running'
+case "$1" in
+    start|boot) start_server ;;
+    stop) stop_server ;;
+    restart) stop_server; start_server ;;
+    enable) start_server; atomic_write "$data/enabled" 1; echo 'sshd autostart enabled' ;;
+    disable) atomic_write "$data/enabled" 0; echo 'sshd autostart disabled (current listener unchanged)' ;;
+    authorize) authorize "$@" ;;
+    port)
+        old_port=$(configured_port)
+        was_running=0
+        if running; then was_running=1; fi
+        [ "$was_running" = 0 ] || stop_server
+        atomic_write "$data/port" "$2"
+        if [ "$was_running" = 1 ] && ! (start_server); then
+            atomic_write "$data/port" "$old_port"
+            start_server || true
+            fail "port $2 unavailable; restored port $old_port"
+        fi
+        echo "sshd configured port: $2"
+        ;;
+esac

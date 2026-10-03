@@ -104,24 +104,64 @@ build_nano() {
 build_dropbear() {
     # The release makefiles build bundled crypto in the source tree.
     cd "$BUILD/src/dropbear-2026.94"
-    # No server is built. Shared headers otherwise require libcrypt for the
-    # unused server-password path; client password authentication stays enabled.
-    printf '#define DROPBEAR_SVR_PASSWORD_AUTH 0\n' > localoptions.h
+    # Server password authentication is disabled at compile time. The client
+    # still keeps password authentication for connecting to ordinary hosts.
+    cat > localoptions.h <<'EOF'
+#define DROPBEAR_SVR_PASSWORD_AUTH 0
+#define DEFAULT_PATH "/storage/apps/current/terminal/assets/bin:/storage/apps/current/linux-tools/bin:/usr/bin:/bin"
+#define DEFAULT_ROOT_PATH "/storage/apps/current/terminal/assets/bin:/storage/apps/current/linux-tools/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+EOF
     ./configure --build="$HOST" --host=mipsel-linux-gnu --prefix="$PREFIX" \
         --enable-static --enable-bundled-libtom --disable-zlib --disable-syslog \
         --disable-lastlog --disable-utmp --disable-utmpx --disable-wtmp --disable-wtmpx
-    make -j"$JOBS" PROGRAMS='dbclient dropbearkey' STATIC=1
-    install -m755 dbclient dropbearkey "$OUT/bin/"
+    make -j"$JOBS" PROGRAMS='dbclient dropbear dropbearkey scp' STATIC=1
+    install -m755 dbclient dropbear dropbearkey scp "$OUT/bin/"
+}
+build_mbedtls() {
+    rm -rf "$BUILD/build/mbedtls"
+    local ar_path ranlib_path
+    ar_path=$(command -v "$AR")
+    ranlib_path=$(command -v "$RANLIB")
+    cmake -S "$BUILD/src/mbedtls-3.6.4" -B "$BUILD/build/mbedtls" \
+        -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=mips \
+        -DCMAKE_C_COMPILER="$CC" -DCMAKE_AR="$ar_path" -DCMAKE_RANLIB="$ranlib_path" \
+        -DCMAKE_C_FLAGS="$CFLAGS" -DCMAKE_BUILD_TYPE=MinSizeRel \
+        -DCMAKE_INSTALL_PREFIX=/usr -DUSE_SHARED_MBEDTLS_LIBRARY=OFF \
+        -DENABLE_TESTING=OFF -DENABLE_PROGRAMS=OFF -DMBEDTLS_FATAL_WARNINGS=OFF
+    cmake --build "$BUILD/build/mbedtls" -j"$JOBS"
+    DESTDIR="$STAGE" cmake --install "$BUILD/build/mbedtls"
+}
+build_curl() {
+    mkdir -p "$BUILD/build/curl"; cd "$BUILD/build/curl"
+    "$BUILD/src/curl-8.22.0/configure" --build="$HOST" --host=mipsel-linux-gnu \
+        --prefix="$PREFIX" --disable-shared --enable-static \
+        --with-mbedtls="$STAGE/usr" --with-ca-bundle=/storage/apps/current/shared/ca-certificates.crt \
+        --without-libpsl --without-zlib --without-brotli --without-zstd --without-libidn2 \
+        --without-nghttp2 --without-libssh2 --without-librtmp --without-libgsasl \
+        --disable-ldap --disable-ldaps --disable-rtsp --disable-dict --disable-telnet \
+        --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher \
+        --disable-mqtt --disable-smb --disable-manual
+    make -j"$JOBS"
+    # Libtool's global flags also affect compilation and are rejected there;
+    # request fully static linkage only for the final curl program.
+    rm -f src/curl
+    make -C src curl_LDFLAGS=-all-static curl
+    install -m755 src/curl "$OUT/bin/curl"
 }
 step bash build_bash
 step less build_less
 step nano build_nano
 step dropbear build_dropbear
+step mbedtls build_mbedtls
+step curl build_curl
 for BIN in "$OUT"/bin/*; do "$STRIP" --strip-unneeded "$BIN"; done
 
 # Compile only the terminal types advertised by the C1Max terminal app.
 tic -x -e xterm-256color,vt100 -o "$OUT/share/terminfo" "$BUILD/src/ncurses-6.6/misc/terminfo.src"
 cp -R /work/licenses "$OUT/share/"
+mkdir -p "$OUT/share/licenses/curl-8.22.0" "$OUT/share/licenses/mbedtls-3.6.4"
+cp "$BUILD/src/curl-8.22.0/COPYING" "$OUT/share/licenses/curl-8.22.0/"
+cp "$BUILD/src/mbedtls-3.6.4/LICENSE" "$OUT/share/licenses/mbedtls-3.6.4/"
 cp /work/sources.json "$OUT/share/sources.json"
 mkdir -p "$OUT/share/licenses/toolchain"
 cp /usr/share/doc/libc6-dev-mipsel-cross/copyright "$OUT/share/licenses/toolchain/glibc-copyright"

@@ -1,4 +1,6 @@
-/* Read-only global Shift+Enter shortcut. Hold 1.5s, then release BOTH keys.
+/* Read-only global shortcuts, both firing AT the hold threshold (no release
+ * needed): Shift+Enter held 1.5s, or Back (event1 only) held 2s. Each fires
+ * once per press and re-arms after the chord/key is released.
  * No EVIOCGRAB and no synthesized input: the stock UI keeps ordinary keys.
  * The independent launcher supervisor survives this daemon stopping/restarting.
  */
@@ -10,11 +12,14 @@
 #include <unistd.h>
 
 #define HOLD_MS 1500u
-enum key_slot { LEFT_SHIFT, RIGHT_SHIFT, ENTER, KP_ENTER, SLOT_COUNT };
+#define BACK_HOLD_MS 2000u
+enum key_slot { LEFT_SHIFT, RIGHT_SHIFT, ENTER, KP_ENTER, BACK, SLOT_COUNT };
 struct hotkey_state {
     unsigned char keys[2][SLOT_COUNT];
     int timing, armed, inhibited;
     uint64_t since;
+    uint64_t back_since;
+    int back_fired;
 };
 static int any_key(const struct hotkey_state *state) {
     for (int i = 0; i < 2; ++i)
@@ -31,39 +36,50 @@ static int chord_down(const struct hotkey_state *state) {
 }
 static void inhibit(struct hotkey_state *state) {
     state->timing = state->armed = 0;
+    state->back_since = 0;          /* A pending back-hold must start over. */
+    state->back_fired = 1;          /* Suppress until the key is fully released. */
     state->inhibited = 1;
 }
+/* The physical Back key lives on event1; ignore code 14 on the keypad device. */
+static int back_held(const struct hotkey_state *state) {
+    return state->keys[1][BACK];
+}
+static int back_ready(const struct hotkey_state *state, uint64_t now) {
+    return !state->inhibited && !state->back_fired && back_held(state) &&
+           state->back_since && now >= state->back_since &&
+           now - state->back_since >= BACK_HOLD_MS;
+}
 static void maybe_arm(struct hotkey_state *state, uint64_t now) {
-    if (!state->inhibited && state->timing && chord_down(state) &&
+    if (!state->inhibited && !state->armed && state->timing && chord_down(state) &&
         now >= state->since && now - state->since >= HOLD_MS) state->armed = 1;
+}
+/* armed = already fired for this press; releasing the chord re-arms it. */
+static int chord_ready(struct hotkey_state *state, uint64_t now) {
+    int was = state->armed;
+    maybe_arm(state, now);
+    return !was && state->armed;
 }
 static void key_update(struct hotkey_state *state, int device, int slot,
                        int value, uint64_t now) {
     if (device < 0 || device > 1 || slot < 0 || slot >= SLOT_COUNT ||
         (value != 0 && value != 1)) return;  /* Auto-repeat never starts a hold. */
-    /* A release delivered after a delayed poll still counts the held duration. */
-    maybe_arm(state, now);
     state->keys[device][slot] = value != 0;
     if (state->inhibited) {
         if (!any_key(state)) state->inhibited = 0;
         return;
     }
-    if (state->armed) return;
-    if (chord_down(state)) {
-        if (!state->timing) { state->timing = 1; state->since = now; }
-    } else state->timing = 0;
+    if (!chord_down(state)) { state->timing = 0; state->armed = 0; }
+    if (state->armed) return;  /* Fired; ignore further presses until release. */
+    if (slot == BACK && device == 1) {
+        if (value) { state->back_since = now; state->back_fired = 0; }
+        else state->back_since = 0;
+    }
+    if (chord_down(state) && !state->timing) { state->timing = 1; state->since = now; }
 }
-static int ready_after_release(struct hotkey_state *state, uint64_t now) {
-    if (state->inhibited) {
-        if (!any_key(state)) state->inhibited = 0;
-        return 0;
-    }
-    maybe_arm(state, now);
-    if (state->armed && !any_key(state)) {
-        state->armed = state->timing = 0;
-        return 1;
-    }
-    return 0;
+/* Clear stale startup/resync inhibition once nothing is physically held;
+ * otherwise the first gesture after a foreground->stock switch is swallowed. */
+static void maybe_uninhibit(struct hotkey_state *state) {
+    if (state->inhibited && !any_key(state)) state->inhibited = 0;
 }
 static int foreground_busy(const char *path) {
     /* Use the same persistent inode as run.sh. A stale run.lock directory is
@@ -106,6 +122,7 @@ static int slot_for_code(unsigned code) {
         case KEY_RIGHTSHIFT: return RIGHT_SHIFT;
         case KEY_ENTER: return ENTER;
         case KEY_KPENTER: return KP_ENTER;
+        case KEY_BACKSPACE: return BACK;  /* Physical Back key (event1). */
         default: return -1;
     }
 }
@@ -139,7 +156,7 @@ static void resync_keys(struct hotkey_state *state, int index, int fd) {
     memset(bits, 0, sizeof bits);
     memset(state->keys[index], 0, sizeof state->keys[index]);
     if (ioctl(fd, EVIOCGKEY(sizeof bits), bits) >= 0) {
-        static const unsigned codes[] = {KEY_LEFTSHIFT, KEY_RIGHTSHIFT, KEY_ENTER, KEY_KPENTER};
+        static const unsigned codes[] = {KEY_LEFTSHIFT, KEY_RIGHTSHIFT, KEY_ENTER, KEY_KPENTER, KEY_BACKSPACE};
         for (int i = 0; i < SLOT_COUNT; ++i)
             state->keys[index][i] = !!(bits[codes[i] / 8] & (1u << (codes[i] % 8)));
     }
@@ -169,7 +186,7 @@ static pid_t launch(const char *script, const char *log_path,
 }
 int main(int argc, char **argv) {
     if (argc == 2 && !strcmp(argv[1], "--version")) {
-        puts("C1Max hotkey 0.1.0 (Shift+Enter: hold 1500ms, then release)"); return 0;
+        puts("C1Max hotkey 0.3.0 (Shift+Enter: hold 1500ms; Back: hold 2000ms; fire at threshold)"); return 0;
     }
     if (argc != 1) { fprintf(stderr, "Usage: %s [--version]\n", argv[0]); return 2; }
     const char *root = getenv("C1_APPS_ROOT"), *data = getenv("C1_APPS_DATA");
@@ -211,7 +228,7 @@ int main(int argc, char **argv) {
         resync_keys(&state, i, inputs[i].fd);
     }
     if (!active) goto done;
-    fprintf(stderr, "[hotkey] Ready: hold Shift+Enter 1.5s, then release both; input remains shared\n");
+    fprintf(stderr, "[hotkey] Ready: hold Shift+Enter 1.5s or Back 2s (fires at the threshold); input remains shared\n");
     while (!quitting && active) {
         uint64_t now;
         if (clock_ms(&now)) { perror("[hotkey] Clock"); goto done; }
@@ -221,12 +238,22 @@ int main(int argc, char **argv) {
             if (reaped == child || (reaped < 0 && errno == ECHILD)) child = -1;
         }
         if (child > 0 || foreground_busy(foreground_lock) || path_exists(disabled_path)) inhibit(&state);
-        if (ready_after_release(&state, now) && !quitting) {
-            /* Recheck the lock at the actual handoff, after both keys are up. */
+        else maybe_uninhibit(&state);
+        if (chord_ready(&state, now) && !quitting) {
+            /* Once per chord press; re-arms after the keys are released. */
             if (!foreground_busy(foreground_lock) && !path_exists(disabled_path) && child <= 0) {
                 child = launch(script, log_path, inputs, lock_fd);
                 if (child < 0) perror("[hotkey] Launch");
                 else fprintf(stderr, "[hotkey] Started independent supervisor PID %ld\n", (long)child);
+            }
+        }
+        if (back_ready(&state, now) && !quitting) {
+            /* Once per press: fires at the threshold, no need to release. */
+            state.back_fired = 1;
+            if (!foreground_busy(foreground_lock) && !path_exists(disabled_path) && child <= 0) {
+                child = launch(script, log_path, inputs, lock_fd);
+                if (child < 0) perror("[hotkey] Launch");
+                else fprintf(stderr, "[hotkey] Back held 2s: started independent supervisor PID %ld\n", (long)child);
             }
         }
         int timeout = 1000;
@@ -234,6 +261,11 @@ int main(int argc, char **argv) {
             uint64_t elapsed = now >= state.since ? now - state.since : 0;
             timeout = elapsed >= HOLD_MS ? 0 : (int)(HOLD_MS - elapsed);
             if (timeout > 1000) timeout = 1000;
+        }
+        if (!state.inhibited && !state.back_fired && back_held(&state) && state.back_since) {
+            uint64_t elapsed = now >= state.back_since ? now - state.back_since : 0;
+            int remaining = elapsed >= BACK_HOLD_MS ? 0 : (int)(BACK_HOLD_MS - elapsed);
+            if (remaining < timeout) timeout = remaining;
         }
         int count = poll(inputs, 2, timeout);
         if (count < 0) { if (errno == EINTR) continue; perror("[hotkey] poll"); goto done; }

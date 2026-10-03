@@ -5,107 +5,107 @@
     {
       "id": "launcher",
       "version": "0.2.0",
-      "revision": "23229deee19f4a4252339e2ba567e4d122ba128cf0a99d1ac5a3c48c7c559f0d"
+      "revision": "11d7c71e592f4be3f4155631a27b58b67d3a067a36b400d3f184c4fa2ebdde7b"
     },
     {
       "id": "piano",
       "version": "0.2.0",
-      "revision": "31cb3e6703973ab636380e040dd93f87b134147d2e0b4c1cc3ff9f9e06dbcec0"
+      "revision": "6c7ae401083f1cfc75127d62f31bdf6a566cade56fd661d10fb96c708237bab6"
     },
     {
       "id": "nes",
       "version": "0.2.0",
-      "revision": "5ddfff8479473b5725f0a325d240e6dbbab4cf799e26794e7f86232984e6aad8"
+      "revision": "807ad490a78960b8587f06dabd0a8f5e02f7e00d54175857b29916e76e3d32e5"
     },
     {
       "id": "streamplayer",
       "version": "0.2.0",
-      "revision": "39704345bd80625e773d68179f99367b46f8c4d1a0ace15f98088804ad566ed0"
+      "revision": "5e5bf4d177cf9d2884b4e309d6b09bf0c4cd75b86993b7978afaa7eb97332ba7"
     },
     {
       "id": "calendar",
       "version": "0.3.0",
-      "revision": "25fcd6bbd1945abec8d3d8287e0c6778fee17047888fe72469d704ed30d2c9ed"
+      "revision": "c2006ac69541fa717b43b8b947d0f9a49dc24abf3fc733438a3c3990fe2c2741"
     },
     {
       "id": "calculator",
       "version": "0.2.0",
-      "revision": "37b294eb415717b8a775163acd8429dd01429fa8c62a28ac9e8f18a73bbe4b35"
+      "revision": "77f1956229b532842ffc989ef25b493e39fe1a413ebdafeb14f5b381aafbb9f1"
     },
     {
       "id": "settings",
       "version": "0.2.0",
-      "revision": "fe2a2e2033e52dae74f2ee9b7190d221170330a5d151334877fe00eaf49d9ce1"
+      "revision": "5118214c7348d097d5c5b1542a1bab01cf94edd95950f900319f00cf7e589e9b"
     },
     {
       "id": "terminal",
       "version": "0.1.0",
-      "revision": "939d5a21e9591b8bb6757cb700955e18f6dc0e3d5ef6ba10cc690f7fcd9c42be"
+      "revision": "0051a0da928fcb3c17fd5516c9b1ae93b79793cd7303a3ec258425f99bd47886"
     },
     {
       "id": "gomoku",
       "version": "0.1.0",
-      "revision": "1d433faf65bedda18db5aeb088e846e8f65bc08bf7e36e12a06b250e07921cab"
+      "revision": "f4edd9c9181a5ae7e865c8a2f986c96ef0555fa055091768c2ab29afb2e99b0a"
     },
     {
       "id": "pcsx4all",
       "version": "0.1.1",
-      "revision": "2a47632e27c055bd68081a372babc9309e5749393bd044942f74b44b9b3a020c"
+      "revision": "133819cfa15ec869e07ba46dcbb700254ab851c6f82517afd3aaae8282ca7e7f"
     },
     {
       "id": "processing",
       "version": "0.1.0",
-      "revision": "1d9d19451420f143b0f50c4a9733fd0f56f31af8509ff72c55a5ecb5048158ab"
+      "revision": "a852c9c0a2df5abb524b3524cb148f37fc987f092714fa8d2ecbbe1429e64fd6"
     },
     {
       "id": "dosbox",
       "version": "0.1.2",
-      "revision": "190fd4e0329416b971fb0f111aa9dccd99dbdc55ced089f85b8a2a2b08aba2d2"
+      "revision": "e24a5ff76d1551b0291d35120b6516f39a448511e90d53b30ed26af98c911b54"
     },
     {
       "id": "airtune",
       "version": "0.2.0",
-      "revision": "48d7804bec80d74199d33f8f0adfd5a4beb7f403ab07eb4063baf9925079685d"
+      "revision": "9b69bff59b56b161cd2b95c1ffd50e0b79114ba85c1914a17a1239b727e7a25b"
     },
     {
       "id": "crosspoint",
       "version": "0.3.1",
-      "revision": "6226a389792178c577729d07ceb753c428f65374e5e6ea6d5c4634756312f287"
+      "revision": "1f754c4624c742e2ce88eb07c2f68920e9b18b286e07a6d8930704c41219c5f9"
     },
     {
       "id": "camera",
       "version": "0.2.0",
-      "revision": "672a3896caf94520e7e785476662866b4397e1baa3229b6c5d3ce5755d9564a0"
+      "revision": "33ceebeebbb01d440e307e56ad556aef61d09003a6a57e2ff9637e2916af20fe"
     },
     {
       "id": "mail",
       "version": "0.2.0",
-      "revision": "871393157982cfa540428a46eaea3a79ece469abda363bb195f6f8195c35349b"
+      "revision": "1d3048e6a4b09d780cf0e181595af66235e15223638057d1a21a3c0c8df7adaf"
     },
     {
       "id": "bilibili",
       "version": "0.2.0",
-      "revision": "7a681bb1992a815360c900d4c4db5b55bbeb93e5de5c33fdcf1d479493505c9b"
+      "revision": "3be406fedd61689e84b28654884073080568b3d6a56e658fc6aaba4ac7a3e4cf"
     },
     {
       "id": "hidpilot",
       "version": "0.2.0",
-      "revision": "99b35540c1a060307381a007040c1a6cb77e6d31a73c193d771865fdda8036c0"
+      "revision": "134c772d9d6446fd17984b6c77cfa8b864b84ce49c9bb28fe18db4a5a2b3c489"
     },
     {
       "id": "moonpilot",
       "version": "0.1.0",
-      "revision": "ebd5fef062a5f6f3e27d1e27010d7f217f9e1715d7a6d6a4bc0d0871106df2b8"
+      "revision": "cd86abfe3bbf5a69451cc776d0a891ad73a25b4d1921e54a2271f94b0665309b"
     },
     {
       "id": "tox",
       "version": "0.3.0",
-      "revision": "73e8b7c60b57b163aa9efeb70366da7b444be0b8cb31643e5e04faef5e57667d"
+      "revision": "4c3dc5033727d50982fd250be8dcc40e62763c16d9839ba4f28266efe3af85fd"
     },
     {
       "id": "appstore",
       "version": "0.1.0",
-      "revision": "ed2c8ecb8c0f2189d6b298fab0e0ea7f0dd4a599bf5f5a92ab62b2911776dd20"
+      "revision": "f29f31bb812324430d0ccea267cea582b29e4ffcd0533b8c8ab6f0b03fd8d051"
     }
   ]
 }

@@ -2,6 +2,7 @@
 #include "pty.hpp"
 #include "input.hpp"
 #include "display.hpp"
+#include "c1ime.hpp"
 #include "src/libs/tiny_ttf/lv_tiny_ttf.h"
 #include <algorithm>
 #include <csignal>
@@ -9,6 +10,7 @@
 #include <cstdlib>
 #include <exception>
 #include <fcntl.h>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <sys/stat.h>
@@ -32,9 +34,13 @@ lv_font_t *regular = nullptr, *bold = nullptr, *cjk = nullptr, *small = nullptr;
 lv_obj_t *canvas = nullptr, *status = nullptr;
 terminal::Terminal *model = nullptr;
 terminal::Input input;
+std::unique_ptr<c1ime::Engine> ime;
+std::string ime_error;
 std::string persistent_error;
 bool caps = false;
 std::string last_status;
+bool pending_ctrl_a = false;
+uint32_t pending_ctrl_a_at = 0;
 
 std::string environment(const char *name, const char *fallback) {
     const char *value = std::getenv(name);
@@ -92,20 +98,104 @@ void draw(lv_event_t *event) {
 }
 void set_status(const std::string &shell_state = {}) {
     std::string text;
-    if (!persistent_error.empty()) text = persistent_error + "  |  Power: home";
-    else if (!shell_state.empty()) text = shell_state + "  |  Power: home";
+    if (!persistent_error.empty()) text = persistent_error + "  |  Power: Esc";
+    else if (!shell_state.empty()) text = shell_state + "  |  Power: Esc";
     else {
-        text = caps ? "CAPS  " : "abc   ";
-        text += input.hint();
+        if (ime && ime->ready() && ime->mode() == c1ime::Mode::Chinese) {
+            text = "拼 ";
+            const auto buffer = ime->buffer();
+            if (!buffer.empty()) text += buffer + "  ";
+            const auto candidates = ime->candidates();
+            for (size_t i = 0; i < candidates.size(); ++i) {
+                if (i) text += "  ";
+                text += std::to_string(i + 1) + "." + candidates[i].text;
+            }
+            if (ime->state() == c1ime::State::Inactive) text += "  Ctrl+A Space: English";
+        } else {
+            text = caps ? "CAPS  " : "abc   ";
+            text += input.hint();
+            if (ime_error.empty() && ime && ime->ready()) text += "  Ctrl+A Space: 中文";
+            if (!ime_error.empty()) text += "  IME off: " + ime_error;
+        }
         if (model->history_offset()) text = "HISTORY -" + std::to_string(model->history_offset()) + "  " + text;
     }
     if (text != last_status) { lv_label_set_text(status, text.c_str()); last_status = std::move(text); }
 }
+
+void send_terminal_text(const std::string &text) {
+    if (text.empty() || !shell_pty) return;
+    if (!shell_pty->send(text) && !shell_pty->error().empty()) persistent_error = shell_pty->error();
+}
+
+void route_terminal_output(const std::string &output) {
+    if (output.empty() || !shell_pty) return;
+    if (pending_ctrl_a) {
+        if (output == " ") {
+            pending_ctrl_a = false;
+            if (ime && ime->ready()) { ime->toggle_mode(); ime_error.clear(); }
+            return;
+        }
+        send_terminal_text("\x01");
+        pending_ctrl_a = false;
+    }
+    if (output == "\x01") {
+        pending_ctrl_a = true;
+        pending_ctrl_a_at = screen::tick();
+        return;
+    }
+    send_terminal_text(output);
+}
+
+bool ime_key(uint32_t code) {
+    if (!ime || !ime->ready() || ime->mode() != c1ime::Mode::Chinese) return false;
+    const auto state = ime->state();
+    if (pending_ctrl_a && code == ' ') {
+        pending_ctrl_a = false;
+        ime->toggle_mode();
+        return true;
+    }
+    if (state != c1ime::State::Inactive) {
+        if (code >= '1' && code <= '9') {
+            send_terminal_text(ime->select(static_cast<int>(code - '1')));
+            return true;
+        }
+        if (code == ' ') {
+            send_terminal_text(ime->select(0));
+            return true;
+        }
+        if (code == LV_KEY_ENTER || code == '\r') {
+            if (state == c1ime::State::Selecting) send_terminal_text(ime->select(0));
+            ime->cancel();
+            return true;
+        }
+        if (code == LV_KEY_BACKSPACE) { ime->backspace(); return true; }
+        if (code == screen::KEY_EXIT || code == LV_KEY_ESC) { ime->cancel(); return true; }
+        if (code == LV_KEY_UP || code == LV_KEY_LEFT) { ime->page_up(); return true; }
+        if (code == LV_KEY_DOWN || code == LV_KEY_RIGHT || code == LV_KEY_NEXT) { ime->page_down(); return true; }
+    }
+    if (code >= 32 && code < 127 && input.mode() == terminal::Input::Mode::Text) {
+        char ch = static_cast<char>(code);
+        if (ch >= 'A' && ch <= 'Z') ch = static_cast<char>(ch + ('a' - 'A'));
+        if (ime->input(ch)) {
+            send_terminal_text(ime->take_commit());
+            return true;
+        }
+    }
+    return false;
+}
+
 void key(uint32_t code) {
     if(code==screen::KEY_FONT_UP||code==screen::KEY_FONT_DOWN){resize_font(code==screen::KEY_FONT_UP?2:-2);return;}
-    if (code == screen::KEY_HOME) { screen::quit = true; return; }
+    if (code == screen::KEY_HOME) {
+        // The terminal keeps the power key available as an Escape key. Keep
+        // the middle Back key as the same Escape alias for compatibility.
+        if (ime_key(LV_KEY_ESC)) return;
+        input.escape(*model);
+        return;
+    }
     if (code == screen::KEY_MODE) { caps = screen::caps_lock(); return; }
     if (code == screen::KEY_SYMBOL) { input.symbol(); return; }
+    if (ime_key(code)) return;
     if (code == screen::KEY_EXIT || code == LV_KEY_ESC) { input.escape(*model); return; }
     switch (code) {
     case LV_KEY_ENTER: case '\r': input.key(*model, VTERM_KEY_ENTER); break;
@@ -133,9 +223,9 @@ void resize_font(int delta){
     if(!next){if(next_bold)lv_tiny_ttf_destroy(next_bold);if(next_cjk)lv_tiny_ttf_destroy(next_cjk);return;}
     int cw=(size*3+4)/5,ch=size+6,new_rows=body_height/ch,new_cols=800/cw;
     if(!shell_pty->resize(new_rows,new_cols)){for(auto*f:{next,next_bold,next_cjk})if(f)lv_tiny_ttf_destroy(f);return;}
-    if(regular)regular->fallback=nullptr;if(bold)bold->fallback=nullptr;
+    if(regular)regular->fallback=nullptr;if(bold)bold->fallback=nullptr;if(small)small->fallback=nullptr;
     for(auto*f:{regular,bold,cjk})if(f)lv_tiny_ttf_destroy(f);
-    regular=next;bold=next_bold;cjk=next_cjk;regular->fallback=cjk;if(bold)bold->fallback=cjk;
+    regular=next;bold=next_bold;cjk=next_cjk;regular->fallback=cjk;if(bold)bold->fallback=cjk;if(small)small->fallback=cjk;
     font_size=size;cell_width=cw;cell_height=ch;rows=new_rows;cols=new_cols;
     model->resize(rows,cols);last_resize=now;lv_obj_invalidate(canvas);
     std::fprintf(stderr,"[terminal] font=%d grid=%dx%d\n",font_size,cols,rows);
@@ -143,6 +233,7 @@ void resize_font(int delta){
 void release_fonts() {
     if (regular) regular->fallback = nullptr;
     if (bold) bold->fallback = nullptr;
+    if (small) small->fallback = nullptr;
     for (auto *font : {regular, bold, cjk, small}) if (font) lv_tiny_ttf_destroy(font);
     regular = bold = cjk = small = nullptr;
 }
@@ -162,7 +253,7 @@ int main() {
         small = font_file(assets + "JetBrainsMono-Regular.ttf", 13, 96);
         cjk = font_file(root + "/shared/NotoSansSC-Regular.ttf", 16, 96);
         if (!regular || !small) throw std::runtime_error("Terminal JetBrains Mono font is missing");
-        if (cjk) { regular->fallback = cjk; if (bold) bold->fallback = cjk; }
+        if (cjk) { regular->fallback = cjk; if (bold) bold->fallback = cjk; small->fallback = cjk; }
         else persistent_error = "CJK font missing; Latin terminal still available";
         terminal::Terminal term(rows, cols); model = &term;
         terminal::Pty pty;shell_pty=&pty;
@@ -193,7 +284,9 @@ int main() {
         }
         const auto home = data + "/terminal";
         mkdir(data.c_str(), 0755); mkdir(home.c_str(), 0700);
-        auto path = root + "/linux-tools/bin:" + root + "/tools/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+        ime = std::make_unique<c1ime::Engine>(assets + "rime-data", home + "/rime");
+        if (!ime->initialize()) ime_error = ime->error();
+        auto path = root + "/terminal/assets/bin:" + root + "/linux-tools/bin:" + root + "/tools/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
         std::string terminfo = root + "/linux-tools/share/terminfo", termname = "xterm-256color";
         if (!readable(terminfo + "/x/xterm-256color") && !readable(terminfo + "/78/xterm-256color")) {
             terminfo = assets + "terminfo"; termname = "c1max";
@@ -201,7 +294,10 @@ int main() {
         std::vector<std::string> env = {"TERM=" + termname, "TERMINFO=" + terminfo,
             "COLORTERM=truecolor", "PATH=" + path, "HOME=" + home, "SHELL=" + shell,
             "ENV=" + assets + "shellrc", "LC_ALL=C", "LANG=C", "PS1=\\w # ",
-            "HISTFILE=" + home + "/history", "INPUTRC=" + assets + "inputrc"};
+            "HISTFILE=" + home + "/history", "INPUTRC=" + assets + "inputrc",
+            "WGETRC=" + assets + "wgetrc",
+            "SSL_CERT_FILE=" + root + "/shared/ca-certificates.crt",
+            "CURL_CA_BUNDLE=" + root + "/shared/ca-certificates.crt"};
         // C.UTF-8 is not assumed to exist in the stock Buildroot glibc locale
         // archive. Output is always decoded as UTF-8; shell editing is locale-dependent.
         std::vector<std::string> argv{shell};
@@ -209,17 +305,26 @@ int main() {
             argv.push_back("--noprofile"); argv.push_back("--rcfile"); argv.push_back(assets + "shellrc");
         }
         argv.push_back("-i");
-        term.feed("\x1b[36mC1Max Terminal\x1b[0m  |  Symbol + C: interrupt\r\n");
+        term.feed("\x1b[36mC1Max Terminal\x1b[0m  |  Symbol + C: interrupt  |  Power: Esc\r\n");
+        term.feed("Commands: help exit ssh scp sshd vi/vim nano less\r\n");
+        term.feed("Tools: grep sed awk find tar gzip unzip wget curl sqlite3 ps top\r\n");
+        term.feed("BusyBox core utilities are also available; type help for the full terminal list.\r\n");
         if (!pty.start(argv, rows, cols, home, env)) persistent_error = pty.error();
         std::string shell_state;
         bool finished = false;
         while (!screen::quit && !interrupted) {
             auto bytes = pty.read();
             if (!bytes.empty()) term.feed(bytes);
-            for (uint32_t code; !screen::quit && !interrupted && (code = screen::take_key()) != 0;) key(code);
+            for (uint32_t code; !screen::quit && !interrupted && (code = screen::take_key()) != 0;) {
+                key(code);
+                route_terminal_output(term.take_output());
+            }
             if (screen::quit || interrupted) break;
-            auto output = term.take_output();
-            if (!output.empty() && !finished && !pty.send(output) && !pty.error().empty()) persistent_error = pty.error();
+            if (pending_ctrl_a && uint32_t(screen::tick() - pending_ctrl_a_at) > 220) {
+                send_terminal_text("\x01");
+                pending_ctrl_a = false;
+            }
+            route_terminal_output(term.take_output());
             pty.pump();
             if (term.output_overflow()) persistent_error = "Terminal reply queue overflow";
             if (!finished && !pty.running()) {
@@ -230,6 +335,9 @@ int main() {
                 if (WIFEXITED(exit_status)) shell_state = "Shell exited (" + std::to_string(WEXITSTATUS(exit_status)) + ")";
                 else shell_state = "Shell stopped";
                 finished = true; pty.stop();
+                // `exit` (or Ctrl-D) is the terminal's normal way to leave.
+                // Once the interactive shell is gone, return to launcher.
+                screen::quit = true;
             }
             if (!pty.error().empty()) persistent_error = pty.error();
             set_status(shell_state);
@@ -237,7 +345,7 @@ int main() {
             lv_timer_handler();
             usleep(10000);
         }
-        pty.stop();shell_pty=nullptr;
+        pty.stop();shell_pty=nullptr;ime.reset();
         lv_obj_clean(screen_root); model = nullptr;
     } catch (const std::exception &error) {
         std::fprintf(stderr, "terminal: %s\n", error.what()); result = 1;

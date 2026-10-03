@@ -70,6 +70,8 @@ for icon in sorted((root/'launcher/assets/icons').glob('*.png')):
 shutil.copytree(root/'terminal/assets',out/'terminal/assets')
 (out/'terminal/licenses').mkdir()
 shutil.copy2(root/'terminal/vendor/libvterm/LICENSE',out/'terminal/licenses/libvterm.txt')
+shutil.copy2(root/'terminal/licenses-term-ime.txt',out/'terminal/licenses/term-ime.txt')
+shutil.copy2(root/'terminal/licenses-term-ime-dict.txt',out/'terminal/licenses/term-ime-dict.txt')
 shutil.copy2(root/'.build/mips/c1max-psx-core',out/'pcsx4all')
 shutil.copytree(root/'pcsx4all/licenses',out/'pcsx4all/licenses')
 shutil.copy2(root/'pcsx4all/README.md',out/'pcsx4all')

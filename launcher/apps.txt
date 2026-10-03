@@ -18,4 +18,5 @@ CrossPoint|/storage/apps/current/crosspoint/c1max-crosspoint||||crosspoint
 Bilibili|/storage/apps/current/bilibili/c1max-bilibili||||bilibili
 HID 键鼠|/storage/apps/current/hidpilot/c1max-hidpilot||||hidpilot
 MoonPilot AI|/storage/apps/current/moonpilot/c1max-moonpilot||||moonpilot
+词典|/usr/bin/mp_s300/bin/mp_s300|powerhome|||dict
 Tox 聊天|/storage/apps/current/tox/c1max-tox||||tox

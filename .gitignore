@@ -1,6 +1,7 @@
 .deps/
 .build/
 .runtime/
+.reference/
 **/build/
 **/*.o
 **/*.7z

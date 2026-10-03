@@ -10,10 +10,23 @@ FbTerm、X11、Wayland 或屏幕虚拟键盘。
   可用 `C1_TERMINAL_SHELL` 指定一个可执行文件的绝对路径；不解析 Shell 命令字符串。
 - 普通字母直接输入；Shift 组合遵循真实键帽。共享驱动用双击 Shift 切换大写，
   底部 `abc` / `CAPS` 显示当前状态。
-- 右上退格为终端 DEL 字节；确认发送回车。中间返回发送 Escape；在前缀模式中
-  返回只取消前缀。电源键退出终端回 launcher，不是让词典关机。
-- 输入 `exit` 结束 Shell 后保留最后输出，按电源键回 launcher。
+- 设备没有独立数字行，数字在 `Q W E R T Y U I O P` 键帽上方；按住 Shift 再按首排
+  字母即可输入 `1 2 3 4 5 6 7 8 9 0`。例如候选栏要选第 3 项，按 `Shift+E`。
+- 右上退格为终端 DEL 字节；确认发送回车。中间返回和电源键都发送 Escape；在前缀模式中
+  返回只取消前缀。电源键在终端里不退出应用。
+- 输入 `exit`（或按 Ctrl-D）结束交互式 Shell，终端随即回到 launcher。
 - 没有屏幕退出按钮、屏幕键盘或可意外点击的隐藏控件。
+- 启动信息会列出高频命令；输入 `help` 可再次查看完整清单。`ssh` 是 Dropbear
+  `dbclient` 的兼容入口，`scp` 用于远端文件复制；`sshd start|stop|status` 管理
+  本机 Dropbear 服务端（默认端口 2222、仅公钥认证），公钥放在
+  `/storage/terminal/dropbear/authorized_keys`；SSH 登录后的 PATH 也包含
+  `scp` 和其他应用工具；设备的 `vi` 可通过 `vim` 名称调用。
+- 终端内置 Rime 拼音输入。照片中 **M 右侧、回车左侧的相机图标键**就是“符号”键，
+  具体实体键位见[设备键盘记录](../docs-keyboard.md)。切换中英文（仅终端内）按：
+  `相机图标键` → `A` → `空格`，也就是文档中写的 `Ctrl-A Space`；不需要寻找或按
+  屏幕上的 Ctrl 键。底部状态栏会显示 `拼` 或 `abc`。中文模式下输入拼音，空格选首个
+  候选，数字 `1`–`9` 选候选，右上退格删除拼音，回车提交当前候选。候选和拼音显示在
+  底部状态栏。这是终端内置输入，不会改变 launcher 或其他应用的系统输入法。
 
 “符号”键是一次性前缀，后续操作结束自动恢复普通输入。再按一次可轮换模式：
 
@@ -29,6 +42,11 @@ FbTerm、X11、Wayland 或屏幕虚拟键盘。
 | 符号三次 | Q W E R T Y U I O P | `= + _ \| \ " ' < > !` |
 | 符号三次 | A S D F G H | `[ ] { }`、反引号、`^` |
 
+最常用的两个操作：
+
+- **Tab**：按一次相机图标键，再按空格。也可以在符号导航模式下按“相机图标键两次 + 空格”。
+- **Esc**：没有前缀时按右侧中间的弯箭头返回键；有符号前缀时，它只取消前缀。正在输入拼音时，它取消当前拼音/候选，不把 Esc 送给 Shell。
+
 例如 `ls | less` 的管道是“符号、符号、符号、R”。Ctrl-S 会停止终端输出，
 用“符号、Q”（Ctrl-Q）恢复，这是正常 PTY 软件流控。
 
@@ -36,7 +54,8 @@ FbTerm、X11、Wayland 或屏幕虚拟键盘。
 
 2026-09-23 实机核对：Buildroot 2020.02.1、MIPS 小端架构、BusyBox 1.31.1。
 此应用默认使用随 apps 分发的 Bash 5.3.20；ADB Shell 与应用终端的 PATH
-和 Shell 并不相同。现有补充工具是 Bash、less、nano、dbclient 和 dropbearkey。
+和 Shell 并不相同。现有补充工具是 Bash、less、nano、curl、dbclient、dropbear、scp 和 dropbearkey，
+终端另外提供 `ssh` 兼容入口与 `vim` 到 BusyBox `vi` 的入口。
 没有 apt/yum/dpkg/rpm/opkg/ipkg，也未配置可直接使用的软件包源。新增工具采用
 `apps/linux-tools` 的交叉编译和版本化部署流程；不能直接安装 PC 或 ARM 软件包。
 
@@ -58,7 +77,7 @@ FbTerm、X11、Wayland 或屏幕虚拟键盘。
 反色/粗体/下划线/删除线、备用屏幕、应用光标模式及终端位置查询。
 `vi`、`less` 等的具体版本仍需在设备上验证。UTF-8 分包、中文宽字符和组合字符
 由解析器保存；复杂文字塑形、Emoji、双高/双宽行、斜体和闪烁效果不完整。
-没有中文输入法、鼠标上报、剪贴板、OSC52、图像协议或终端窗口控制。
+没有系统范围输入法协议、鼠标上报、剪贴板、OSC52、图像协议或终端窗口控制。
 远端输出不能通过 OSC 启动本地程序或改写本地剪贴板。
 
 原系统未确认安装 UTF-8 locale，因此子 Shell 使用 `LC_ALL=C`，输出仍按 UTF-8
@@ -89,7 +108,11 @@ PTY 使用 `posix_openpt`、`setsid`、控制终端和规范行规程，窗口�
 ## 构建与安装接口
 
 父级 `apps/CMakeLists.txt` 加 `add_subdirectory(terminal)` 即可。目标为
-`c1max-terminal`，依赖静态 `c1vterm`、共享 `lvgl`、`m`，PTY 不依赖 `libutil`。
+`c1max-terminal`，依赖静态 `c1vterm`、`c1ime`、共享 `lvgl`、`m`，PTY 不依赖 `libutil`。
+`c1ime` 使用 pinned 的 librime 静态库和内置 Rime 数据，不依赖设备侧
+Rime/IBus/Fcitx。公开设备包在 `assets/rime-data/build/` 随附预编译的
+prism/table 文件，避免在 103 MiB 设备上首次启动时编译大词典；缺少这组文件的
+开发包仍会回退到 `$C1_APPS_DATA/terminal/rime/build` 维护构建。
 libvterm 的九个 C 源文件和生成表已随源码提供，无需联网获取、libtool 或 ncurses。
 父项目统一提供静态 MIPS32r2/glibc 工具链和 `shared/display.cpp`、`keyboard.cpp`。
 
@@ -98,8 +121,10 @@ libvterm 的九个 C 源文件和生成表已随源码提供，无需联网获�
 ```text
 terminal/
   c1max-terminal
-  assets/                  # 整目录，包括字体许可、terminfo、inputrc、shellrc
+  assets/                  # 整目录，包括字体、terminfo、inputrc、shellrc、help 和命令入口
   licenses/libvterm.txt     # 从 vendor/libvterm/LICENSE 拷贝
+  licenses/term-ime.txt     # term-ime/Rime 集成许可
+  licenses/term-ime-dict.txt # 内置拼音词典许可
 ```
 
 依赖 `shared/NotoSansSC-Regular.ttf`。JetBrains Mono 字体来自本机 CardputerZero
@@ -134,8 +159,10 @@ PTY 和 LVGL 软件渲染，产生 800×340 离屏图像；不需要设备、SDL
 `docs/CUSTOM-APPS-PLAN.md` 记录未找到 Python/Lua 或 dpkg/opkg/rpm。旧资料可能
 来自不同批次设备，先用 inventory 核实当前板，不把库文件存在当作 CLI 已安装。
 
-建议补全 bash（历史/行编辑）、less、nano、轻量 SSH 客户端（dbclient 或 ssh）、
-jq 和 sqlite3；网络抓诊断可加 tcpdump/strace，按当前任务实际需要打包。已有
-BusyBox 命令不必再覆盖原系统。统一放 apps 下的 linux-tools，避免覆盖 /bin。
+当前设备已经随终端包补全 Bash（历史/行编辑）、less、nano、Dropbear SSH 客户端
+（`ssh`/`dbclient`）、`scp`，并提供 `vim` 到 BusyBox `vi` 的兼容入口。设备原有
+`/usr/bin/wget` 是 GNU Wget 1.20.3，支持 HTTPS；终端默认使用应用包内的 CA 证书；BusyBox 已覆盖 grep、sed、awk、find、xargs、
+tar、gzip、unzip、sqlite3、ps、top、df、du、ping 和 nc 等高频命令。后续如有需要，可再加入 jq、tmux、strace
+或 readelf；已有 BusyBox 命令不必重复覆盖。统一放 apps 下的 linux-tools，避免覆盖 /bin。
 
 Shift + 音量＋／－可将正文字号在 12–28 px 之间调整，同时更新 PTY 行列数；不改变系统音量，不增加界面提示。

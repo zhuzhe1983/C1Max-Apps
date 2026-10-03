@@ -59,7 +59,7 @@ public:
         case Mode::Control: return "CTRL: A-Z  |  Space Tab  |  Symbol again: navigation  |  Return cancel";
         case Mode::Navigation: return "NAV: WASD arrows  QE Home/End  ZX PgUp/Dn  B Del  RF history  T live";
         case Mode::Punctuation: return "SYM: Q= W+ E_ R| T\\ Y\" U' I< O> P! A[ S] D{ F} G` H^";
-        default: return "Symbol: Ctrl  |  2x: navigation  |  3x: symbols  |  Return Esc  |  Power home";
+        default: return "Symbol: Ctrl  |  2x: navigation  |  3x: symbols  |  Return/Esc  |  Power Esc";
         }
     }
 private:

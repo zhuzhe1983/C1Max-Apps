@@ -127,6 +127,24 @@
       "directory": "dropbear-2026.94",
       "license": "MIT AND BSD-2-Clause AND LicenseRef-Public-Domain",
       "patches": []
+    },
+    {
+      "name": "mbedtls",
+      "version": "3.6.4",
+      "url": "https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.4/mbedtls-3.6.4.tar.bz2",
+      "sha256": "ec35b18a6c593cf98c3e30db8b98ff93e8940a8c4e690e66b41dfc011d678110",
+      "directory": "mbedtls-3.6.4",
+      "license": "Apache-2.0 OR GPL-2.0-or-later",
+      "patches": []
+    },
+    {
+      "name": "curl",
+      "version": "8.22.0",
+      "url": "https://curl.se/download/curl-8.22.0.tar.xz",
+      "sha256": "f7ef3ae8a22e521f289803fe93543eb64c329b58aa73a9e224dfd915a2a5f4f7",
+      "directory": "curl-8.22.0",
+      "license": "curl AND ISC AND MIT",
+      "patches": []
     }
   ]
 }

@@ -1,0 +1,36 @@
+C1Max Terminal 常用命令
+
+终端控制
+  help                    显示本列表；help cd 可查看 Bash 内建命令帮助
+  exit                    退出 Shell，并返回 launcher；Ctrl-D 也可以退出
+  ssh HOST                连接远端 SSH（实际使用 Dropbear dbclient）
+  scp FILE HOST:PATH      在设备与远端之间复制文件
+  sshd start|stop|restart|status  管理本机 Dropbear SSH 服务（默认端口 2222）
+  sshd enable|disable       设置/取消开机自动启动
+  sshd port N               设置端口（1024–65535）
+  curl URL                HTTP/HTTPS 请求、下载和 API 调试
+
+编辑和查看
+  vi FILE                  BusyBox vi 编辑器
+  vim FILE                 vi 的兼容入口，不是完整 Vim
+  nano FILE                GNU nano 编辑器
+  less FILE                分页查看；按 q 退出
+
+文本和文件
+  grep sed awk             搜索、替换和处理文本
+  find xargs               查找文件并批量执行命令
+  cat head tail wc sort    查看、截取、统计和排序文本
+  cp mv rm mkdir           复制、移动、删除和创建目录
+  tar gzip unzip           打包、压缩和解压
+  wget                    下载文件
+  curl                    HTTP/HTTPS 下载、POST 和请求头操作
+  sqlite3                 操作 SQLite 数据库
+
+系统和网络
+  ps top free df du        查看进程、内存、磁盘和目录占用
+  ping nc netstat           网络连通性和端口检查
+  stty                    查看终端行规程
+
+说明
+  /bin 下的 BusyBox 多调用程序也都在 PATH 中，可用 `busybox --list` 查看完整列表。
+  终端内置快捷键见 terminal/README.md；相机图标键是 Symbol 前缀键。

@@ -1,6 +1,19 @@
 # Application shell settings only; does not source/modify stock root profiles.
 PS1='c1max:\w # '
 export PS1
+
+# `help` is a terminal-specific command list. Keep Bash's builtin help
+# available as `help <topic>` for users who need builtin documentation.
+help() {
+    if [ "$#" -eq 0 ]; then
+        c1max-help
+    elif [ -n "$BASH_VERSION" ]; then
+        builtin help "$@"
+    else
+        c1max-help
+    fi
+}
+
 if [ -n "$BASH_VERSION" ]; then
     shopt -s checkwinsize
     HISTSIZE=300

@@ -62,6 +62,90 @@ add_executable(c1max-calendar calendar/src/main.cpp calendar/src/calendar_model.
 target_include_directories(c1max-calendar PRIVATE shared)
 target_link_libraries(c1max-calendar c1net lvgl m)
 
+# C1Max Terminal uses librime's core as an in-process input layer. Build its
+# four small static dependencies into a private prefix first so the target
+# stays self-contained and does not depend on a device-side Rime installation.
+set(_C1_RIME_SOURCE "${CMAKE_SOURCE_DIR}/.deps/librime")
+set(_C1_RIME_STAGE "${CMAKE_BINARY_DIR}/_c1_rime_stage")
+set(_C1_RIME_STAMP "${_C1_RIME_STAGE}/.installed")
+if(NOT EXISTS "${_C1_RIME_STAMP}")
+    file(MAKE_DIRECTORY "${_C1_RIME_STAGE}")
+    set(_C1_RIME_COMMON -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_INSTALL_PREFIX=${_C1_RIME_STAGE}
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON)
+    if(CMAKE_TOOLCHAIN_FILE)
+        list(APPEND _C1_RIME_COMMON -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE})
+    endif()
+    execute_process(COMMAND ${CMAKE_COMMAND} -S "${_C1_RIME_SOURCE}/deps/yaml-cpp"
+        -B "${CMAKE_BINARY_DIR}/_c1_rime_build/yaml-cpp" ${_C1_RIME_COMMON}
+        -DYAML_CPP_BUILD_TESTS=OFF -DYAML_CPP_BUILD_TOOLS=OFF -DYAML_CPP_BUILD_CONTRIB=OFF
+        -DYAML_CPP_INSTALL=ON RESULT_VARIABLE _c1_rime_rc)
+    if(_c1_rime_rc EQUAL 0)
+        execute_process(COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}/_c1_rime_build/yaml-cpp"
+            --target install -j RESULT_VARIABLE _c1_rime_rc)
+    endif()
+    if(_c1_rime_rc EQUAL 0)
+        execute_process(COMMAND ${CMAKE_COMMAND} -S "${_C1_RIME_SOURCE}/deps/leveldb"
+            -B "${CMAKE_BINARY_DIR}/_c1_rime_build/leveldb" ${_C1_RIME_COMMON}
+            -DLEVELDB_BUILD_TESTS=OFF -DLEVELDB_BUILD_BENCHMARKS=OFF RESULT_VARIABLE _c1_rime_rc)
+        if(_c1_rime_rc EQUAL 0)
+            execute_process(COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}/_c1_rime_build/leveldb"
+                --target install -j RESULT_VARIABLE _c1_rime_rc)
+        endif()
+    endif()
+    if(_c1_rime_rc EQUAL 0)
+        execute_process(COMMAND ${CMAKE_COMMAND} -S "${_C1_RIME_SOURCE}/deps/marisa-trie"
+            -B "${CMAKE_BINARY_DIR}/_c1_rime_build/marisa" ${_C1_RIME_COMMON} RESULT_VARIABLE _c1_rime_rc)
+        if(_c1_rime_rc EQUAL 0)
+            execute_process(COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}/_c1_rime_build/marisa"
+                --target install -j RESULT_VARIABLE _c1_rime_rc)
+        endif()
+    endif()
+    if(_c1_rime_rc EQUAL 0)
+        execute_process(COMMAND ${CMAKE_COMMAND} -S "${_C1_RIME_SOURCE}/deps/opencc"
+            -B "${CMAKE_BINARY_DIR}/_c1_rime_build/opencc" ${_C1_RIME_COMMON}
+            -DUSE_SYSTEM_MARISA=OFF -DBUILD_TESTING=OFF -DOPENCC_BUILD_TOOLS=OFF RESULT_VARIABLE _c1_rime_rc)
+        if(_c1_rime_rc EQUAL 0)
+            # OpenCC's normal install target builds and runs its dictionary
+            # converter, which would be a MIPS executable during a cross build.
+            # Rime only needs the static library and headers; the runtime
+            # dictionaries are already bundled in terminal/assets/rime-data.
+            execute_process(COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}/_c1_rime_build/opencc"
+                --target libopencc -j RESULT_VARIABLE _c1_rime_rc)
+            if(_c1_rime_rc EQUAL 0)
+                file(MAKE_DIRECTORY "${_C1_RIME_STAGE}/lib" "${_C1_RIME_STAGE}/include/opencc")
+                execute_process(COMMAND ${CMAKE_COMMAND} -E copy
+                    "${CMAKE_BINARY_DIR}/_c1_rime_build/opencc/src/libopencc.a"
+                    "${_C1_RIME_STAGE}/lib/libopencc.a" RESULT_VARIABLE _c1_rime_rc)
+                file(GLOB _C1_OPENCC_HEADERS
+                    "${_C1_RIME_SOURCE}/deps/opencc/src/*.h"
+                    "${_C1_RIME_SOURCE}/deps/opencc/src/*.hpp")
+                file(COPY ${_C1_OPENCC_HEADERS} DESTINATION "${_C1_RIME_STAGE}/include/opencc")
+                file(COPY "${CMAKE_BINARY_DIR}/_c1_rime_build/opencc/src/opencc_config.h"
+                    "${CMAKE_BINARY_DIR}/_c1_rime_build/opencc/src/Opencc_Export.h"
+                    DESTINATION "${_C1_RIME_STAGE}/include/opencc")
+            endif()
+        endif()
+    endif()
+    if(NOT _c1_rime_rc EQUAL 0)
+        message(FATAL_ERROR "Failed to build a vendored librime dependency")
+    endif()
+    file(WRITE "${_C1_RIME_STAMP}" "done\n")
+endif()
+list(PREPEND CMAKE_PREFIX_PATH "${_C1_RIME_STAGE}")
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(BUILD_TEST OFF CACHE BOOL "" FORCE)
+set(BUILD_DATA OFF CACHE BOOL "" FORCE)
+set(BUILD_SAMPLE OFF CACHE BOOL "" FORCE)
+set(ENABLE_LOGGING OFF CACHE BOOL "" FORCE)
+set(ENABLE_THREADING ON CACHE BOOL "" FORCE)
+set(ENABLE_TIMESTAMP OFF CACHE BOOL "" FORCE)
+set(BUILD_STATIC ON CACHE BOOL "" FORCE)
+add_subdirectory("${_C1_RIME_SOURCE}" "${CMAKE_BINARY_DIR}/librime" EXCLUDE_FROM_ALL)
+add_library(c1ime STATIC shared/c1ime.cpp)
+target_include_directories(c1ime PUBLIC shared "${_C1_RIME_SOURCE}/include" "${_C1_RIME_SOURCE}/src")
+target_link_libraries(c1ime PUBLIC rime-static pthread)
+
 add_subdirectory(terminal)
 set_target_properties(c1max-terminal PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 
