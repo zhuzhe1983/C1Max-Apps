@@ -15,6 +15,16 @@ std::string line(Terminal &t, int row) {
 }
 int main() {
     {
+        Terminal t(3, 30);
+        t.feed("prompt> \x1b[8mhidden-token\x1b[0m\r\n中文 status");
+        auto context = t.context();
+        assert(context.find("hidden-token") == std::string::npos);
+        assert(context.find("prompt>") != std::string::npos);
+        assert(context.find("中文 status") != std::string::npos);
+        assert(context.find('\x1b') == std::string::npos);
+        assert(t.context(8).size() <= 8);
+    }
+    {
         Terminal t(4, 12);
         t.feed("abcdef\rXY\x1b[K");
         assert(line(t, 0) == "XY          ");

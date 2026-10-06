@@ -18,6 +18,9 @@ public:
     void character(uint32_t character, VTermModifier modifier = VTERM_MOD_NONE);
     void key(VTermKey key, VTermModifier modifier = VTERM_MOD_NONE);
     std::string take_output();
+    // Bounded plain-text snapshot of the visible terminal for optional voice
+    // context. ANSI control sequences and trailing cell padding are omitted.
+    std::string context(size_t max_bytes = 8192) const;
     bool output_overflow() const { return output_overflow_; }
     VTermScreenCell cell(int row, int col) const;
     VTermPos cursor() const;

@@ -41,6 +41,17 @@ int main() {
     }
     {
         Pty pty;
+        assert(pty.start({"/bin/sh", "-c", "stty -echo; printf READY; IFS= read -r value; printf '[%s]' \"$value\""},
+                         14, 80, "/", {"LC_ALL=C"}));
+        until(pty, "READY");
+        // Neither control byte may be swallowed or pause the output stream.
+        const std::string value = std::string(1, 19) + char(17) + "flow";
+        assert(pty.send(value + "\r"));
+        until(pty, "[" + value + "]");
+        exited(pty);
+    }
+    {
+        Pty pty;
         assert(pty.start({"/bin/sh", "-i"}, 14, 80, "/", {"PS1=TEST> ", "TERM=vt100", "ENV=/dev/null"}));
         until(pty, "TEST> ");
         assert(pty.resize(11,66));assert(pty.send("stty size\r"));
@@ -72,5 +83,5 @@ int main() {
         pty.stop();
         assert(!pty.start({}, 14, 80, "/", {}) && !pty.error().empty());
     }
-    std::cout << "real PTY: shell, canonical backspace, winsize, foreground Ctrl-C, exit, escalation/reap passed\n";
+    std::cout << "real PTY: shell, canonical backspace, Ctrl-S/Q passthrough, winsize, foreground Ctrl-C, exit, escalation/reap passed\n";
 }

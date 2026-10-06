@@ -1,4 +1,5 @@
 #include "display.hpp"
+#include "../../terminal/src/voice.hpp"
 #include "src/libs/tiny_ttf/lv_tiny_ttf.h"
 #include <tinyalsa/mixer.h>
 #include <algorithm>
@@ -99,6 +100,42 @@ std::string apps_data_dir() {
 std::string apps_root_dir() {
     const char *p = std::getenv("C1_APPS_ROOT");
     return p && *p ? p : "/storage/apps/current";
+}
+
+using VoiceSettings = terminal::VoiceConfig;
+VoiceSettings voice;
+std::string voice_endpoint_draft, voice_model_draft, voice_token_draft;
+
+std::string voice_settings_file() { return apps_data_dir() + "/terminal/voice.json"; }
+
+bool valid_voice_endpoint(const std::string &url) {
+    if (url.empty() || url.size() > 512 || url.find_first_of("\r\n\t ") != std::string::npos || url.find('\0') != std::string::npos) return false;
+    const auto scheme = url.find("://");
+    if (scheme != 4 && scheme != 5) return false;
+    if (url.compare(0, scheme, "http") != 0 && url.compare(0, scheme, "https") != 0) return false;
+    const auto authority_end = url.find('/', scheme + 3);
+    const auto authority = url.substr(scheme + 3, authority_end == std::string::npos ? std::string::npos : authority_end - scheme - 3);
+    return !authority.empty() && authority.find_first_of("@?#") == std::string::npos;
+}
+
+void load_voice_settings() {
+    voice = VoiceSettings{};
+    voice.use_moonpilot = true;
+    if (access(voice_settings_file().c_str(), F_OK) != 0) return;
+    std::string error;
+    if (!terminal::load_voice_config(voice_settings_file(), voice, error)) {
+        voice = VoiceSettings{};
+        voice.use_moonpilot = true;
+    }
+}
+
+bool save_voice_settings() {
+    const auto dir = apps_data_dir() + "/terminal";
+    if (::mkdir(dir.c_str(), 0700) != 0 && errno != EEXIST) return false;
+    std::string error;
+    if (terminal::save_voice_config(voice_settings_file(), voice, error)) return true;
+    load_voice_settings();  // reflect the last persisted settings after failure
+    return false;
 }
 
 std::string sshd_data_dir() { return apps_data_dir() + "/terminal/dropbear"; }
@@ -490,14 +527,14 @@ Item action(const std::string &key, const std::string &label, const std::string 
     Item i; i.kind = Kind::Action; i.key = "a:" + key; i.label = label; i.value = value; i.on_enter = std::move(fn); return i;
 }
 
-enum class Section { Wifi, Display, Sound, Usb, Ssh, Battery, About };
-constexpr int kSections = 7;
+enum class Section { Wifi, Display, Sound, Usb, Ssh, Voice, Battery, About };
+constexpr int kSections = 8;
 const char *const kSectionIcon[] = {LV_SYMBOL_WIFI, LV_SYMBOL_IMAGE, LV_SYMBOL_VOLUME_MAX, LV_SYMBOL_USB,
-                                    LV_SYMBOL_SHUFFLE, LV_SYMBOL_BATTERY_FULL, LV_SYMBOL_LIST};
-const char *const kSectionName[] = {"WLAN", "显示与熄屏", "声音", "USB", "SSH 服务", "电池", "关于本机"};
+                                    LV_SYMBOL_SHUFFLE, LV_SYMBOL_AUDIO, LV_SYMBOL_BATTERY_FULL, LV_SYMBOL_LIST};
+const char *const kSectionName[] = {"WLAN", "显示与熄屏", "声音", "USB", "SSH 服务", "语音输入", "电池", "关于本机"};
 
 // Sheets replace the list temporarily; Back always returns to the page.
-enum class Sheet { None, Network, Password, Hidden, SshPassword, Confirm, Picker };
+enum class Sheet { None, Network, Password, Hidden, SshPassword, Voice, Confirm, Picker };
 enum class Zone { Sidebar, Content };
 
 int section = 0;
@@ -513,7 +550,7 @@ uint32_t toast_until = 0;
 std::string sheet_ssid, sheet_id, password, hidden_ssid;
 std::string ssh_password, ssh_password_confirm;
 bool sheet_open = false, show_password = false;
-int input_target = 0;  // 0 Wi-Fi password, 1 hidden SSID, 2/3 SSH password/confirmation
+int input_target = 0;  // Wi-Fi/SSH fields; 4/5/6 are voice endpoint/model/token.
 std::string confirm_title, confirm_text, confirm_button;
 std::function<void()> confirm_fn;
 // Picker: full-row options for a Choice, easier to hit than inline arrows.
@@ -1176,6 +1213,97 @@ std::vector<Item> ssh_page() {
     return v;
 }
 
+std::vector<Item> voice_page() {
+    std::vector<Item> v;
+    auto enabled = action("enabled", "语音输入", voice.enabled ? "已开启" : "已关闭", [] {
+        if (!voice.enabled && !voice.use_moonpilot && (voice.endpoint.empty() || voice.model.empty())) {
+            show_toast("请先配置服务端地址和模型");
+            return;
+        }
+        voice.enabled = !voice.enabled;
+        if (!save_voice_settings()) show_toast("语音设置保存失败");
+        else show_toast(voice.enabled ? "语音输入已开启" : "语音输入已关闭");
+    });
+    enabled.accent = voice.enabled;
+    v.push_back(std::move(enabled));
+    auto backend = action("backend", "服务来源", voice.use_moonpilot ? "复用 MoonPilot" : "独立 Terminal 接口", [] {
+        voice.use_moonpilot = !voice.use_moonpilot;
+        if (!save_voice_settings()) show_toast("语音设置保存失败");
+    });
+    backend.accent = voice.use_moonpilot;
+    v.push_back(std::move(backend));
+    v.push_back(action("config", "服务端配置", voice.use_moonpilot ? "读取 MoonPilot ASR／对话" : (voice.endpoint.empty() ? "未设置" : voice.endpoint),
+                        [] { open_sheet(Sheet::Voice); }));
+    auto context = action("context", "发送终端窗口内容", voice.include_context ? "已开启" : "已关闭", [] {
+        voice.include_context = !voice.include_context;
+        if (!save_voice_settings()) show_toast("语音设置保存失败");
+    });
+    context.accent = voice.include_context;
+    v.push_back(std::move(context));
+    auto preview = action("preview", "实时文字预览", voice.live_preview ? "已开启" : "已关闭", [] {
+        voice.live_preview = !voice.live_preview;
+        if (!save_voice_settings()) show_toast("语音设置保存失败");
+    });
+    preview.accent = voice.live_preview;
+    v.push_back(std::move(preview));
+    v.push_back(info("开始／结束", "点击终端底部“语音”按钮；也可按符号键 + V"));
+    v.push_back(note("tip", "说话时显示暂定文字，结束后润色并插入；不会自动执行命令。"));
+    v.push_back(note("privacy", "窗口内容只在“发送终端窗口内容”开启且开始录音时发送；未配置服务时不会上传。"));
+    return v;
+}
+
+std::vector<Item> voice_sheet() {
+    std::vector<Item> v;
+    Item endpoint;
+    endpoint.kind = Kind::Input;
+    endpoint.key = "in:voice-endpoint";
+    endpoint.label = "服务端地址";
+    endpoint.value = voice_endpoint_draft + (input_target == 4 ? "|" : "");
+    endpoint.on_enter = [] {
+        input_target = 5;
+        sync_list();
+        for (int i = 0; i < static_cast<int>(items.size()); ++i)
+            if (items[i].key == "in:voice-model") set_focus(i);
+    };
+    v.push_back(std::move(endpoint));
+    Item model;
+    model.kind = Kind::Input;
+    model.key = "in:voice-model";
+    model.label = "模型名称";
+    model.value = voice_model_draft + (input_target == 5 ? "|" : "");
+    model.on_enter = [] {
+        input_target = 6;
+        sync_list();
+        for (int i = 0; i < static_cast<int>(items.size()); ++i)
+            if (items[i].key == "in:voice-token") set_focus(i);
+    };
+    v.push_back(std::move(model));
+    Item token;
+    token.kind = Kind::Input;
+    token.key = "in:voice-token";
+    token.label = "API 密钥";
+    token.value = masked(voice_token_draft, show_password, input_target == 6);
+    token.on_enter = [] { input_target = 6; sync_list(); };
+    v.push_back(std::move(token));
+    v.push_back(action("show", "显示密钥（拍照键）", show_password ? "开" : "关", [] { show_password = !show_password; sync_list(); }));
+    auto save = action("save", "保存配置", "", [] {
+        if (!voice.use_moonpilot && !valid_voice_endpoint(voice_endpoint_draft)) { show_toast("请输入 http:// 或 https:// 服务地址"); return; }
+        if (!voice.use_moonpilot && (voice_model_draft.empty() || voice_model_draft.size() > 160)) { show_toast("请输入有效模型名称"); return; }
+        if (voice_token_draft.size() > 512 || voice_token_draft.find_first_of("\r\n") != std::string::npos) { show_toast("API 密钥格式无效"); return; }
+        voice.endpoint = voice_endpoint_draft;
+        voice.model = voice_model_draft;
+        voice.token = voice_token_draft;
+        if (!save_voice_settings()) { show_toast("语音设置保存失败"); return; }
+        show_toast("语音服务配置已保存");
+        close_sheet();
+    });
+    save.accent = true;
+    v.push_back(std::move(save));
+    v.push_back(action("cancel", "取消", "", [] { close_sheet(); }));
+    v.push_back(note("tip", voice.use_moonpilot ? "请在 MoonPilot 的设置页配置 ASR 和对话接口；这里会自动复用。" : "地址填写完整 HTTP(S) 接口，例如 http://家中主机:8080/v1/terminal/voice。"));
+    return v;
+}
+
 std::vector<Item> battery_page() {
     std::vector<Item> v;
     const char *b = "/sys/class/power_supply/battery/";
@@ -1286,6 +1414,7 @@ std::vector<Item> build_items() {
     case Sheet::Password:
     case Sheet::Hidden: return password_sheet();
     case Sheet::SshPassword: return ssh_password_sheet();
+    case Sheet::Voice: return voice_sheet();
     case Sheet::Confirm: return confirm_sheet();
     case Sheet::Picker: return picker_sheet();
     case Sheet::None: break;
@@ -1296,6 +1425,7 @@ std::vector<Item> build_items() {
     case Section::Sound: return sound_page();
     case Section::Usb: return usb_page();
     case Section::Ssh: return ssh_page();
+    case Section::Voice: return voice_page();
     case Section::Battery: return battery_page();
     case Section::About: return about_page();
     }
@@ -1308,6 +1438,7 @@ std::string sheet_title() {
     case Sheet::Password: return sheet_id.empty() ? "输入 Wi-Fi 密码" : "修改密码";
     case Sheet::Hidden: return "添加其他网络";
     case Sheet::SshPassword: return "设置 SSH 密码";
+    case Sheet::Voice: return "配置语音服务";
     case Sheet::Confirm: return confirm_title;
     case Sheet::Picker: return picker_label;
     case Sheet::None: break;
@@ -1531,12 +1662,19 @@ void open_sheet(Sheet s) {
         show_password = false;
         input_target = 2;
     }
+    if (s == Sheet::Voice) {
+        voice_endpoint_draft = voice.endpoint;
+        voice_model_draft = voice.model;
+        voice_token_draft = voice.token;
+        show_password = false;
+        input_target = 4;
+    }
     if (sheet == Sheet::None) return_key = focus >= 0 && focus < static_cast<int>(items.size()) ? items[focus].key : "";
     sheet = s;
     zone = Zone::Content;
     sync_list(true);
     // Start on the field to type into; confirmations default to the safe choice.
-    const char *start = s == Sheet::Confirm ? "a:cancel" : s == Sheet::Hidden ? "in:ssid" : s == Sheet::Password ? "in:pw" : s == Sheet::SshPassword ? "in:ssh-password" : "";
+    const char *start = s == Sheet::Confirm ? "a:cancel" : s == Sheet::Hidden ? "in:ssid" : s == Sheet::Password ? "in:pw" : s == Sheet::SshPassword ? "in:ssh-password" : s == Sheet::Voice ? "in:voice-endpoint" : "";
     for (int i = 0; *start && i < static_cast<int>(items.size()); ++i)
         if (items[i].key == start) set_focus(i, false);
 }
@@ -1548,6 +1686,10 @@ void close_sheet() {
     std::fill(ssh_password_confirm.begin(), ssh_password_confirm.end(), '\0');
     ssh_password.clear();
     ssh_password_confirm.clear();
+    std::fill(voice_token_draft.begin(), voice_token_draft.end(), '\0');
+    voice_endpoint_draft.clear();
+    voice_model_draft.clear();
+    voice_token_draft.clear();
     const bool from_password = sheet == Sheet::Password && !sheet_id.empty();
     sheet = from_password ? Sheet::Network : Sheet::None;
     if (sheet == Sheet::None) { confirm_fn = nullptr; picker_fn = nullptr; }
@@ -1676,11 +1818,14 @@ void move_focus(int dir) {
     }
     for (int i = focus + dir; i >= 0 && i < static_cast<int>(items.size()); i += dir) {
         if (!items[i].focusable()) continue;
-        if (sheet == Sheet::Password || sheet == Sheet::Hidden || sheet == Sheet::SshPassword) {
+        if (sheet == Sheet::Password || sheet == Sheet::Hidden || sheet == Sheet::SshPassword || sheet == Sheet::Voice) {
             if (items[i].key == "in:pw") input_target = 0;
             else if (items[i].key == "in:ssid") input_target = 1;
             else if (items[i].key == "in:ssh-password") input_target = 2;
             else if (items[i].key == "in:ssh-confirm") input_target = 3;
+            else if (items[i].key == "in:voice-endpoint") input_target = 4;
+            else if (items[i].key == "in:voice-model") input_target = 5;
+            else if (items[i].key == "in:voice-token") input_target = 6;
             else input_target = -1;
             if (items[i].kind == Kind::Input || items[focus].kind == Kind::Input) sync_list();
         }
@@ -1705,18 +1850,18 @@ void go_back() {
 }
 
 bool typing() {
-    return (sheet == Sheet::Password || sheet == Sheet::Hidden || sheet == Sheet::SshPassword) && focus >= 0 && items[focus].kind == Kind::Input;
+    return (sheet == Sheet::Password || sheet == Sheet::Hidden || sheet == Sheet::SshPassword || sheet == Sheet::Voice) && focus >= 0 && items[focus].kind == Kind::Input;
 }
 
 void physical_key(uint32_t code) {
     if (code == screen::KEY_HOME || code == screen::KEY_HOME_LONG) { screen::quit = true; return; }
     if (code == screen::KEY_EXIT) { go_back(); return; }
-    if (code == screen::KEY_SYMBOL && (sheet == Sheet::Password || sheet == Sheet::Hidden || sheet == Sheet::SshPassword)) {
+    if (code == screen::KEY_SYMBOL && (sheet == Sheet::Password || sheet == Sheet::Hidden || sheet == Sheet::SshPassword || sheet == Sheet::Voice)) {
         show_password = !show_password;
         sync_list();
         return;
     }
-    if (code == screen::KEY_MODE) { if (sheet == Sheet::Password || sheet == Sheet::Hidden || sheet == Sheet::SshPassword) sync_list(); return; }
+    if (code == screen::KEY_MODE) { if (sheet == Sheet::Password || sheet == Sheet::Hidden || sheet == Sheet::SshPassword || sheet == Sheet::Voice) sync_list(); return; }
     const bool enter = code == LV_KEY_ENTER || code == '\r';
     if (typing() && !enter) {
         std::string *target = &password;
@@ -1724,6 +1869,9 @@ void physical_key(uint32_t code) {
         if (input_target == 1) { target = &hidden_ssid; limit = 32; }
         else if (input_target == 2) target = &ssh_password;
         else if (input_target == 3) target = &ssh_password_confirm;
+        else if (input_target == 4) { target = &voice_endpoint_draft; limit = 512; }
+        else if (input_target == 5) { target = &voice_model_draft; limit = 160; }
+        else if (input_target == 6) { target = &voice_token_draft; limit = 512; }
         if (code == LV_KEY_BACKSPACE || code == 8) {
             if (!target->empty()) target->pop_back();
             sync_list();
@@ -1759,10 +1907,13 @@ void item_clicked(lv_event_t *e) {
     if (index < 0 || index >= static_cast<int>(items.size()) || !items[index].focusable()) return;
     zone = Zone::Content;
     auto &it = items[index];
-    if (sheet == Sheet::Password || sheet == Sheet::Hidden || sheet == Sheet::SshPassword) {
+    if (sheet == Sheet::Password || sheet == Sheet::Hidden || sheet == Sheet::SshPassword || sheet == Sheet::Voice) {
         input_target = it.key == "in:pw" ? 0 : it.key == "in:ssid" ? 1 : -1;
         if (it.key == "in:ssh-password") input_target = 2;
         else if (it.key == "in:ssh-confirm") input_target = 3;
+        else if (it.key == "in:voice-endpoint") input_target = 4;
+        else if (it.key == "in:voice-model") input_target = 5;
+        else if (it.key == "in:voice-token") input_target = 6;
     }
     if (focus != index || it.kind == Kind::Input) {
         set_focus(index);
@@ -1833,8 +1984,9 @@ void create_ui() {
         auto *b = lv_obj_create(side);
         side_items[i] = b;
         lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_pos(b, 8, 48 + i * 41);
-        lv_obj_set_size(b, 180, 38);
+        const int step = (340 - 48 - 4) / kSections;
+        lv_obj_set_pos(b, 8, 48 + i * step);
+        lv_obj_set_size(b, 180, step - 3);
         lv_obj_set_style_radius(b, 8, 0);
         lv_obj_set_style_border_width(b, 0, 0);
         lv_obj_set_style_pad_all(b, 0, 0);
@@ -1937,6 +2089,7 @@ int main(int argc, char **argv) {
     if (!font) font = const_cast<lv_font_t *>(&lv_font_montserrat_18);
     if (!small) small = font;
     audio.open();
+    load_voice_settings();
     wifi = read_wifi();
     saved = read_saved();
     section = start_section;

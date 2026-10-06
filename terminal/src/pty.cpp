@@ -37,7 +37,9 @@ bool Pty::start(const std::vector<std::string> &argv, int rows, int cols,
     if (tcgetattr(slave, &settings) != 0) {
         fail("Read PTY termios"); close(slave); stop(); return false;
     }
-    settings.c_iflag = BRKINT | ICRNL | IXON;
+    // Ctrl-S/Ctrl-Q belong to foreground applications. Software flow control
+    // can silently freeze output after an accidental Symbol+S on this keypad.
+    settings.c_iflag = BRKINT | ICRNL;
 #ifdef IUTF8
     settings.c_iflag |= IUTF8;
 #endif

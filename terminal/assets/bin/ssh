@@ -1,6 +1,23 @@
 #!/bin/sh
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 if [ -x "$script_dir/../../../linux-tools/bin/dbclient" ]; then
-    exec "$script_dir/../../../linux-tools/bin/dbclient" "$@"
+    dbclient="$script_dir/../../../linux-tools/bin/dbclient"
+    dropbearkey="$script_dir/../../../linux-tools/bin/dropbearkey"
+else
+    dbclient=dbclient
+    dropbearkey=dropbearkey
 fi
-exec dbclient "$@"
+# Preserve explicit identities. dbclient accepts both -i FILE and -iFILE.
+for argument in "$@"; do
+    case "$argument" in -i*) exec "$dbclient" "$@" ;; esac
+done
+# dbclient reads Dropbear-format private keys, regardless of their filename.
+# Skip OpenSSH keys instead of selecting an incompatible identity merely
+# because a familiar filename exists. Never print key material here.
+for key in "$HOME/.ssh/id_dropbear" "$HOME/.ssh/id_ed25519" \
+           "$HOME/.ssh/id_ecdsa" "$HOME/.ssh/id_rsa"; do
+    if [ -f "$key" ] && "$dropbearkey" -y -f "$key" >/dev/null 2>&1; then
+        exec "$dbclient" -i "$key" "$@"
+    fi
+done
+exec "$dbclient" "$@"

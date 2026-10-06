@@ -21,10 +21,10 @@ set(CONFIG_LV_USE_THORVG_INTERNAL OFF CACHE BOOL "" FORCE)
 add_subdirectory("{apps}/.deps/lvgl" lvgl EXCLUDE_FROM_ALL)
 file(GLOB vterm_sources "{root}/vendor/libvterm/src/*.c")
 add_executable(terminal-render "{root}/src/main.cpp" "{root}/src/terminal.cpp"
-    "{root}/src/pty.cpp" "{root}/tests/headless_display.cpp"
+    "{root}/src/pty.cpp" "{root}/src/voice.cpp" "{apps}/shared/net.cpp" "{root}/tests/headless_display.cpp"
     "{root}/tests/c1ime_stub.cpp" ${{vterm_sources}})
-target_include_directories(terminal-render PRIVATE "{apps}/shared" "{root}/vendor/libvterm/include")
-target_link_libraries(terminal-render lvgl m)
+target_include_directories(terminal-render PRIVATE "{apps}/.build/include" "{apps}/shared" "{root}/vendor/libvterm/include")
+target_link_libraries(terminal-render lvgl m pthread)
 ''')
     subprocess.run(['cmake', '-S', str(source), '-B', str(directory/'build'), '-DCMAKE_BUILD_TYPE=Release'], check=True, stdout=subprocess.DEVNULL)
     subprocess.run(['cmake', '--build', str(directory/'build'), '-j4'], check=True, stdout=subprocess.DEVNULL)

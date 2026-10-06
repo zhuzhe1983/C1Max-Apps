@@ -32,6 +32,38 @@ same_process() {
 }
 read_saved() { if [ -f "$1" ]; then cat "$1"; fi; }
 
+# Apply the user's saved screen-off preference on every foreground takeover.
+# desktop-service.sh applies the same preference during boot, but run.sh is
+# also used for manual/recovery starts after the one-shot boot service has
+# already consumed its boot marker. Keep this after the stock UI handoff so
+# a restarted vendor UI cannot overwrite the value we just selected.
+apply_screenoff_preference() {
+    screenoff=/storage/apps/data/settings/screenoff
+    [ -f "$screenoff" ] || return 0
+    saved_lock='' saved_timer='' valid=1
+    while IFS='=' read -r k v || [ -n "$k" ]; do
+        case "$k:$v" in
+            lock:0|lock:1) [ -z "$saved_lock" ] || valid=0; saved_lock=$v ;;
+            timer:0|timer:30000|timer:60000|timer:120000|timer:300000|timer:600000|timer:1200000|timer:1800000)
+                [ -z "$saved_timer" ] || valid=0; saved_timer=$v ;;
+            *) valid=0 ;;
+        esac
+    done < "$screenoff"
+    [ -n "$saved_lock" ] && [ -n "$saved_timer" ] || valid=0
+    [ "$saved_lock:$saved_timer" != 0:0 ] || valid=0
+    if [ "$valid" = 1 ]; then
+        applied=1
+        if [ "$saved_timer" != 0 ]; then
+            setprop sys.backlight.timer "$saved_timer" || applied=0
+        fi
+        setprop sys.backlight.lock "$saved_lock" || applied=0
+        setprop sys.backlight.timer.reset 1 || applied=0
+        log "Screen-off preference reapplied=$applied"
+    else
+        log 'Invalid screen-off preference; retaining current policy'
+    fi
+}
+
 # flock serializes stale-lock recovery too. Keep its inode: unlinking this
 # file would let another supervisor lock a different inode at the same path.
 exec 9>"$STATE/foreground.lock"
@@ -78,6 +110,8 @@ CHILD=
 CHILD_STAMP=
 VOLUME=
 VOLUME_STAMP=
+POWER_GUARD_PID=
+POWER_GUARD_STAMP=
 AUDIO="$LOCK/alsa.state"
 cleanup() {
     status=$?
@@ -123,6 +157,21 @@ cleanup() {
             exit 1
         fi
         wait "$VOLUME" 2>/dev/null
+    fi
+    if same_process "$POWER_GUARD_PID" "$POWER_GUARD_STAMP"; then
+        kill -TERM "$POWER_GUARD_PID" 2>/dev/null
+        n=0
+        while same_process "$POWER_GUARD_PID" "$POWER_GUARD_STAMP" && [ "$n" -lt 20 ]; do
+            sleep 0.1; n=$((n+1))
+        done
+        if same_process "$POWER_GUARD_PID" "$POWER_GUARD_STAMP"; then
+            kill -KILL "$POWER_GUARD_PID" 2>/dev/null
+            n=0
+            while same_process "$POWER_GUARD_PID" "$POWER_GUARD_STAMP" && [ "$n" -lt 20 ]; do
+                sleep 0.1; n=$((n+1))
+            done
+        fi
+        wait "$POWER_GUARD_PID" 2>/dev/null
     fi
     if [ -f "$AUDIO" ]; then
         alsactl -f "$AUDIO" restore 0 >/dev/null 2>&1 || log 'Could not restore the saved mixer state'
@@ -189,6 +238,18 @@ if [ "$(getprop init.svc.smartUI)" != stopped ] || pidof mp_s300 >/dev/null 2>&1
     log 'Stock UI did not fully stop; refusing overlapping frontends'; exit 1
 fi
 log 'Stock UI exited; starting custom apps (media/network/ADB services retained)'
+apply_screenoff_preference
+
+# Start this only after the stock UI handoff. Its init trigger restarts
+# PowerManager while smartUI is stopping; connecting earlier would leave the
+# per-client PowerLock attached to the old PowerManager instance.
+# The guard remains tied to this supervisor for both boot and manual starts.
+POWER_GUARD="$C1_APPS_ROOT/shared/c1max-power-guard"
+if [ -x "$POWER_GUARD" ]; then
+    "$POWER_GUARD" >>"$STATE/power-guard.log" 2>&1 9>&- &
+    POWER_GUARD_PID=$!
+    POWER_GUARD_STAMP=$(process_stamp "$POWER_GUARD_PID" 2>/dev/null || true)
+fi
 
 # Neither child may retain the supervisor's flock descriptor.
 "$C1_APPS_ROOT/shared/c1max-volume" 9>&- &

@@ -32,7 +32,7 @@ Shift 加字母仍然输入键帽数字和符号，大写状态下也是如此�
 - PCSX4all：WASD 方向、J/K/U/I 为 ×/○/□/△，Q/E 和 Z/C 为肩键，回车 Start、空格 Select，中间返回打开存档菜单；短按电源提示，长按五秒退出。
 - DOSBox：短按电源提示，长按五秒退出；长按拍照键暂停，中间返回为 DOS Esc。文本模式沿用 Shift 数字／双击大写；游戏模式 WASD 方向、J Ctrl、K Alt、U 空格、I 回车。拍照键前缀提供方向、F1–F12、Ctrl/Alt 和符号，详见 [DOSBox](dosbox/README.md)。
 - Processing：Q/W/E/R/T 选示例或自己的程序；运行中 P/空格暂停、R 重置、E 编辑；编辑器相机键前缀提供导航/额外标点，返回保存，电源保存并回 launcher。
-- Terminal：真实 PTY；返回发送 Escape，右上退格发送 DEL。符号前缀提供 Ctrl、方向、Tab 和额外标点，终端内“符号 → A → 空格”切换 Rime 拼音，空格／Shift 数字选候选；候选状态下“符号两次 + Z/X”翻页，电源返回 launcher。详见 [终端说明](terminal/README.md)。
+- Terminal：真实 PTY；返回发送 Escape，右上退格发送 DEL。Terminal 中双击 Shift 循环切换 `abc → CAPS → 拼音 → abc`；符号前缀提供 Ctrl、方向、Tab 和额外标点，旧的“符号 → A → 空格”切换仍可用。空格／Shift 数字选候选；候选状态下“符号两次 + Z/X”翻页。语音输入用右下角“语音／结束”按钮单击切换，也可用“符号 + V”；主体触摸上下滑动查看历史。Terminal 内电源键返回 launcher；也可用 `exit` 或 Ctrl-D 退出。详见 [终端说明](terminal/README.md)。
 
 音量由 launcher 会话内唯一 `c1max-volume` 处理，减/加每次调整 softvolume 13/255，支持长按，所有自定义应用共享。退出回原厂时恢复进入前的混音器状态。
 

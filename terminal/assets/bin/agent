@@ -1,0 +1,79 @@
+#!/bin/sh
+# Attach the small C1Max terminal to a server-side persistent coding session.
+# The server owns the PTY and the agent; this script only validates arguments
+# and asks Dropbear to allocate a real terminal for Herdr.
+set -eu
+umask 077
+PATH=/usr/bin:/bin:/usr/sbin:/sbin
+export PATH
+
+data=${C1_APPS_DATA:-/storage/apps/data}/terminal
+config="$data/agent.conf"
+ssh_bin="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/ssh"
+
+fail() { echo "agent: $*" >&2; exit 2; }
+usage() {
+    cat >&2 <<'EOF'
+usage: agent TARGET [SESSION]
+       agent configure TARGET [SESSION]
+
+TARGET is user@host. The remote host must have Herdr (or a compatible
+server-side session command) installed. Ctrl-B Q detaches without stopping it.
+EOF
+    exit 2
+}
+valid_target() {
+    case "$1" in
+        ''|-*|@*|*@|*@*@*|*[!A-Za-z0-9@._:%+-]*) return 1 ;;
+    esac
+    case "$1" in *@*) ;; *) return 1 ;; esac
+    [ "${#1}" -le 320 ]
+}
+valid_session() {
+    case "$1" in
+        ''|-*|*[!A-Za-z0-9._-]*) return 1 ;;
+    esac
+    [ "${#1}" -le 128 ]
+}
+save_config() {
+    mkdir -p "$data"
+    chmod 700 "$data"
+    temporary=$(mktemp "$config.XXXXXX") || fail 'cannot create configuration'
+    trap 'rm -f "$temporary"' EXIT HUP INT TERM
+    printf 'target=%s\nsession=%s\n' "$1" "$2" > "$temporary"
+    chmod 600 "$temporary"
+    mv "$temporary" "$config"
+    trap - EXIT HUP INT TERM
+    echo "agent target saved: $1 (session $2)"
+}
+read_value() {
+    awk -F= -v key="$1" '$1 == key {print substr($0, length($1)+2); exit}' "$config" 2>/dev/null || true
+}
+
+if [ "$#" -ge 1 ] && [ "$1" = configure ]; then
+    [ "$#" -le 3 ] || usage
+    [ "$#" -ge 2 ] || usage
+    target=$2
+    session=${3:-c1max}
+    valid_target "$target" || fail 'TARGET must be user@host'
+    valid_session "$session" || fail 'SESSION may contain only letters, digits, dot, underscore and dash'
+    save_config "$target" "$session"
+    exit 0
+fi
+
+if [ "$#" -gt 2 ]; then usage; fi
+target=${1:-}
+session=${2:-}
+if [ -z "$target" ] && [ -f "$config" ]; then target=$(read_value target); fi
+if [ -z "$session" ] && [ -f "$config" ]; then session=$(read_value session); fi
+target=${target:-}
+session=${session:-c1max}
+[ -n "$target" ] || usage
+valid_target "$target" || fail 'TARGET must be user@host'
+valid_session "$session" || fail 'SESSION may contain only letters, digits, dot, underscore and dash'
+[ -x "$ssh_bin" ] || fail 'SSH client is missing from this release'
+
+# The device uses a private `c1max` terminfo entry. The server may not have
+# that entry, so normalize the remote terminal type for the one-click path.
+remote_command='if [ -x "$HOME/.local/bin/herdr" ]; then exec "$HOME/.local/bin/herdr" --session '"$session"'; else exec herdr --session '"$session"'; fi'
+exec "$ssh_bin" -t "$target" "env TERM=xterm-256color sh -lc '$remote_command'"

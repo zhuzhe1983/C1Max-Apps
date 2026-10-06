@@ -1,0 +1,22 @@
+[Unit]
+Description=C1Max Terminal voice adapter for local ASR and LLM
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=c1voice
+Group=c1voice
+WorkingDirectory=/opt/c1max-terminal-voice
+EnvironmentFile=/etc/c1max-terminal-voice.env
+ExecStart=/usr/bin/python3 /opt/c1max-terminal-voice/terminal_voice_gateway.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=read-only
+ProtectSystem=strict
+ReadWritePaths=/opt/c1max-terminal-voice
+
+[Install]
+WantedBy=multi-user.target

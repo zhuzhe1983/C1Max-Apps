@@ -8,7 +8,7 @@ apps/
 ├── launcher/       应用入口、原装桌面退出/恢复监督器
 ├── streamplayer/   Emby / Jellyfin：登录、媒体库、服务器转码播放
 ├── calendar/       月历、本地日程增删改、ICS 订阅管理
-├── terminal/       PTY / ANSI / UTF-8 终端、物理控制键
+├── terminal/       PTY / ANSI / UTF-8 终端、物理控制键、远程 Coding Agent attach
 ├── linux-tools/    独立 bash / less / nano / SSH 客户端工具包
 ├── calculator/     四则运算、括号、乘方、小数
 ├── settings/       WLAN、亮度/熄屏、音量、USB、SSH 服务、电池与本机信息
@@ -26,7 +26,7 @@ apps/
 ├── mail/           POP3 收件、SMTP 发件与本地账号配置
 ├── piano/          触屏钢琴
 ├── nes/            InfoNES 平台适配与实验记录
-├── shared/         LVGL 显示/触摸、网络、tinyalsa、中文字体
+├── shared/         LVGL 显示/触摸、网络、tinyalsa、中文字体、电源守护
 ├── tools/          Docker 交叉编译、打包、ADB 部署
 ├── tests/          清单/API 回归测试
 ├── catalog.json    GitHub 公开更新接口的版本及源码修订清单
@@ -43,6 +43,7 @@ apps/
 
 - **[Tox 聊天](tox/README.md)**：基于 c-toxcore 的原生点对点聊天，支持气泡聊天、图片与语音直接预览、送达回执、本地待发队列、可选后台收发、ID 二维码和摄像头扫码添加。扫码提供数码裁剪与对焦；身份保存保留上一份有效快照。默认构建已包含，身份与聊天数据不随源码发布。
 - **[设置](settings/README.md)**：左侧分类、右侧列表，W/S 选择、A/D 调节，触摸可整行点击并有大号 −／+ 和选项列表。WLAN 非阻塞扫描、连接结果与密码错误提示、隐藏网络、忘记网络；屏幕亮度、自动熄屏、媒体音量、USB ADB/MTP 切换（需确认）、SSH 服务、电池和本机信息。不提供关机、恢复出厂和蓝牙。
+- **[远程 Terminal Coding](docs/remote-terminal-coding.md)**：C1Max 只运行轻量 Terminal/SSH，服务端用 Herdr 或其他会话管理器持久运行 Codex、Claude、Pi 等 Coding Agent；设备端 `agent` 命令负责 attach、分离和重连。
 - **[HID 键鼠](hidpilot/README.md)**：USB HID 与 ADB / MTP 共存，触控板、实体键盘、修饰键和滚轮控制电脑。0.2.0 起专注手动输入。
 - **[MoonPilot AI](moonpilot/README.md)**：独立的 Moonlight / Sunshine 远程操作应用，包含手动添加主机、PIN 配对、桌面预览、模型单步／十步操作，以及可配置 ASR、对话和 TTS。配对协议回归与真机解码通过；真实 Sunshine 串流和 AI 闭环待主机接入后验证。
 
@@ -154,7 +155,7 @@ python3 ./tools/deploy.py --serial MagicPen-931f06 --start
 │   ├── mail/c1max-mail
 │   ├── piano/c1max-piano
 │   ├── nes/c1max-nes
-│   ├── shared/{字体,CA证书,c1max-activate,c1max-volume,c1max-capture}
+│   ├── shared/{字体,CA证书,c1max-activate,c1max-volume,c1max-power-guard,c1max-capture}
 │   └── catalog.json
 └── data/
     ├── launcher/      锁、运行日志

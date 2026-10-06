@@ -41,6 +41,26 @@ void Terminal::key(VTermKey key, VTermModifier mod) {
     live(); vterm_keyboard_key(term_, key, mod);
 }
 std::string Terminal::take_output() { std::string s; s.swap(output_); return s; }
+std::string Terminal::context(size_t max_bytes) const {
+    std::string out;
+    if (max_bytes < 2) return out;
+    for (int row = 0; row < rows_; ++row) {
+        std::string line;
+        for (int col = 0; col < cols_; ++col) {
+            const auto cell_value = cell(row, col);
+            if (cell_value.chars[0] == UINT32_MAX) continue;
+            const auto text = cell_value.attrs.conceal ? std::string(cell_value.width == 2 ? 2 : 1, ' ') : utf8(cell_value);
+            if (text.empty() || line.size() + text.size() > max_bytes) break;
+            line += text;
+        }
+        while (!line.empty() && line.back() == ' ') line.pop_back();
+        if (out.size() + line.size() + 1 > max_bytes) break;
+        out += line;
+        out.push_back('\n');
+    }
+    while (!out.empty() && (out.back() == '\n' || out.back() == ' ')) out.pop_back();
+    return out;
+}
 VTermScreenCell Terminal::cell(int row, int col) const {
     VTermScreenCell result{};
     if (row < 0 || row >= rows_ || col < 0 || col >= cols_) return result;
