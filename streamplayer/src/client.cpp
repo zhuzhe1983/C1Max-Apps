@@ -36,9 +36,10 @@ static Json clean_items(const Json&j){
     }return out;
 }
 Json MediaClient::libraries(){return clean_items(call("GET","/Users/"+c1::encode(config.at("user_id"))+"/Views").at("Items"));}
-Json MediaClient::items(const std::string&parent,int start,bool music,int limit){
+Json MediaClient::items(const std::string&parent,int start,bool music,int limit,const std::string&query){
+    if(query.size()>512||query.find_first_of("\r\n")!=std::string::npos)throw std::runtime_error("Invalid search term");
     start=std::max(0,start);limit=std::clamp(limit,1,128);
-    auto r=call("GET","/Users/"+c1::encode(config.at("user_id"))+"/Items?ParentId="+c1::encode(parent)+"&Recursive=true&IncludeItemTypes="+std::string(music?"Audio":"Movie,Episode,Video")+"&StartIndex="+std::to_string(start)+"&Limit="+std::to_string(limit)+"&SortBy=SortName&SortOrder=Ascending&Fields=RunTimeTicks,SeriesName,Overview,ProductionYear,CommunityRating,Album,AlbumArtist");
+    auto r=call("GET","/Users/"+c1::encode(config.at("user_id"))+"/Items?ParentId="+c1::encode(parent)+"&Recursive=true&IncludeItemTypes="+std::string(music?"Audio":"Movie,Episode,Video")+"&StartIndex="+std::to_string(start)+"&Limit="+std::to_string(limit)+(query.empty()?std::string():"&SearchTerm="+c1::encode(query))+"&SortBy=SortName&SortOrder=Ascending&Fields=RunTimeTicks,SeriesName,Overview,ProductionYear,CommunityRating,Album,AlbumArtist");
     auto items=clean_items(r.at("Items"));int total=r.contains("TotalRecordCount")&&r["TotalRecordCount"].is_number_integer()?r["TotalRecordCount"].get<int>():start+items.size();
     return {{"Items",items},{"TotalRecordCount",total}};
 }

@@ -75,3 +75,9 @@ C1_APPS_ROOT=/work/.build/device C1_APPS_DATA=/work/.runtime/bilibili-qa qemu-mi
 ![竖屏视频与左侧旋转控件](../docs/screenshots/bilibili-portrait.png)
 
 [竖握方向查看](../docs/screenshots/bilibili-portrait-upright.png)。P/O 切换后默认隐藏控件，见[切换后的截图](../docs/screenshots/bilibili-next-hidden.png)；测试范围见 [0.2.0 QA](../docs/2026-09-27-bilibili-portrait-qa.md)。
+
+## 中文输入
+
+已接入本地 Rime 拼音。适用字段、实体按键、中文搜索和草稿确认规则见[统一中文输入说明](../docs/chinese-input.md)。
+
+在线搜索若收到 B 站的网页验证要求，会明确显示验证提示，不再误报为空结果；本机收藏和历史筛选不受该远程限制影响。

@@ -1,3 +1,4 @@
+#include "text_input.hpp"
 #include "client.hpp"
 #include "audio_client.h"
 #include "segment_stream.hpp"
@@ -24,6 +25,7 @@
 #include <unistd.h>
 namespace fs=std::filesystem;
 static MediaClient client;
+static c1ime::TextInput text_input;
 static lv_obj_t *content=nullptr,*status_label=nullptr,*server=nullptr,*username=nullptr,*password=nullptr,*kind=nullptr;
 static lv_font_t *font=nullptr,*small_font=nullptr,*large_font=nullptr;
 static lv_color_t accent(){return lv_color_hex(client.config.value("type",std::string())=="Jellyfin"?0x00a4dc:0x52b54b);}
@@ -40,6 +42,7 @@ static size_t physical_index=0;
 static std::future<Json> job;
 static std::function<void(Json)> completed;
 static bool busy=false;
+static std::string search_term;
 static std::string parent_id,title="StreamPlayer",mode="stream";
 static int page=0;
 static Json rows;
@@ -102,7 +105,7 @@ static void screen_base(const std::string &heading){
     auto s=lv_screen_active();lv_obj_clean(s);lv_obj_remove_flag(s,LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(s,lv_color_hex(0x04070b),0);lv_obj_set_style_text_color(s,lv_color_hex(0xeaf1f8),0);if(font)lv_obj_set_style_text_font(s,font,0);
     auto dot=lv_obj_create(s);lv_obj_remove_style_all(dot);lv_obj_set_pos(dot,18,18);lv_obj_set_size(dot,12,12);lv_obj_set_style_radius(dot,6,0);lv_obj_set_style_bg_color(dot,accent(),0);lv_obj_set_style_bg_opa(dot,LV_OPA_COVER,0);
-    auto h=label(s,heading,42,8,735);lv_label_set_long_mode(h,LV_LABEL_LONG_DOT);if(large_font)lv_obj_set_style_text_font(h,large_font,0);
+    auto h=label(s,heading,42,8,535);lv_label_set_long_mode(h,LV_LABEL_LONG_DOT);if(large_font)lv_obj_set_style_text_font(h,large_font,0);
     content=lv_obj_create(s);lv_obj_set_pos(content,10,46);lv_obj_set_size(content,780,252);lv_obj_set_style_bg_color(content,lv_color_hex(0x080e14),0);lv_obj_set_style_bg_opa(content,LV_OPA_COVER,0);lv_obj_set_style_text_color(content,lv_color_hex(0xeaf1f8),0);lv_obj_set_style_border_width(content,1,0);lv_obj_set_style_border_color(content,lv_color_hex(0x172431),0);lv_obj_set_style_radius(content,12,0);lv_obj_set_style_pad_all(content,0,0);
     status_label=label(s,"",18,308,764);if(small_font)lv_obj_set_style_text_font(status_label,small_font,0);lv_obj_set_style_text_color(status_label,lv_color_hex(0x8b98a8),0);lv_label_set_long_mode(status_label,LV_LABEL_LONG_DOT);
 }
@@ -132,16 +135,22 @@ void show_setup(){
         work("Connecting...",[b,u,p,t]{client.login(b,u,p,t);return client.libraries();},[](Json j){libraries=j;show_libraries();});
     });lv_obj_set_style_bg_color(login,accent(),0);lv_obj_set_style_text_color(login,lv_color_hex(0x041008),0);
     if(client.ready())button(content,"Media library",398,188,360,[](lv_event_t*){show_libraries();});
-    status("Enter: next field / connect   ·   Double Shift: ABC   ·   Return: back");
+    status("用户名：拍摄键中文 · Enter 下一项 · 双击 Shift 大写");
 }
 void show_libraries(){
     if(busy)return;view=View::Libraries;screen_base("StreamPlayer / Media library");
-    work("Loading libraries...",[]{return client.libraries();},[](Json j){libraries=j;if(libraries.empty()){status("No libraries available");return;}library_index=std::min(library_index,libraries.size()-1);parent_id=libraries[library_index].at("Id");page=0;show_items();});
+    work("Loading libraries...",[]{return client.libraries();},[](Json j){libraries=j;if(libraries.empty()){status("No libraries available");return;}library_index=std::min(library_index,libraries.size()-1);parent_id=libraries[library_index].at("Id");search_term.clear();page=0;show_items();});
+}
+static void search_library(){
+    if(busy)return;
+    text_input.open("streamplayer","搜索当前媒体库",search_term,128,font,[](std::string value){search_term=std::move(value);page=0;show_items();});
 }
 static void render_items(){
     view=View::Items;screen_base("StreamPlayer / "+(libraries.empty()?std::string("Videos"):libraries[library_index].value("Name",std::string("Videos"))));
+    button(lv_screen_active(),search_term.empty()?"搜索 F":"修改搜索 F",592,4,126,[](lv_event_t*){search_library();});
+    if(!search_term.empty())button(lv_screen_active(),"清除",724,4,65,[](lv_event_t*){if(!busy){search_term.clear();page=0;show_items();}});
     for(size_t i=0;i<libraries.size();++i){
-        auto b=button(content,libraries[i].value("Name",std::string("Library")),10,8+int(i)*38,120,[](lv_event_t*e){if(busy)return;library_index=(size_t)lv_event_get_user_data(e);parent_id=libraries[library_index].at("Id");page=0;show_items();},(void*)i);
+        auto b=button(content,libraries[i].value("Name",std::string("Library")),10,8+int(i)*38,120,[](lv_event_t*e){if(busy)return;library_index=(size_t)lv_event_get_user_data(e);parent_id=libraries[library_index].at("Id");search_term.clear();page=0;show_items();},(void*)i);
         lv_obj_set_height(b,34);if(i==library_index){lv_obj_set_style_border_color(b,accent(),0);lv_obj_set_style_text_color(b,accent(),0);}
     }
     physical_buttons.clear();physical_index=0;
@@ -162,12 +171,12 @@ static void render_items(){
     if(page>0)button(browse_area,"Previous",0,202,158,[](lv_event_t*){--page;show_items();});
     auto num=label(browse_area,std::to_string(page+1)+" / "+std::to_string(std::max(1,(total_items+2)/3)),240,210,140);lv_obj_set_style_text_align(num,LV_TEXT_ALIGN_CENTER,0);
     if((page+1)*3<total_items)button(browse_area,"Next",462,202,158,[](lv_event_t*){++page;show_items();});
-    status(rows.empty()?"No media in this library":"A/D: page   ·   W/S: library   ·   J/K: select   ·   Enter: details   ·   M: music");
+    status(rows.empty()?(search_term.empty()?"No media in this library":"没有匹配结果 · F 修改搜索 / 返回清除"):search_term.empty()?"F 搜索 · A/D 翻页 · W/S 媒体库 · J/K 选择 · Enter 打开 · M 音乐":"搜索："+search_term+" · F 修改 · A/D 翻页 · 返回清除");
 }
 static void show_items(){
     if(busy)return;view=View::Items;screen_base("StreamPlayer / Loading");
-    auto p=parent_id;int offset=page*3;bool music=music_library();work("Loading media & covers...",[p,offset,music]{
-        auto j=client.items(p,offset,music);auto &items=j["Items"];
+    auto p=parent_id,q=search_term;int offset=page*3;bool music=music_library();work(q.empty()?"Loading media & covers...":"正在搜索："+q,[p,offset,music,q]{
+        auto j=client.items(p,offset,music,3,q);auto &items=j["Items"];
         for(auto&item:items){try{item["Poster"]=client.poster(item.at("Id"));}catch(...){}}
         return j;
     },[](Json j){rows=j.at("Items");total_items=j.value("TotalRecordCount",0);item_index=0;render_items();});
@@ -210,7 +219,7 @@ static void show_music(){
 }
 static void play_music(){
     if(item_index>=rows.size())return;const auto parent=parent_id;const auto selected=rows[item_index];int offset=page*3+int(item_index);
-    work("Preparing music queue...",[parent,selected,offset]{auto j=client.items(parent,offset,true,128);auto tracks=j.at("Items");
+    auto q=search_term;work("Preparing music queue...",[parent,selected,offset,q]{auto j=client.items(parent,offset,true,128,q);auto tracks=j.at("Items");
         if(tracks.empty()||tracks[0].at("Id")!=selected.at("Id"))tracks=Json::array({selected});
         for(auto& item:tracks)item["AudioUrl"]=client.audio_url(item.at("Id"));return tracks;
     },[](Json tracks){bool first=true;int queued=0;for(auto& item:tracks){
@@ -569,11 +578,15 @@ static void show_roms(){
     status(files.empty()?"Copy .nes ROMs into /storage/apps/data/nes/roms":"Choose a ROM; tap Power for exit hint, hold 5s to exit");
 }
 static void physical_key(uint32_t key){
+    if(text_input.key(key))return;
     if(key==screen::KEY_HOME){
         if(mode=="roms"){status("长按五秒电源键退出");return;}
         screen::quit=true;return;
     }
     if(key==screen::KEY_HOME_LONG){if(mode=="roms")screen::quit=true;return;}
+    if(key==screen::KEY_SYMBOL&&active_field==username&&view==View::Setup&&!busy){
+        text_input.open("streamplayer","用户名",lv_textarea_get_text(username),128,font,[](std::string value){if(view==View::Setup&&username)lv_textarea_set_text(username,value.c_str());});return;
+    }
     if(key==screen::KEY_MODE){if(active_field)status(screen::caps_lock()?"ABC | Double Shift: abc | Shift: symbols | Enter: next":"abc | Double Shift: ABC | Shift: symbols | Enter: next");return;}
     if(view==View::Music&&!screen::playing){
         if(key==screen::KEY_EXIT){show_libraries();return;}
@@ -601,15 +614,16 @@ static void physical_key(uint32_t key){
     if(key==screen::KEY_EXIT){
         if(active_field){lv_obj_remove_state(active_field,LV_STATE_FOCUSED);active_field=nullptr;status("Input finished");return;}
         if(busy)return;
-        if(view==View::Detail)render_items();else if(view==View::Items||view==View::Libraries)show_setup();
+        if(view==View::Items&&!search_term.empty()){search_term.clear();page=0;show_items();}else if(view==View::Detail)render_items();else if(view==View::Items||view==View::Libraries)show_setup();
         return;
     }
     if(busy)return;
     if(!active_field&&(key=='m'||key=='M')&&music_state.owner==C1_AUDIO_STREAMPLAYER){show_music();return;}
     if(view==View::Items){
+        if(key=='f'||key=='F'){search_library();return;}
         if(key=='a'&&page>0){--page;show_items();return;}
         if(key=='d'&&(page+1)*3<total_items){++page;show_items();return;}
-        if((key=='w'||key=='s')&&!libraries.empty()){library_index=(library_index+libraries.size()+(key=='s'?1:-1))%libraries.size();parent_id=libraries[library_index].at("Id");page=0;show_items();return;}
+        if((key=='w'||key=='s')&&!libraries.empty()){library_index=(library_index+libraries.size()+(key=='s'?1:-1))%libraries.size();parent_id=libraries[library_index].at("Id");search_term.clear();page=0;show_items();return;}
     }
     if(active_field&&lv_obj_is_valid(active_field)){
         if(key==LV_KEY_ENTER){lv_obj_remove_state(active_field,LV_STATE_FOCUSED);if(active_field==server)active_field=username;else if(active_field==username)active_field=password;else active_field=nullptr;if(active_field)lv_obj_add_state(active_field,LV_STATE_FOCUSED);else status("Enter to connect; Space/J/K selects action");return;}
@@ -656,5 +670,5 @@ int main(int argc,char**argv){
     if(mode=="stream")c1_audio_command(C1_AUDIO_STREAMPLAYER,C1_AUDIO_DETACH,0,nullptr);
     bool was_playing=screen::playing;cleanup_player();c1::cancel_requests();if(job.valid())job.wait();c1::reset_requests(900);if(was_playing||ended||server_session_dirty){try{if(reported||have_time)client.report(current,"Stopped",position);}catch(...){}try{client.stop_transcode(current);}catch(...){}}
     for(auto&p:retired_sessions)try{client.stop_transcode(p);}catch(...){}
-    unlink((c1::data()+"/streamplayer/playback.m3u").c_str());if(audio_mixer)mixer_close(audio_mixer);screen::close();return 0;
+    unlink((c1::data()+"/streamplayer/playback.m3u").c_str());if(audio_mixer)mixer_close(audio_mixer);text_input.close();screen::close();return 0;
 }

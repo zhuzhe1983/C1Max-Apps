@@ -1,3 +1,4 @@
+#include "text_input.hpp"
 #include "display.hpp"
 #include "../../terminal/src/voice.hpp"
 #include "src/libs/tiny_ttf/lv_tiny_ttf.h"
@@ -24,10 +25,11 @@
 #include <vector>
 
 namespace {
+c1ime::TextInput text_input;
 volatile sig_atomic_t interrupted = 0;
 void on_signal(int) { interrupted = 1; }
 
-constexpr const char *kVersion = "0.2.0";
+constexpr const char *kVersion = "0.2.1";
 constexpr const char *kBacklight = "/sys/class/backlight/backlight/brightness";
 constexpr const char *kBacklightMax = "/sys/class/backlight/backlight/max_brightness";
 
@@ -986,7 +988,7 @@ std::vector<Item> password_sheet() {
         Item name;
         name.kind = Kind::Input;
         name.key = "in:ssid";
-        name.label = "网络名称";
+        name.label = "网络名称（拍摄键中文）";
         name.value = hidden_ssid + (input_target == 1 ? "|" : "");
         if (hidden_ssid.empty() && input_target != 1) name.value = "未设置";
         name.on_enter = [] { input_target = 0; sync_list(); };
@@ -1854,8 +1856,15 @@ bool typing() {
 }
 
 void physical_key(uint32_t code) {
+    if(text_input.key(code))return;
     if (code == screen::KEY_HOME || code == screen::KEY_HOME_LONG) { screen::quit = true; return; }
     if (code == screen::KEY_EXIT) { go_back(); return; }
+    if (code == screen::KEY_SYMBOL && typing() && (input_target == 1 || input_target == 5)) {
+        bool ssid=input_target==1;auto origin=sheet;
+        text_input.open("settings",ssid?"Wi-Fi 网络名称":"语音模型名称",ssid?hidden_ssid:voice_model_draft,ssid?32:160,font,[ssid,origin](std::string value){
+            if(sheet==origin){(ssid?hidden_ssid:voice_model_draft)=std::move(value);sync_list();}
+        },false,ssid?32:160);return;
+    }
     if (code == screen::KEY_SYMBOL && (sheet == Sheet::Password || sheet == Sheet::Hidden || sheet == Sheet::SshPassword || sheet == Sheet::Voice)) {
         show_password = !show_password;
         sync_list();
@@ -1873,7 +1882,7 @@ void physical_key(uint32_t code) {
         else if (input_target == 5) { target = &voice_model_draft; limit = 160; }
         else if (input_target == 6) { target = &voice_token_draft; limit = 512; }
         if (code == LV_KEY_BACKSPACE || code == 8) {
-            if (!target->empty()) target->pop_back();
+            if (!target->empty()) {size_t end=target->size()-1;while(end>0&&(static_cast<unsigned char>((*target)[end])&0xc0)==0x80)--end;target->erase(end);}
             sync_list();
             return;
         }
@@ -2112,7 +2121,7 @@ int main(int argc, char **argv) {
     std::fill(password.begin(), password.end(), '\0');
     password.clear();
     audio.close();
-    lv_obj_clean(lv_screen_active());
+    text_input.close();lv_obj_clean(lv_screen_active());
     lv_obj_set_style_text_font(lv_screen_active(), LV_FONT_DEFAULT, 0);
     if (font && font != &lv_font_montserrat_18) lv_tiny_ttf_destroy(font);
     if (small && small != font && small != &lv_font_montserrat_18) lv_tiny_ttf_destroy(small);

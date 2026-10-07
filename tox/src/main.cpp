@@ -1,3 +1,4 @@
+#include "text_input.hpp"
 // SPDX-License-Identifier: GPL-3.0-only
 #include "engine.hpp"
 #include "session.hpp"
@@ -18,6 +19,7 @@
 #include <unistd.h>
 
 namespace {
+c1ime::TextInput text_input;
 constexpr uint32_t bg=0x111b24, surface=0x1b2a35, raised=0x263945, ink=0xe6eee9, muted=0x9badae, accent=0x9bddbd, amber=0xf0c685;
 constexpr uint32_t nav_profile=0x20001,nav_add=0x20002,nav_requests=0x20003,nav_scan=0x20004,nav_zoom1=0x20010,nav_zoom15=0x20011,nav_zoom2=0x20012;
 lv_font_t*font=nullptr;
@@ -164,7 +166,7 @@ void paint(){
             lv_obj_scroll_to_y(history,chat_scroll<0?lv_obj_get_scroll_bottom(history):chat_scroll,LV_ANIM_OFF);
             lv_obj_add_event_cb(history,[](lv_event_t*e){auto*o=static_cast<lv_obj_t*>(lv_event_get_target(e));chat_scroll=history_offset==0&&lv_obj_get_scroll_bottom(o)<=2?-1:lv_obj_get_scroll_y(o);},LV_EVENT_SCROLL,nullptr);
             box(24,251,649,39,raised);label(r,drafts[selected].empty()?"输入文字…":tail(drafts[selected],132)+"_",36,259,620,26,drafts[selected].empty()?muted:ink);button(pending?"保存中":"发送",684,252,92,LV_KEY_ENTER,true);
-            footer="Shift + 音量＋/− 滚动  ·  黄钟待发 / 灰勾已发出 / 绿勾已送达（非已读）";
+            footer="拍摄键中文 · Shift＋音量滚动 · 黄钟待发 / 灰勾已发 / 绿勾送达";
         }
     }else if(page==Page::Queue){
         box(12,48,776,252);auto rows=queue_items();if(queue_index>=rows.size())queue_index=rows.empty()?0:rows.size()-1;
@@ -239,7 +241,7 @@ void paint(){
         box(26,151,746,84,raised);std::string shown=edit;
         if(page==Page::Add&&shown.size()>38)shown.insert(38,"\n");label(r,shown+"_",40,164,718,60);
         button(pending?"处理中":"回车确认",30,254,150,LV_KEY_ENTER,true);button("取消",661,254,111,screen::KEY_EXIT);if(page==Page::Add)button("扫码添加",194,254,149,nav_scan);
-        footer=page==Page::Add?std::to_string(edit.size())+" / 76  ·  Shift + Q–P 输入数字  ·  退格删除":"双击 Shift 切换大写  ·  退格删除  ·  返回取消";
+        footer=page==Page::Add?std::to_string(edit.size())+" / 76  ·  Shift + Q–P 输入数字  ·  退格删除":"拍摄键中文 · 双击 Shift 大写 · 退格删除 · 返回取消";
     }else if(page==Page::Requests){
         box(12,48,776,252);label(r,"好友请求 "+std::to_string(view.requests.size())+" · 待发送 "+std::to_string(view.queued),30,63,700,26,accent);
         if(view.requests.empty())label(r,"没有待处理请求。\n新请求会出现在这里，接受后才能聊天。",30,119,730,85,muted);
@@ -253,8 +255,15 @@ void paint(){
     label(r,footer,18,310,770,24,(!notice.empty()||show_error)?amber:muted);
 }
 void key(uint32_t k){
+    if(text_input.key(k))return;
     dismissed_error=view.error_count;
     if(k==screen::KEY_HOME){screen::quit=true;return;}
+    if(k==screen::KEY_SYMBOL&&!pending&&(page==Page::Chat||page==Page::Rename)){
+        auto origin=page;auto number=selected;bool chat_page=page==Page::Chat;
+        text_input.open("tox",chat_page?"聊天草稿":"我的昵称",chat_page?drafts[number]:edit,chat_page?1024:64,font,[origin,number](std::string value){
+            if(origin==Page::Chat)drafts[number]=std::move(value);else if(page==origin)edit=std::move(value);notice="已填入草稿 · 回车发送或保存";paint();
+        },chat_page,chat_page?1024:64);return;
+    }
     if(k==screen::KEY_MODE)return;
     if(k==screen::KEY_FONT_UP||k==screen::KEY_FONT_DOWN){
         if(page==Page::Chat&&chat_history){bool up=k==screen::KEY_FONT_UP;
@@ -289,7 +298,7 @@ void key(uint32_t k){
                 else{stop_media();media=std::make_unique<chat::Media>(c1::data()+"/tox/media");media->load(m.file,m.kind);attachment_origin=Page::Chat;page=Page::Attachment;}
             }paint();return;
         }
-        if((k==nav_photo||k==nav_voice||(k==screen::KEY_SYMBOL&&page==Page::Chat))&&friend_now()){
+        if((k==nav_photo||k==nav_voice)&&friend_now()){
             stop_scan();stop_media();media=std::make_unique<chat::Media>(c1::data()+"/tox/media");
             if(k==nav_voice){page=Page::Voice;media->record();}else{page=Page::Photo;media->open_camera();}paint();return;
         }
@@ -412,5 +421,5 @@ int main(int argc,char**argv){
             if(dirty)paint();
         }usleep(10000);
     }
-    if(scroll_shortcuts)unlink("/tmp/c1max-tox-scroll.pid");inline_audio.reset();stop_scan();stop_media();engine.reset();lv_image_cache_drop(&qr_descriptor);lv_image_cache_drop(&scan_descriptor);lv_obj_clean(lv_screen_active());for(auto&[file,p]:previews)lv_image_cache_drop(&p.image);previews.clear();lv_obj_set_style_text_font(lv_screen_active(),LV_FONT_DEFAULT,0);if(font)lv_tiny_ttf_destroy(font);screen::close();return 0;
+    if(scroll_shortcuts)unlink("/tmp/c1max-tox-scroll.pid");inline_audio.reset();stop_scan();stop_media();engine.reset();lv_image_cache_drop(&qr_descriptor);lv_image_cache_drop(&scan_descriptor);text_input.close();lv_obj_clean(lv_screen_active());for(auto&[file,p]:previews)lv_image_cache_drop(&p.image);previews.clear();lv_obj_set_style_text_font(lv_screen_active(),LV_FONT_DEFAULT,0);if(font)lv_tiny_ttf_destroy(font);screen::close();return 0;
 }

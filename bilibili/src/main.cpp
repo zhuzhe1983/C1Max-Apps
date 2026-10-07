@@ -1,3 +1,4 @@
+#include "text_input.hpp"
 #include "api.hpp"
 #include "player.hpp"
 #include "display.hpp"
@@ -12,11 +13,13 @@
 #include <tinyalsa/mixer.h>
 #include <unistd.h>
 namespace {
+c1ime::TextInput text_input;
 constexpr uint32_t bg=0x0e1018,surface=0x181b28,line=0x2b3043,ink=0xf5f5fa,muted=0xaeb5c9,pink=0xfb7299;
 enum class Page { Home, Portrait, Search, Saved, History, Account, Detail };
 Page page=Page::Home,previous=Page::Home;
 bili::Api api;bili::Player player;
 Json items=Json::array(),detail,store={{"saved",Json::array()},{"history",Json::array()}};
+std::string local_query;
 std::string query,status="连接 B 站…",account_name="游客",qr_key,qr_url,video_notice;
 int api_page=1,offset=0,selected=0,part=0,current_index=0;bool portrait_mode=false,changing_video=false,change_was_paused=false;int overlay_mode=-1;bool more=false,busy=false,cancelled=false,playing=false,controls=true,fill=true,dragging=false;
 uint32_t qr_next=0,qr_expires=0,controls_at=0,last_overlay=0,notice_at=0;int remembered_volume=50;
@@ -26,7 +29,7 @@ lv_font_t *font=nullptr,*small=nullptr,*large=nullptr;
 lv_obj_t *footer=nullptr,*field=nullptr,*video_top=nullptr,*video_bar=nullptr,*video_progress=nullptr,*video_time=nullptr,*video_state=nullptr,*video_pause=nullptr,*video_fit=nullptr,*video_loading=nullptr;
 struct mixer*audio=nullptr;volatile sig_atomic_t interrupted=0;
 void signal_stop(int){interrupted=1;}
-void paint();void load_list();void start_video();void open_detail(int index,bool autoplay=false);void adjacent_video(int delta);void rotate_video();void video_ui(bool reveal=true);void show_controls(bool show);void navigate(Page p);void covers();void make_qr();void stop_video();
+void paint();void load_list();void filter_local();void start_video();void open_detail(int index,bool autoplay=false);void adjacent_video(int delta);void rotate_video();void video_ui(bool reveal=true);void show_controls(bool show);void navigate(Page p);void covers();void make_qr();void stop_video();
 std::string path(const char*name){return c1::data()+"/bilibili/"+name;}
 std::string clock_text(int seconds){char b[32];std::snprintf(b,sizeof b,"%d:%02d",std::max(0,seconds)/60,std::max(0,seconds)%60);return b;}
 void message(const std::string&s){status=s;if(footer)lv_label_set_text(footer,s.c_str());}
@@ -44,7 +47,7 @@ void base(){auto*r=lv_screen_active();lv_obj_clean(r);actions.clear();field=null
     static const char*names[]={"热门","竖屏","搜索","本机收藏","观看记录"};for(int i=0;i<5;i++){auto*b=button(r,names[i],12,58+i*49,122,44,[i]{if(!busy)navigate(Page(i));},page==Page(i));(void)b;}
     footer=text(r,status,151,314,630,22,muted,small);
 }
-void paint(){if(playing)return;base();auto*r=lv_screen_active();
+void paint(){if(playing)return;bool restore_focus=field&&lv_obj_has_state(field,LV_STATE_FOCUSED);if(restore_focus)query=lv_textarea_get_text(field);base();auto*r=lv_screen_active();
     if(page==Page::Account){
         text(r,"扫码登录",164,59,315,34,ink,large);
         if(!qr_url.empty()){
@@ -65,9 +68,11 @@ void paint(){if(playing)return;base();auto*r=lv_screen_active();
     int top=61;
     if(page==Page::Search){
         field=lv_textarea_create(r);lv_obj_set_pos(field,152,54);lv_obj_set_size(field,479,43);lv_textarea_set_one_line(field,true);lv_textarea_set_max_length(field,160);lv_textarea_set_placeholder_text(field,"关键词 / BV 号 / 视频链接");lv_textarea_set_text(field,query.c_str());lv_obj_set_style_bg_color(field,lv_color_hex(surface),0);lv_obj_set_style_bg_opa(field,LV_OPA_COVER,0);lv_obj_set_style_text_color(field,lv_color_hex(ink),0);lv_obj_set_style_border_color(field,lv_color_hex(line),0);lv_obj_set_style_border_color(field,lv_color_hex(pink),LV_STATE_FOCUSED);lv_obj_set_style_border_width(field,1,0);lv_obj_set_style_pad_all(field,8,0);
-        lv_obj_add_event_cb(field,[](lv_event_t*){if(!busy)lv_obj_add_state(field,LV_STATE_FOCUSED);},LV_EVENT_CLICKED,nullptr);
-        button(r,"搜索",642,54,141,43,[]{if(busy)return;query=lv_textarea_get_text(field);api_page=1;offset=selected=0;load_list();},true);top=104;
+        lv_obj_add_event_cb(field,[](lv_event_t*){if(!busy){lv_obj_add_state(field,LV_STATE_FOCUSED);message("拍摄键中文 · Enter 搜索 · 返回浏览结果");}},LV_EVENT_CLICKED,nullptr);
+        if(restore_focus)lv_obj_add_state(field,LV_STATE_FOCUSED);
+        button(r,"搜索",642,54,141,43,[]{if(busy)return;query=lv_textarea_get_text(field);lv_obj_remove_state(field,LV_STATE_FOCUSED);api_page=1;offset=selected=0;load_list();},true);top=104;
     }else text(r,page==Page::Home?"此刻热门":page==Page::Portrait?"竖屏 · 热门精选":page==Page::Saved?"本机收藏":"最近观看",153,56,376,30,ink,large);
+    if(page==Page::Saved||page==Page::History)button(r,"筛选 F",500,50,124,42,[]{filter_local();});
     int y=page==Page::Search?104:98,h=page==Page::Search?176:198;
     for(int i=0;i<3&&offset+i<int(items.size());i++){
         int index=offset+i;auto&v=items[index];auto*b=button(r,"",151+i*214,y,204,h,[index]{if(!busy)open_detail(index);});lv_obj_set_style_border_width(b,selected==i?2:1,0);lv_obj_set_style_border_color(b,lv_color_hex(selected==i?pink:line),0);photo(b,v,6,6);
@@ -78,19 +83,27 @@ void paint(){if(playing)return;base();auto*r=lv_screen_active();
     if(page==Page::Search){text(r,"A/D 翻页 · J/K 选择 · Enter 打开",155,282,489,22,muted,small);text(r,std::to_string(api_page)+" / "+std::to_string(offset/3+1),678,282,100,22,muted,small);}
     (void)top;
 }
-void covers(){if(busy||items.empty())return;Json visible=Json::array();for(int i=offset;i<std::min<int>(offset+3,items.size());i++)visible.push_back(items[i]);int start=offset;
+void covers(){if(busy||items.empty()||page==Page::Saved||page==Page::History)return;Json visible=Json::array();for(int i=offset;i<std::min<int>(offset+3,items.size());i++)visible.push_back(items[i]);int start=offset;
     work("加载封面…",[visible]{Json out=Json::array();for(auto v:visible){try{v["poster"]=api.poster(v);}catch(...){}out.push_back(v);}return out;},[start](Json out){for(size_t i=0;i<out.size()&&start+int(i)<int(items.size());i++)items[start+i]=out[i];message("W/S 分类 · A/D 翻页 · J/K 选择 · Enter 打开");paint();});
 }
 bool remote_list(Page p){return p==Page::Home||p==Page::Portrait||p==Page::Search;}
 Json fetch_list(Page p,const std::string&q,int n){return p==Page::Search?api.search(q,n):p==Page::Portrait?api.portrait(n):api.popular(n);}
+void filter_local(){
+    if(busy)return;
+    text_input.open("bilibili","搜索本机收藏 / 观看记录",local_query,160,font,[](std::string value){local_query=std::move(value);offset=selected=0;load_list();});
+}
 void load_list(){
-    if(page==Page::Saved||page==Page::History){items=store[page==Page::Saved?"saved":"history"];more=false;paint();covers();return;}
+    if(page==Page::Saved||page==Page::History){items=store[page==Page::Saved?"saved":"history"];
+        auto fold=[](std::string t){for(char&c:t)if(c>='A'&&c<='Z')c+='a'-'A';return t;};auto q=fold(local_query);Json filtered=Json::array();
+        for(auto v:items){if(!q.empty()&&fold(v.value("title",std::string())+" "+v.value("author",std::string())).find(q)==std::string::npos)continue;
+            auto cover=path("posters")+"/"+v.value("bvid",std::string())+".png";if(std::filesystem::is_regular_file(cover))v["poster"]=cover;filtered.push_back(v);}
+        items=std::move(filtered);more=false;message(local_query.empty()?"本机列表 · F 中文筛选":"本地搜索："+local_query);paint();return;}
     bool cached_page=page==Page::Home||page==Page::Portrait;const char*cache=page==Page::Portrait?"portrait.json":"home.json";
     if(cached_page&&api_page==1&&items.empty())try{auto cached=Json::parse(c1::read_file(path(cache),98304));for(auto&v:cached){auto row=bili::summary(v);if(page==Page::Portrait&&!(row.value("width",0)>0&&row.value("height",0)>row.value("width",0)))continue;auto poster=path("posters")+"/"+row.at("bvid").get<std::string>()+".png";if(std::filesystem::is_regular_file(poster))row["poster"]=poster;items.push_back(row);if(items.size()==(page==Page::Portrait?60u:20u))break;}message("显示上次缓存，正在刷新…");paint();}catch(...){}
     auto source=page;auto q=query;auto n=api_page;work(cached_page&&api_page==1&&!items.empty()?"显示缓存，正在刷新…":"正在加载视频…",[source,q,n]{return fetch_list(source,q,n);},[](Json j){items=j.at("items");more=j.value("more",false);offset=selected=0;if((page==Page::Home||page==Page::Portrait)&&api_page==1)try{c1::save_private(path(page==Page::Portrait?"portrait.json":"home.json"),items.dump());}catch(...){}message(items.empty()?(page==Page::Portrait?"本页暂无竖屏视频 · D 下一页 / R 刷新":"没有找到视频"):"加载封面…");paint();covers();});
 }
-void navigate(Page p){if(busy)return;qr_url.clear();qr_key.clear();page=p;items=Json::array();offset=selected=0;api_page=1;message("W/S 分类 · Enter 打开");paint();if(p==Page::Account){work("检查登录状态…",[]{return api.account();},[](Json j){account_name=j.value("logged_in",false)?j.value("name","已登录"):"游客";message("使用手机哔哩哔哩扫码登录");paint();});}
-    else if(p==Page::Search){lv_obj_add_state(field,LV_STATE_FOCUSED);message("实体键输入 · 双击 Shift 大写 · Enter 搜索");}else load_list();
+void navigate(Page p){if(busy)return;qr_url.clear();qr_key.clear();local_query.clear();page=p;items=Json::array();offset=selected=0;api_page=1;message("W/S 分类 · Enter 打开");paint();if(p==Page::Account){work("检查登录状态…",[]{return api.account();},[](Json j){account_name=j.value("logged_in",false)?j.value("name","已登录"):"游客";message("使用手机哔哩哔哩扫码登录");paint();});}
+    else if(p==Page::Search){lv_obj_add_state(field,LV_STATE_FOCUSED);message("拍摄键中文 · 双击 Shift 大写 · Enter 搜索");}else load_list();
 }
 void present_detail(Json j,Page source,int index,bool autoplay){
     detail=std::move(j);part=0;current_index=index;offset=index/3*3;selected=index%3;previous=source;page=Page::Detail;
@@ -193,8 +206,12 @@ void start_video(){auto id=detail.at("bvid").get<std::string>();auto cid=detail[
 }
 void stop_video(){if(!playing)return;if(changing_video){cancelled=true;c1::cancel_requests();changing_video=false;}player.stop();playing=false;screen::portrait(false);video_top=video_bar=video_progress=video_time=video_state=video_pause=video_fit=video_loading=nullptr;overlay_mode=-1;message(player.error.empty()?"已停止 · Enter 重新播放":player.error);paint();}
 void key(uint32_t k){
+    if(text_input.key(k))return;
     if(k==screen::KEY_HOME){screen::quit=true;return;}
     if(playing){if(k>='A'&&k<='Z')k+='a'-'A';controls_at=screen::tick();if(changing_video){if(k==screen::KEY_EXIT){cancelled=true;c1::cancel_requests();}return;}if(k=='l'){rotate_video();return;}if(k=='p'||k=='o'){adjacent_video(k=='p'?-1:1);return;}if(k==screen::KEY_EXIT){stop_video();return;}if(k==LV_KEY_ENTER||k==' ')player.pause();else if(k=='a'||k==LV_KEY_LEFT)player.seek(player.position-10);else if(k=='d'||k==LV_KEY_RIGHT)player.seek(player.position+10);else if(k=='q')player.seek(player.position-60);else if(k=='e')player.seek(player.position+60);else if(k=='f'){fill=!fill;screen::video_fit(fill);}else if(k=='h')show_controls(!controls);else if(k=='v'){int v=volume();if(v>0){remembered_volume=v;set_volume(0);}else set_volume(remembered_volume);}return;}
+    if(k==screen::KEY_SYMBOL&&page==Page::Search&&field&&lv_obj_has_state(field,LV_STATE_FOCUSED)){
+        text_input.open("bilibili","搜索 Bilibili",lv_textarea_get_text(field),160,font,[](std::string value){query=value;if(field&&page==Page::Search){lv_textarea_set_text(field,value.c_str());lv_obj_add_state(field,LV_STATE_FOCUSED);}message("关键词已填入 · 回车搜索");},false,160);return;
+    }
     if(busy){if(k==screen::KEY_EXIT){cancelled=true;c1::cancel_requests();message("正在取消…");}return;}
     if(k==screen::KEY_MODE){message(screen::caps_lock()?"ABC · 双击 Shift 切回小写":"abc · Shift 符号 · 双击 Shift 大写");return;}
     if(field&&lv_obj_has_state(field,LV_STATE_FOCUSED)){
@@ -203,6 +220,7 @@ void key(uint32_t k){
         else if(k==LV_KEY_BACKSPACE)lv_textarea_delete_char(field);else if(k>=32&&k<127){char s[]={char(k),0};lv_textarea_add_text(field,s);}return;
     }
     if(k==screen::KEY_EXIT){if(page==Page::Detail){page=previous;message("W/S 分类 · J/K 选择 · Enter 打开");paint();}else if(page!=Page::Home)navigate(Page::Home);return;}
+    if((page==Page::Saved||page==Page::History)&&(k=='f'||k=='F')){filter_local();return;}
     if(page==Page::Detail){if(k=='p'||k=='P'||k=='o'||k=='O'){adjacent_video(k=='p'||k=='P'?-1:1);return;}if(k=='w'||k==LV_KEY_UP)part=std::max(0,part-1);else if(k=='s'||k==LV_KEY_DOWN)part=std::min<int>(detail["pages"].size()-1,part+1);else if(k==LV_KEY_ENTER){start_video();return;}else if(k=='f'){toggle_saved();return;}paint();return;}
     if(k=='w'||k=='s'||k==LV_KEY_UP||k==LV_KEY_DOWN){int delta=(k=='w'||k==LV_KEY_UP)?-1:1;navigate(Page((int(page)+6+delta)%6));return;}
     if(page==Page::Account){if(k=='r'||k==LV_KEY_ENTER)make_qr();return;}
@@ -210,7 +228,7 @@ void key(uint32_t k){
     else if(k==LV_KEY_ENTER)open_detail(offset+selected);
     else if(k=='r')load_list();else if(k=='a'||k=='d'||k==LV_KEY_LEFT||k==LV_KEY_RIGHT){bool next=k=='d'||k==LV_KEY_RIGHT;
         if(next&&offset+3<int(items.size()))offset+=3;else if(!next&&offset>=3)offset-=3;else if(next&&more){++api_page;offset=selected=0;load_list();return;}else if(!next&&api_page>1){--api_page;offset=selected=0;load_list();return;}selected=0;paint();covers();}
-    else if(k==LV_KEY_BACKSPACE&&(page==Page::Saved||page==Page::History)&&offset+selected<int(items.size())){auto&list=store[page==Page::Saved?"saved":"history"];list.erase(list.begin()+offset+selected);save_store();items=list;if(offset>=int(items.size()))offset=std::max(0,offset-3);selected=0;message("已从本机列表删除");paint();}
+    else if(k==LV_KEY_BACKSPACE&&(page==Page::Saved||page==Page::History)&&offset+selected<int(items.size())){auto&list=store[page==Page::Saved?"saved":"history"];auto id=items[offset+selected].at("bvid");for(auto it=list.begin();it!=list.end();)if(it->at("bvid")==id)it=list.erase(it);else ++it;save_store();load_list();if(offset>=int(items.size()))offset=std::max(0,offset-3);selected=0;message("已从本机列表删除");paint();}
 }
 }
 int main(int argc,char**argv){
@@ -228,5 +246,5 @@ int main(int argc,char**argv){
         if(!busy&&!qr_key.empty()&&page==Page::Account&&screen::tick()>=qr_next){if(screen::tick()>qr_expires){qr_key.clear();message("二维码已过期，按 R 刷新");}else{auto key=qr_key;qr_next=screen::tick()+3000;work("等待扫码确认…",[key]{return api.poll(key);},[](Json j){int code=j.value("code",-1);if(code==0){c1::save_private(path("session.json"),api.cookies.dump());qr_key.clear();qr_url.clear();navigate(Page::Account);}else if(code==86038){qr_key.clear();message("二维码已过期，按 R 刷新");}else if(code==86090)message("已扫码，请在手机上确认");else if(code==86101)message("等待扫码 · R 刷新");else message("登录状态异常："+std::to_string(code));});}}
         usleep(5000);
     }
-    player.stop();c1::cancel_requests();if(job.valid())job.wait();if(audio)mixer_close(audio);lv_obj_clean(lv_screen_active());actions.clear();lv_obj_set_style_text_font(lv_screen_active(),LV_FONT_DEFAULT,0);for(auto*f:{font,small,large})if(f)lv_tiny_ttf_destroy(f);screen::close();return 0;
+    player.stop();c1::cancel_requests();if(job.valid())job.wait();if(audio)mixer_close(audio);text_input.close();lv_obj_clean(lv_screen_active());actions.clear();lv_obj_set_style_text_font(lv_screen_active(),LV_FONT_DEFAULT,0);for(auto*f:{font,small,large})if(f)lv_tiny_ttf_destroy(f);screen::close();return 0;
 }

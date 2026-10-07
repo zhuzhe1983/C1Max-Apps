@@ -137,3 +137,7 @@ ASAN/UBSAN 解析通过，2026 年分别包含 39/27/28/22/42/19/365 个事件�
 
 迁移来源 `calendar_model.cpp` SHA-256：
 `3d9db3175a4047adc23366ef81aeea7b960bf14434ebd1fa74c969ee277e0b90`。
+
+## 中文输入
+
+已接入本地 Rime 拼音。适用字段、实体按键、中文搜索和草稿确认规则见[统一中文输入说明](../docs/chinese-input.md)。

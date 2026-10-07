@@ -1,3 +1,4 @@
+#include "text_input.hpp"
 #include "display.hpp"
 #include "net.hpp"
 #include "default_servers.hpp"
@@ -23,6 +24,7 @@
 #include <unistd.h>
 
 namespace {
+c1ime::TextInput text_input;
 using crosspoint::Server;
 enum class View { Library, Reader, Catalog, Book, Settings, Search, Busy, Error };
 enum class Navigation { Root, Forward, Back, Refresh };
@@ -388,6 +390,7 @@ void settings(){
     }focus_field(field);footer("↑↓ 切换字段  ·  回车下一项 / 保存  ·  返回取消  ·  无需登录时留空");
 }
 void key(uint32_t k){
+    if(text_input.key(k))return;
     if(k==screen::KEY_HOME){cancelled=true;screen::quit=true;return;}
     if(k==screen::KEY_FONT_UP||k==screen::KEY_FONT_DOWN){if(view==View::Reader)resize_reader(k==screen::KEY_FONT_UP?2:-2);return;}
     if(view==View::Busy){if(k==screen::KEY_EXIT){cancelled=true;note("正在取消…");}return;}
@@ -400,6 +403,7 @@ void key(uint32_t k){
     }
     if(k==screen::KEY_MODE){if(view==View::Settings||view==View::Search)note(screen::caps_lock()?"ABC · 大写":"abc · 小写");return;}
     if(view==View::Settings){
+        if(k==screen::KEY_SYMBOL&&(field==0||field==2)){int index=field;text_input.open("crosspoint",index==0?"书库名称":"用户名",lv_textarea_get_text(fields[index]),128,font,[index](std::string value){if(view==View::Settings&&fields[index]){lv_textarea_set_text(fields[index],value.c_str());save_draft();}});return;}
         if(k==LV_KEY_UP)focus_field(field-1,true);else if(k==LV_KEY_DOWN)focus_field(field+1,true);
         else if(k==LV_KEY_LEFT)lv_textarea_cursor_left(fields[field]);else if(k==LV_KEY_RIGHT)lv_textarea_cursor_right(fields[field]);
         else if(k==LV_KEY_ENTER){if(field<3){focus_field(field+1,true);save_draft();}else save_settings();}
@@ -460,6 +464,6 @@ int main(){
         for(uint32_t k;(k=screen::take_key());)key(k);poll_job();usleep(8000);
     }
     cancelled=true;if(worker.joinable())worker.join();ime.reset();
-    lv_obj_clean(lv_screen_active());lv_obj_set_style_text_font(lv_screen_active(),LV_FONT_DEFAULT,0);
+    text_input.close();lv_obj_clean(lv_screen_active());lv_obj_set_style_text_font(lv_screen_active(),LV_FONT_DEFAULT,0);
     if(reader_font)lv_tiny_ttf_destroy(reader_font);if(font)lv_tiny_ttf_destroy(font);if(font_map!=MAP_FAILED)munmap(font_map,font_map_size);screen::close();return 0;
 }

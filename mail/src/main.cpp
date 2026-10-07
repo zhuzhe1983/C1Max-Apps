@@ -1,3 +1,4 @@
+#include "text_input.hpp"
 #include "display.hpp"
 #include "net.hpp"
 #include "protocol.hpp"
@@ -10,6 +11,7 @@
 #include <unistd.h>
 
 namespace {
+c1ime::TextInput text_input;
 enum class Page { Inbox, Settings, Compose, Message };
 Page page=Page::Inbox;
 mail::Config account;
@@ -42,21 +44,31 @@ void paint(){
         footer();return;
     }
     if(page==Page::Settings){header("ACCOUNT","SERVER SETTINGS   ·   PHYSICAL KEYS   ·   POWER / LAUNCHER");panel(r,14,48,772,252);for(int i=0;i<7;i++){int y=57+i*32;bool chosen=i==settings_selected;std::string val=*setting_field(i);if(i==5)val=mask(val);if(editing&&chosen)val=edit_value+"_";if(val.empty())val="(not set)";label(r,setting_name(i),32,y,172,25,chosen?teal:muted,16);label(r,val,214,y,550,25,chosen?ink:0x59645f,16);if(chosen){auto*bar=lv_obj_create(r);lv_obj_remove_style_all(bar);lv_obj_set_pos(bar,19,y+4);lv_obj_set_size(bar,4,17);lv_obj_set_style_bg_color(bar,lv_color_hex(amber),0);lv_obj_set_style_bg_opa(bar,LV_OPA_COVER,0);}}
-        status=editing?"Type value · Enter save field · Backspace delete":"↑↓ choose · Enter edit · S save account";footer();return;
+        status=editing?"Type value · Enter save field · Backspace delete":"J/K choose · Enter edit · S save account";footer();return;
     }
     if(page==Page::Compose){header("NEW MESSAGE","SMTP   ·   SEND REQUIRES A SEPARATE CONFIRM   ·   POWER / LAUNCHER");panel(r,14,48,772,251);std::string vals[]={recipient,subject,body,"SEND MESSAGE"};const char*names[]={"To","Subject","Message","Action"};for(int i=0;i<4;i++){int y=60+i*57;bool chosen=i==compose_selected;std::string val=vals[i];if(editing&&chosen)val=edit_value+"_";if(i==3)val=chosen?"[ SEND ]":"Send";if(val.empty())val="(empty)";label(r,names[i],32,y,120,26,chosen?teal:muted,17);label(r,val,155,y,610,i==2?48:28,chosen?ink:0x59645f,17);if(chosen){auto*bar=lv_obj_create(r);lv_obj_remove_style_all(bar);lv_obj_set_pos(bar,19,y+4);lv_obj_set_size(bar,4,18);lv_obj_set_style_bg_color(bar,lv_color_hex(amber),0);lv_obj_set_style_bg_opa(bar,LV_OPA_COVER,0);}}
-        status=editing?"Type message · Enter finish · Backspace delete":"↑↓ choose · Enter edit / send · R clears draft";footer();return;
+        status=editing?"拍摄键中文 · Enter 完成编辑 · 右上退格删除":"J/K choose · Enter edit / send · R clears draft";footer();return;
     }
-    header("MESSAGE","BACK TO INBOX   ·   ↑↓ SCROLL   ·   POWER / LAUNCHER");if(selected<0||selected>=int(messages.size())){page=Page::Inbox;paint();return;}auto&m=messages[selected];panel(r,14,48,772,250);label(r,"FROM  "+m.from,30,57,733,23,teal,16);label(r,m.subject,30,82,733,28,ink,19);std::string text=m.body;constexpr size_t chunk=620;size_t at=std::min<size_t>(std::max(0,message_scroll),text.size());label(r,text.substr(at,chunk),30,115,735,168,ink,16);status="↑↓ scroll message · Back to inbox";footer();
+    header("MESSAGE","BACK TO INBOX   ·   ↑↓ SCROLL   ·   POWER / LAUNCHER");if(selected<0||selected>=int(messages.size())){page=Page::Inbox;paint();return;}auto&m=messages[selected];panel(r,14,48,772,250);label(r,"FROM  "+m.from,30,57,733,23,teal,16);label(r,m.subject,30,82,733,28,ink,19);std::string text=m.body;constexpr size_t chunk=620;size_t at=std::min<size_t>(std::max(0,message_scroll),text.size());label(r,text.substr(at,chunk),30,115,735,168,ink,16);status="J/K scroll message · Back to inbox";footer();
 }
 void finish_edit(){if(page==Page::Settings){*setting_field(settings_selected)=edit_value;save_config();}else if(page==Page::Compose){if(compose_selected==0)recipient=edit_value;else if(compose_selected==1)subject=edit_value;else if(compose_selected==2)body=edit_value;}editing=false;paint();}
 std::string*compose_field(int n){if(n==0)return &recipient;if(n==1)return &subject;return &body;}
 void send_message(){status="Connecting to SMTP server…";paint();std::string error;if(mail::send(account,recipient,subject,body,error)){status="Message accepted by SMTP server";recipient.clear();subject.clear();body.clear();compose_selected=0;page=Page::Inbox;}else status="Send failed · "+error;paint();}
 void receive_mail(){status="Connecting securely to POP3…";paint();std::string error;std::vector<mail::Message> fresh;if(mail::receive(account,fresh,error)){messages=std::move(fresh);selected=0;message_scroll=0;status="Fetched "+std::to_string(messages.size())+" recent messages";}else status="Receive failed · "+error;paint();}
 void key(uint32_t k){
+    if(text_input.key(k))return;
     if(k==screen::KEY_HOME){screen::quit=true;return;}
+    if(k==screen::KEY_SYMBOL&&editing&&((page==Page::Compose&&compose_selected>0)||(page==Page::Settings&&settings_selected==4))){
+        bool body_field=page==Page::Compose&&compose_selected==2;auto origin=page;int index=page==Page::Compose?compose_selected:settings_selected;
+        text_input.open("mail",body_field?"邮件正文":page==Page::Compose?"邮件主题":"账户名称",edit_value,body_field?512:128,font,[origin,index](std::string value){
+            if(page==origin&&editing&&index==(page==Page::Compose?compose_selected:settings_selected)){edit_value=std::move(value);paint();}
+        },body_field,body_field?512:128);return;
+    }
     if(k==screen::KEY_MODE||k==screen::KEY_SYMBOL)return;
     if(editing){if(k==screen::KEY_EXIT){editing=false;paint();return;}if(k==LV_KEY_ENTER){finish_edit();return;}if(k==LV_KEY_BACKSPACE){if(!edit_value.empty()){size_t n=edit_value.size()-1;while(n>0&&(static_cast<unsigned char>(edit_value[n])&0xc0)==0x80)--n;edit_value.erase(n);}paint();return;}if(k>=32&&k<127){if(edit_value.size()<((page==Page::Compose&&compose_selected==2)?512:128))edit_value.push_back(char(k));paint();}return;}
+    // C1 Max has no arrow keys. Keep letter navigation outside text editing.
+    if(k=='k'||k=='K')k=LV_KEY_UP;
+    else if(k=='j'||k=='J')k=LV_KEY_DOWN;
     if(k==screen::KEY_EXIT){if(page==Page::Inbox){status="R receive  C compose  S account settings";}else if(page==Page::Settings||page==Page::Compose){page=Page::Inbox;}else{page=Page::Inbox;message_scroll=0;}paint();return;}
     if(page==Page::Inbox){if(k=='r'||k=='R'){receive_mail();return;}if(k=='c'||k=='C'){page=Page::Compose;compose_selected=0;paint();return;}if(k=='s'||k=='S'){page=Page::Settings;paint();return;}if(k==LV_KEY_UP){if(!messages.empty())selected=(selected+(int)messages.size()-1)%messages.size();paint();return;}if(k==LV_KEY_DOWN){if(!messages.empty())selected=(selected+1)%messages.size();paint();return;}if(k==LV_KEY_ENTER&&!messages.empty()){page=Page::Message;message_scroll=0;paint();return;}}
     else if(page==Page::Settings){if(k==LV_KEY_UP)settings_selected=(settings_selected+6)%7;else if(k==LV_KEY_DOWN)settings_selected=(settings_selected+1)%7;else if(k==LV_KEY_ENTER){editing=true;edit_value=*setting_field(settings_selected);status="";}else if(k=='s'||k=='S')save_config();paint();return;}
@@ -64,4 +76,4 @@ void key(uint32_t k){
     else if(page==Page::Message){if(k==LV_KEY_UP)message_scroll=std::max(0,message_scroll-400);else if(k==LV_KEY_DOWN)message_scroll=std::min<int>(messages[selected].body.size(),message_scroll+400);paint();}
 }
 }
-int main(){signal(SIGINT,stop_signal);signal(SIGTERM,stop_signal);mkdir((c1::data()+"/mail").c_str(),0700);load_config();if(!screen::open())return 1;font=lv_tiny_ttf_create_file(("A:"+c1::root()+"/shared/NotoSansSC-Regular.ttf").c_str(),18);paint();while(!stopped&&!screen::quit){lv_timer_handler();for(uint32_t k;(k=screen::take_key());)key(k);usleep(10000);}lv_obj_clean(lv_screen_active());lv_obj_set_style_text_font(lv_screen_active(),LV_FONT_DEFAULT,0);if(font)lv_tiny_ttf_destroy(font);screen::close();return 0;}
+int main(){signal(SIGINT,stop_signal);signal(SIGTERM,stop_signal);mkdir((c1::data()+"/mail").c_str(),0700);load_config();if(!screen::open())return 1;font=lv_tiny_ttf_create_file(("A:"+c1::root()+"/shared/NotoSansSC-Regular.ttf").c_str(),18);paint();while(!stopped&&!screen::quit){lv_timer_handler();for(uint32_t k;(k=screen::take_key());)key(k);usleep(10000);}text_input.close();lv_obj_clean(lv_screen_active());lv_obj_set_style_text_font(lv_screen_active(),LV_FONT_DEFAULT,0);if(font)lv_tiny_ttf_destroy(font);screen::close();return 0;}

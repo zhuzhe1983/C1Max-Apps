@@ -75,3 +75,7 @@ docker run --rm -v "$PWD:/work" c1max-moonpilot-test:bookworm sh -ec '
 测试覆盖双向 PIN 证明、TLS 客户端证书、服务器证书固定、错误 PIN / 证书替换拒绝、应用列表、启动参数、忙碌主机、取消、帧边界与私有权限，以及动作校验和语音 API。诊断工具 `c1max-moonpilot-probe` / `c1max-moonpilot-service-test` 不随安装包发布。
 
 [真机与协议验证记录](../docs/2026-09-27-moonpilot-qa.md)
+
+## 中文输入
+
+已接入本地 Rime 拼音。适用字段、实体按键、中文搜索和草稿确认规则见[统一中文输入说明](../docs/chinese-input.md)。

@@ -41,6 +41,15 @@ int main(int argc,char**argv){
     int end_calls=0;Api end([&](const std::string&u,auto&)->c1::Response{++end_calls;assert(u.find("pn=100")!=std::string::npos);return {200,"{\"code\":0,\"data\":{\"list\":[],\"no_more\":false}}"};});
     assert(end.portrait(34)["more"]==false&&end_calls==1);
     const Json nav={{"code",-101},{"data",{{"isLogin",false},{"wbi_img",{{"img_url","https://i0.hdslb.com/bfs/wbi/0123456789abcdef0123456789abcdef.png"},{"sub_url","https://i0.hdslb.com/bfs/wbi/fedcba9876543210fedcba9876543210.png"}}}}}};
+    bool risk=false;
+    Api chinese([&](const std::string&u,auto&)->c1::Response{
+        if(u.find("/nav")!=std::string::npos)return {200,nav.dump()};
+        assert(u.find("keyword=%E4%B8%AD%E5%9B%BD")!=std::string::npos&&u.find("w_rid=")!=std::string::npos);
+        Json data=risk?Json{{"v_voucher","verification-required"}}:Json{{"result",Json::array({{{"bvid","BV14Dho6WE66"},{"title","中国"}}})},{"numPages",2}};
+        return {200,Json{{"code",0},{"data",data}}.dump()};
+    });
+    auto cn=chinese.search("中国",1);assert(cn["items"][0]["title"]=="中国"&&cn["more"]==true);
+    risk=true;bool verification=false;try{chinese.search("中国",1);}catch(const std::exception&e){verification=std::string(e.what()).find("网页验证")!=std::string::npos;}assert(verification);
     int nav_requests=0;bool signed_seen=false;
     Api api([&](const std::string&url,const std::vector<std::string>&h)->c1::Response{
         if(url.find("/nav")!=std::string::npos){++nav_requests;return {200,nav.dump()};}

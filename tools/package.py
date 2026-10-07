@@ -24,6 +24,15 @@ for name,entry in json.loads(tool_verification.read_text())['binaries'].items():
 # A CR in a shell rc/script breaks prompts and commands on the device (core.autocrlf checkouts).
 for name in ['terminal/assets/shellrc','terminal/assets/inputrc','launcher/run.sh','launcher/apps.txt','launcher/desktop-service.sh']:
     if b'\r' in (root/name).read_bytes():raise SystemExit(name+' has CRLF line endings; re-checkout with LF (see .gitattributes)')
+versions={
+    'launcher':'0.3.0', 'piano':'0.3.0', 'nes':'0.2.0',
+    'streamplayer':'0.3.1', 'calendar':'0.3.1', 'calculator':'0.2.0',
+    'settings':'0.2.1', 'terminal':'0.1.0', 'gomoku':'0.1.0',
+    'pcsx4all':'0.1.1', 'processing':'0.1.0', 'dosbox':'0.1.2',
+    'airtune':'0.3.1', 'crosspoint':'0.4.1', 'camera':'0.2.0',
+    'mail':'0.2.1', 'bilibili':'0.2.1', 'hidpilot':'0.2.0',
+    'moonpilot':'0.1.1', 'tox':'0.3.1', 'appstore':'0.1.0',
+}
 apps=[]
 for name in ids:
     digest=hashlib.sha256()
@@ -45,7 +54,7 @@ for name in ids:
             digest.update(filename.encode()+b'\0'+(root/filename).read_bytes())
     for filename in ['CMakeLists.txt','dependencies.json','archives.json']:
         digest.update((root/filename).read_bytes())
-    apps.append({'id':name,'version':'0.3.0' if name in ['piano','airtune','streamplayer','launcher'] else '0.3.0' if name=='tox' else '0.1.0' if name=='appstore' else '0.2.0' if name=='hidpilot' else '0.4.0' if name=='crosspoint' else '0.3.0' if name=='calendar' else '0.1.2' if name=='dosbox' else '0.1.1' if name=='pcsx4all' else '0.1.0' if name in ['terminal','gomoku','processing','moonpilot'] else '0.2.0','revision':digest.hexdigest()})
+    apps.append({'id':name,'version':versions[name],'revision':digest.hexdigest()})
 catalog={'schema':1,'platform':'c1max-mipsel-linux','apps':apps}
 if not args.local:(root/'catalog.json').write_text(json.dumps(catalog,indent=2)+'\n')
 out=root/'.build/device'
@@ -106,9 +115,6 @@ shutil.copy2(root/'.deps/libmobi-0.12/COPYING',out/'crosspoint/LGPL-3.0-libmobi.
 shutil.copy2(root/'.deps/xpdf-4.06/COPYING',out/'crosspoint/GPL-2.0-Xpdf.txt')
 shutil.copy2(root/'.deps/xpdf-4.06/COPYING3',out/'crosspoint/GPL-3.0-Xpdf.txt')
 shutil.copy2(root/'.build/mips/c1max-pdftotext',out/'crosspoint')
-# Each store package is self-contained; CrossPoint must work without Terminal installed.
-shutil.copytree(out/'terminal/assets/rime-data',out/'crosspoint/assets/rime-data')
-shutil.copytree(out/'terminal/licenses',out/'crosspoint/licenses/ime')
 shutil.copytree(root/'.deps/xpdf-chinese-simplified',out/'crosspoint/assets/xpdf-chinese-simplified',ignore=shutil.ignore_patterns('.c1-source-sha256'))
 shutil.copy2(root/'.deps/mbedtls-2.28.10/LICENSE',out/'mail/LICENSE-MbedTLS.txt')
 shutil.copytree(root/'bilibili/licenses',out/'bilibili/licenses')
@@ -138,6 +144,10 @@ shutil.copy2(root/'.build/mips/c1max-power-guard',out/'shared')
 shutil.copy2(root/'.build/mips/c1max-hotkey',out/'shared')
 for owner in ['shared','piano','airtune','streamplayer']:
     shutil.copy2(root/'.build/mips/c1max-audio',out/owner)
+# Store apps remain usable when Terminal is not installed.
+for app in ['crosspoint','airtune','streamplayer','bilibili','calendar','mail','settings','moonpilot','tox']:
+    shutil.copytree(out/'terminal/assets/rime-data',out/app/'assets/rime-data')
+    shutil.copytree(out/'terminal/licenses',out/app/'licenses/ime')
 font=root/'shared/fonts/NotoSansSC-Regular.ttf'
 if font.exists():shutil.copy2(font,out/'shared')
 shutil.copy2(root/'shared/fonts/OFL.txt',out/'shared/NotoSansSC-OFL.txt')

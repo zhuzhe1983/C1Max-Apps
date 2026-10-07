@@ -1,3 +1,4 @@
+#include "text_input.hpp"
 #include "agent.hpp"
 #include "voice.hpp"
 #include "remote.hpp"
@@ -18,6 +19,7 @@
 using namespace moonpilot;
 using c1input::ascii;
 namespace {
+c1ime::TextInput text_input;
 constexpr uint32_t bg=0x111823,panel=0x1c2a3c,ink=0xeef5fa,muted=0xa7bac9,teal=0x9bbcff,red=0xfa8e88;
 constexpr int preview_w=488,preview_h=250;
 enum class Page{Agent,Hosts,Voice,Settings};Page page=Page::Hosts;int settings_tab=0;
@@ -162,14 +164,14 @@ void paint(){
         auto*conversation=box(r,12,57,488,245);lv_obj_add_flag(conversation,LV_OBJ_FLAG_SCROLLABLE);lv_obj_set_scroll_dir(conversation,LV_DIR_VER);
         std::string transcript=heard.empty()?"按开始录音说话，或在右侧输入文字。\n\n操作请求会填入桌面任务栏，由你按运行开始。":("你："+heard+"\n\nMoonPilot："+reply);
         auto*l=text(conversation,transcript,16,14,456,1,ink,font);lv_label_set_long_mode(l,LV_LABEL_LONG_WRAP);lv_obj_set_height(l,LV_SIZE_CONTENT);
-        text(r,"文字对话",516,58,270,25,muted,small);task_field=field("",516,82,270);lv_textarea_set_placeholder_text(task_field,"使用实体键盘提问");
+        text(r,"文字对话",516,58,270,25,muted,small);task_field=field("",516,82,270);lv_textarea_set_placeholder_text(task_field,"点击后拍摄键中文");
         button("发送",516,137,130,[]{text_chat();});button("查看任务",654,137,132,[]{focused=nullptr;task_field=nullptr;set_page(Page::Agent);});
         b=button("开始录音",516,203,270,[]{begin_record();},true);record_label=lv_obj_get_child(b,0);button("再读一遍",516,257,130,[]{speak(reply);});button("停止",654,257,132,[]{stop_task();});status_label=text(r,notice,14,312,770,23,muted,small);return;
     }
     box(r,12,56,preview_w,preview_h,0x0a1015);
     if(connection_job||remote.frame().rgb.empty()){text(r,"远程桌面",34,125,440,35,teal,title);text(r,"在「主机」里添加电脑并连接 Sunshine",34,177,440,58,muted,font);}
     image=lv_image_create(r);lv_obj_set_pos(image,12,56);lv_obj_set_size(image,preview_w,preview_h);lv_obj_add_flag(image,LV_OBJ_FLAG_CLICKABLE);lv_obj_add_event_cb(image,manual_tap,LV_EVENT_CLICKED,nullptr);
-    text(r,"任务",516,57,270,25,muted,small);task_field=field(goal,516,82,270);lv_textarea_set_placeholder_text(task_field,"希望电脑完成什么？");
+    text(r,"任务",516,57,270,25,muted,small);task_field=field(goal,516,82,270);lv_textarea_set_placeholder_text(task_field,"任务（拍摄键中文）");
     status_label=text(r,notice,516,136,270,59,ink,small);lv_label_set_long_mode(status_label,LV_LABEL_LONG_WRAP);
     button("单步",516,203,130,[]{start_task(1);});button("运行 10 步",654,203,132,[]{start_task(10);},true);
     button(manual?"手动：开":"手动",516,257,80,[]{if(busy)throw std::runtime_error("请先停止模型请求");running=executing=false;manual=!manual;if(task_field)goal=lv_textarea_get_text(task_field);message(manual?"点击画面控制鼠标 · 实体键盘发给电脑":"已关闭手动输入");paint();},manual);
@@ -177,7 +179,14 @@ void paint(){
     text(r,"返回键停止操作 · 电源键返回菜单 · 完整画面按比例显示",14,312,770,23,muted,small);update_preview();
 }
 void key(uint32_t k){
+    if(text_input.key(k))return;
     if(k==screen::KEY_HOME){screen::quit=true;return;}
+    if(k==screen::KEY_SYMBOL&&focused&&!busy&&(focused==task_field||(page==Page::Settings&&focused==fields[1]))){
+        bool task=focused==task_field;auto origin=page;
+        text_input.open("moonpilot",task?"任务 / 对话草稿":"模型名称",lv_textarea_get_text(focused),512,font,[task,origin](std::string value){
+            if(page!=origin)return;auto*o=task?task_field:fields[1];if(o){lv_textarea_set_text(o,value.c_str());focused=o;lv_obj_add_state(o,LV_STATE_FOCUSED);if(task&&page==Page::Agent)goal=value;}message("中文已填入 · 尚未发送或执行");
+        });return;
+    }
     if(k==screen::KEY_EXIT){stop_task();if(focused){lv_obj_remove_state(focused,LV_STATE_FOCUSED);focused=nullptr;}else if(page!=Page::Agent)set_page(Page::Agent);return;}
     if(focused&&!busy){if(k==LV_KEY_ENTER){if(focused==task_field&&page==Page::Voice){text_chat();return;}if(page==Page::Hosts)save_host();else if(page==Page::Settings)save_settings();else goal=lv_textarea_get_text(task_field);lv_obj_remove_state(focused,LV_STATE_FOCUSED);focused=nullptr;}else if(k==LV_KEY_BACKSPACE)lv_textarea_delete_char(focused);else if(k>=32&&k<127){char c[2]={char(k),0};lv_textarea_add_text(focused,c);}return;}
     if(k==screen::KEY_MODE){message(screen::caps_lock()?"ABC 大写":"abc 小写 · Shift 符号");return;}
@@ -222,5 +231,5 @@ int main(){
         usleep(5000);
     }
     stop_task();network_cancel=true;remote.cancel();c1::cancel_requests();if(job.valid())job.wait();remote.stop();speaker.stop();recorder.stop();c1_reset_idle();unlink(path("reply.wav").c_str());unlink(path("record.wav").c_str());
-    lv_obj_clean(lv_screen_active());lv_obj_set_style_text_font(lv_screen_active(),LV_FONT_DEFAULT,0);for(auto*f:{font,small,title})if(f)lv_tiny_ttf_destroy(f);screen::close();return 0;
+    text_input.close();lv_obj_clean(lv_screen_active());lv_obj_set_style_text_font(lv_screen_active(),LV_FONT_DEFAULT,0);for(auto*f:{font,small,title})if(f)lv_tiny_ttf_destroy(f);screen::close();return 0;
 }

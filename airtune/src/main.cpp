@@ -1,3 +1,4 @@
+#include "text_input.hpp"
 #include "display.hpp"
 #include "net.hpp"
 #include "audio_client.h"
@@ -25,6 +26,7 @@
 #include <tinyalsa/mixer.h>
 
 namespace {
+c1ime::TextInput text_input;
 struct Station { std::string name, country_code, url, uuid; int bitrate=0; };
 struct Category { std::string name,key; int count=0; };
 enum class Browse { Popular, Country, Genre, Mood, Group, Saved, Search };
@@ -64,6 +66,7 @@ std::atomic<bool> closing{false};
 bool query_mode=false,add_mode=false,busy=false,category_list=false,connecting=false,content_loaded=false;
 Browse browse=Browse::Popular;
 int add_step=0;
+std::string saved_query;
 std::string current_query,selected_category,working_message,add_name,add_url;
 std::future<Json> request_job;
 std::function<void(const Json&)> request_done;
@@ -164,10 +167,14 @@ std::vector<Station> saved_stations_view(){
         const bool represented=std::any_of(view.begin(),view.end(),[&](const Station &s){return s.uuid==id;});
         if(!represented){Station old;old.uuid=id;old.name="Older save · "+id.substr(0,std::min<size_t>(8,id.size()));view.push_back(std::move(old));}
     }
+    if(browse==Browse::Saved&&!saved_query.empty()){
+        auto fold=[](std::string t){for(char& c:t)if(c>='A'&&c<='Z')c+='a'-'A';return t;};
+        auto q=fold(saved_query);view.erase(std::remove_if(view.begin(),view.end(),[&](const Station&s){return fold(s.name).find(q)==std::string::npos;}),view.end());
+    }
     return view;
 }
 bool is_unresolved_save(const Station &s){return s.url.empty()&&!s.uuid.empty()&&std::find(legacy_favorites.begin(),legacy_favorites.end(),s.uuid)!=legacy_favorites.end();}
-void begin_add_station(){add_mode=true;query_mode=false;add_step=0;add_name.clear();add_url.clear();paint();status("Enter a station name · Enter continues");}
+void begin_add_station(){add_mode=true;query_mode=false;add_step=0;add_name.clear();add_url.clear();paint();status("输入电台名称 · 拍摄键中文 · Enter 继续");}
 void play();
 
 std::vector<std::string> radio_api_hosts(){
@@ -296,7 +303,7 @@ void load_browse(bool force_refresh){
         });}
 }
 
-void change_browse(Browse b){if(busy)return;browse=b;query_mode=false;load_browse();}
+void change_browse(Browse b){if(busy)return;browse=b;query_mode=false;current_query.clear();saved_query.clear();load_browse();}
 void button_style(lv_obj_t *o,uint32_t color){lv_obj_set_style_bg_color(o,lv_color_hex(color),0);lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);lv_obj_set_style_text_color(o,lv_color_hex(ink),0);lv_obj_set_style_border_width(o,0,0);lv_obj_set_style_radius(o,7,0);}
 void paint(){
     std::string old_query=query?std::string(lv_textarea_get_text(query)):current_query;
@@ -335,7 +342,7 @@ void paint(){
         lv_obj_add_state(field,LV_STATE_FOCUSED);
         lv_obj_set_style_border_color(field,lv_color_hex(teal),0);
         lv_obj_set_style_border_width(field,2,0);
-        status("Type a station name · Enter searches · Return cancels");
+        status("拍摄键中文 · Enter 搜索 · Return cancels");
     },event,nullptr);
     if(query_mode||add_mode)lv_obj_add_state(query,LV_STATE_FOCUSED);
     lv_obj_set_style_border_color(query,lv_color_hex(query_mode||add_mode?teal:0xd4c8aa),0);lv_obj_set_style_border_width(query,query_mode||add_mode?2:1,0);lv_obj_set_style_radius(query,8,0);lv_obj_set_style_pad_left(query,12,0);lv_obj_set_style_pad_right(query,10,0);if(add_mode&&font)lv_obj_set_style_text_font(query,font,0);else if(font_small)lv_obj_set_style_text_font(query,font_small,0);
@@ -393,7 +400,7 @@ void paint(){
 
     }
     status_line=label("",16,287,768,muted,16);lv_label_set_long_mode(status_line,LV_LABEL_LONG_DOT);
-    const char *help=add_mode?"POWER returns to launcher":browse==Browse::Saved?"A add station   BACKSPACE / F delete   ENTER play / stop   POWER menu":"↑↓ browse   ENTER choose / play   Q search   F save / remove   SAVED: A add, BACKSPACE delete   POWER menu";
+    const char *help=add_mode?"POWER returns to launcher":browse==Browse::Saved?"Q 本地搜索 · A 添加 · 退格删除 · Enter 播放 · 拍摄键中文":"↑↓ browse   ENTER choose / play   Q search   F save / remove   SAVED: A add, BACKSPACE delete   POWER menu";
     label(help,16,312,770,muted,14);
     update_player_panel();update_volume(true);update_badge();
 }
@@ -442,8 +449,22 @@ void remove_saved_selection(){
     else return;
     favorites_save();stations=saved_stations_view();selected=stations.empty()?0:std::min(selected,int(stations.size())-1);content_loaded=true;paint();status("Removed from local SAVED list");
 }
+void submit_query(){
+    if(busy){status("Directory is still loading · Enter searches when ready");return;}
+    current_query=query_text();query_mode=false;
+    if(browse==Browse::Saved){saved_query=current_query;stations=saved_stations_view();selected=0;paint();status(stations.empty()?"本地没有匹配电台 · Q 重新搜索":"本地搜索结果 · 无需联网 · Q 修改关键词");}
+    else{browse=Browse::Search;load_browse();}
+}
 void key(uint32_t k){
+    if(text_input.key(k))return;
     if(k==screen::KEY_HOME){screen::quit=true;return;}
+    if(k==screen::KEY_SYMBOL&&(query_mode||(add_mode&&add_step==0))){
+        bool add=add_mode;
+        text_input.open("airtune",add?"电台名称":browse==Browse::Saved?"搜索本地电台":"搜索网络电台",query?lv_textarea_get_text(query):"",add?80:128,font, [add](std::string value){
+            if(!query)return;lv_textarea_set_text(query,value.c_str());if(add)add_name=value;
+            status(add?"名称已填入 · 回车继续输入地址":"关键词已填入 · 回车搜索");
+        });return;
+    }
     if(k==screen::KEY_MODE)return;
     if(busy&&!query_mode)return;
     if(add_mode){
@@ -455,13 +476,13 @@ void key(uint32_t k){
             if(!valid_stream_url(text)){status("Use a valid http:// or https:// stream URL");return;}
             Station added;added.name=add_name;added.url=text;
             if(is_favorite(added)){status("This stream is already in SAVED");return;}
-            favorites.push_back(std::move(added));favorites_save();add_mode=false;add_step=0;browse=Browse::Saved;stations=saved_stations_view();selected=int(stations.size())-1;content_loaded=true;paint();status("Added to SAVED · stored on this device");return;
+            favorites.push_back(std::move(added));favorites_save();saved_query.clear();current_query.clear();add_mode=false;add_step=0;browse=Browse::Saved;stations=saved_stations_view();selected=int(stations.size())-1;content_loaded=true;paint();status("Added to SAVED · stored on this device");return;
         }
         if(k>=32&&k<127)lv_textarea_add_char(query,k);return;
     }
     if(query_mode){if(k==screen::KEY_EXIT){query_mode=false;paint();status("Search cancelled");return;}
         if(k==LV_KEY_BACKSPACE)lv_textarea_delete_char(query);
-        else if(k==LV_KEY_ENTER){if(busy){status("Directory is still loading · Enter searches when ready");return;}current_query=query_text();query_mode=false;browse=Browse::Search;load_browse();}
+        else if(k==LV_KEY_ENTER)submit_query();
         else if(k>=32&&k<127)lv_textarea_add_char(query,k);return;}
     if(k==screen::KEY_EXIT){
         if(!category_list&&(browse==Browse::Country||browse==Browse::Genre||browse==Browse::Mood||browse==Browse::Group)){category_list=true;selected=0;categories.clear();load_browse();}
@@ -470,7 +491,7 @@ void key(uint32_t k){
     }
     if(k=='b'||k=='B'){toggle_background();return;}
     if(k==' '){pause_audio();return;}
-    if(k=='q'||k=='Q'){query_mode=true;lv_textarea_set_text(query,"");paint();status("Type a station name · Enter searches");return;}
+    if(k=='q'||k=='Q'){query_mode=true;lv_textarea_set_text(query,"");paint();status("拍摄键中文 · Enter 搜索");return;}
     if(browse==Browse::Saved&&(k=='a'||k=='A')){begin_add_station();return;}
     if(browse==Browse::Saved&&(k==LV_KEY_BACKSPACE||k=='f'||k=='F')){remove_saved_selection();return;}
     if(k=='f'||k=='F'){if(!category_list&&!stations.empty()&&selected<int(stations.size())){const Station chosen=stations[selected];auto it=std::find_if(favorites.begin(),favorites.end(),[&](const Station &saved){return same_station(saved,chosen);});bool saved=it==favorites.end();if(saved)favorites.push_back(chosen);else favorites.erase(it);favorites_save();paint();status(saved?"Station saved locally":"Station removed from SAVED");}return;}
@@ -505,7 +526,7 @@ int main(){
         if(category_list)update_player_panel();
         usleep(8000);
     }
-    closing=true;c1::cancel_requests();if(request_job.valid())request_job.wait();c1_audio_command(C1_AUDIO_AIRTUNE,C1_AUDIO_DETACH,0,nullptr);lv_obj_clean(lv_screen_active());lv_obj_set_style_text_font(lv_screen_active(),LV_FONT_DEFAULT,0);
+    closing=true;c1::cancel_requests();if(request_job.valid())request_job.wait();c1_audio_command(C1_AUDIO_AIRTUNE,C1_AUDIO_DETACH,0,nullptr);text_input.close();lv_obj_clean(lv_screen_active());lv_obj_set_style_text_font(lv_screen_active(),LV_FONT_DEFAULT,0);
     if(font_small)lv_tiny_ttf_destroy(font_small);if(font)lv_tiny_ttf_destroy(font);if(font_large)lv_tiny_ttf_destroy(font_large);
     if(audio_mixer)mixer_close(audio_mixer);screen::close();return 0;
 }

@@ -15,3 +15,7 @@ Use `S` from the inbox to enter the POP3 host/port, SMTP host/port, username, pa
 The reader displays simple `text/plain` messages and decodes base64 or quoted-printable bodies. HTML-only and multipart MIME messages are shown as unsupported text; attachments, OAuth, IMAP, address-book lookup, and mailbox deletion are not implemented. Gmail and other providers that disable basic SMTP/POP authentication require a provider-issued app password; OAuth is not supported. No account credentials or email traffic are included in the repository, and the application has not been used to log in or send a message during development.
 
 The TLS implementation uses Mbed TLS 2.28.10 under Apache-2.0; its license is included in the packaged app.
+
+## 中文输入
+
+已接入本地 Rime 拼音。适用字段、实体按键、中文搜索和草稿确认规则见[统一中文输入说明](../docs/chinese-input.md)。

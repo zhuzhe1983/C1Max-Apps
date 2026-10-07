@@ -55,3 +55,7 @@
 - 当前音乐控制不提供进度拖动、倍速、歌词或跨重启恢复队列。
 
 依据官方 [Emby AudioService](https://dev.emby.media/reference/RestAPI/AudioService/getAudioByIdStreamByContainer.html) 与 [Jellyfin AudioController](https://github.com/jellyfin/jellyfin/blob/master/Jellyfin.Api/Controllers/AudioController.cs)。`tests/run-music.sh` 在 Linux 内以真实 HTTP 测试服务器检查音乐/视频筛选、元数据、列表上限、认证与 URL 编码；共享音频进程另有生命周期测试。真实 Emby 音乐库已验证返回 Audio 项及 MP3 音频；Jellyfin 仍需独立服务器联测。
+
+## 中文输入
+
+已接入本地 Rime 拼音。适用字段、实体按键、中文搜索和草稿确认规则见[统一中文输入说明](../docs/chinese-input.md)。

@@ -48,3 +48,7 @@ Reviewed CrossPoint Reader commit [`0f01106ad6e9eacdd107a04b9128d15cd0ef02e6`](h
 `crosspoint/tests/run-pdf.sh` (Linux builder) checks cache reuse/invalidation/corruption, cancellation and child reaping, and blank/failed parsers under ASan/UBSan. `c1max-crosspoint-ui-test` runs the real LVGL widgets and Rime engine under QEMU, covering navigation, text focus, candidate commit/cancel/backspace and UTF-8 OPDS search encoding.
 
 The [official Xpdf simplified-Chinese support package](https://www.xpdfreader.com/download.html) (2023-12-05, pinned SHA-256 in `archives.json`) supplies CID/CMap data; its README and per-file license notices are included in the app.
+
+## 中文输入
+
+已接入本地 Rime 拼音。适用字段、实体按键、中文搜索和草稿确认规则见[统一中文输入说明](../docs/chinese-input.md)。

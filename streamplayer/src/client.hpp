@@ -9,7 +9,7 @@ public:
     void login(const std::string &base,const std::string &user,const std::string &password,const std::string&type);
     bool ready() const;
     Json libraries();
-    Json items(const std::string &parent,int start=0,bool music=false,int limit=3);
+    Json items(const std::string &parent,int start=0,bool music=false,int limit=3,const std::string &query="");
     std::string audio_url(const std::string &id) const;
     Playback playback(const std::string &id,int64_t start=0,StreamOptions options={});
     std::string hls_url(const Playback &p,const StreamOptions &options,const std::string &session) const;

@@ -79,7 +79,9 @@ Json Api::portrait(int page){
 Json Api::search(const std::string&q,int page){
     if(q.empty()||q.size()>160)throw std::runtime_error("请输入关键词或 BV 号");auto id=video_id(q);if(!id.empty())return {{"items",Json::array({summary(detail(id))})},{"more",false}};
     auto d=request("/x/web-interface/wbi/search/type",{{"keyword",q},{"search_type","video"},{"page",std::to_string(std::clamp(page,1,100))},{"page_size","20"},{"order","totalrank"}},true);
-    Json list=Json::array();if(d.contains("result"))for(auto&v:d["result"]){try{list.push_back(summary(v));}catch(...){}if(list.size()==20)break;}
+    if(d.contains("v_voucher"))throw std::runtime_error("B 站要求网页验证，请在浏览器完成验证后重试");
+    if(!d.contains("result")||!d["result"].is_array())throw std::runtime_error("B 站搜索响应无效，请稍后重试");
+    Json list=Json::array();for(auto&v:d["result"]){try{list.push_back(summary(v));}catch(...){}if(list.size()==20)break;}
     return {{"items",list},{"more",page<number(d,"numPages")}};
 }
 Json Api::detail(const std::string&input){auto id=video_id(input);if(id.empty())throw std::runtime_error("BV 号格式无效");auto d=request("/x/web-interface/view",{{"bvid",id}});auto out=summary(d);out["owner"]={{"name",out["author"]}};out["desc"]=clean(str(d,"desc"),1024);out["pages"]=Json::array();

@@ -9,7 +9,7 @@ FbTerm、X11、Wayland 或屏幕虚拟键盘。
 - 默认优先 `linux-tools/bin/bash`，其次 `tools/bin/bash`、`/bin/bash`、`/bin/sh`。
   可用 `C1_TERMINAL_SHELL` 指定一个可执行文件的绝对路径；不解析 Shell 命令字符串。
 - 普通字母直接输入；Shift 组合遵循真实键帽。Terminal 中双击 Shift 循环切换
-  `abc → CAPS → 拼音 → abc`，底部显示当前状态；其他应用仍只用双击 Shift 切换大小写。
+  `abc → CAPS → 拼音 → abc`，底部显示当前状态；其他应用的拼音入口见[中文输入说明](../docs/chinese-input.md)。
 - 设备没有独立数字行，数字在 `Q W E R T Y U I O P` 键帽上方；按住 Shift 再按首排
   字母即可输入 `1 2 3 4 5 6 7 8 9 0`。例如候选栏要选第 3 项，按 `Shift+E`。
 - 右上退格为终端 DEL 字节；确认发送回车。中间返回发送 Escape；在前缀模式中

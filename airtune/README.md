@@ -21,3 +21,7 @@ Touching/focusing the search field now enters text editing: W/S and all other le
 The right panel has Pause/Resume, Stop, and a persistent **Background** switch (off by default). Space pauses/resumes; B toggles background outside text fields. With background enabled, Power returns to the launcher while a small independent audio worker keeps playing; reopening Airtune reconnects to that worker. A new station/music source replaces the old one. Games and other exclusive audio apps, or completely leaving the custom desktop, stop background audio. Connecting/playing/error now come from the player process, replacing the old fixed 6.5-second assumption. The worker keeps the device awake only while audio is active; the saved screen timeout is unchanged.
 
 `c1max-airtune-focus-test` runs the actual LVGL event/key handlers under QEMU and covers touch focus, W/S typing, async redraw, backspace and returning to navigation. Shared audio lifecycle tests: `tests/run-audio.sh` in the Linux builder.
+
+## 中文输入
+
+已接入本地 Rime 拼音。适用字段、实体按键、中文搜索和草稿确认规则见[统一中文输入说明](../docs/chinese-input.md)。

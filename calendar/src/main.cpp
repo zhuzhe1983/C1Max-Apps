@@ -1,3 +1,4 @@
+#include "text_input.hpp"
 #include "calendar_model.hpp"
 #include "calendar_store.hpp"
 #include "display.hpp"
@@ -18,6 +19,7 @@
 #include <unistd.h>
 
 namespace {
+c1ime::TextInput text_input;
 using calendar::Date;
 constexpr uint32_t bg=0x101923, panel=0x192633, ink=0xe5eef5, muted=0x91a4b5, accent=0x63d3b2;
 const char *weekdays[]={"星期一","星期二","星期三","星期四","星期五","星期六","星期日"};
@@ -252,7 +254,7 @@ void render(){
         else label(root,"通过原订阅服务修改；同步后更新。",16,268,748,muted);set_focus(focus.size()>1?1:0);return;
     }
     if(page==Page::Edit){
-        auto root=begin(draft.id.empty()?"新增日程":"编辑日程",std::string(screen::caps_lock()?"ABC":"abc")+"  Enter下一项/确认；按钮W/S切换；返回取消",false);
+        auto root=begin(draft.id.empty()?"新增日程":"编辑日程",std::string(screen::caps_lock()?"ABC":"abc")+"  拍摄键中文 / Enter下一项/确认；按钮W/S切换；返回取消",false);
         label(root,"标题",16,52,200,muted);field(root,draft_text[0],16,76,768,38,256);
         label(root,"开始日期",16,121,170,muted);label(root,"开始时间",197,121,125,muted);label(root,"结束日期",338,121,170,muted);label(root,"结束时间",520,121,125,muted);
         field(root,draft_text[1],16,144,168,38,10);field(root,draft_text[2],197,144,120,38,5);field(root,draft_text[3],338,144,168,38,10);field(root,draft_text[4],520,144,120,38,5);
@@ -287,7 +289,7 @@ void render(){
         set_focus(1);return;
     }
     if(page==Page::SourceEdit){
-        auto root=begin(source_exists()?"编辑 ICS 订阅":"新增 ICS 订阅",std::string(screen::caps_lock()?"ABC":"abc")+"  Enter下一项/确认；按钮W/S切换；返回取消",false);
+        auto root=begin(source_exists()?"编辑 ICS 订阅":"新增 ICS 订阅",std::string(screen::caps_lock()?"ABC":"abc")+"  拍摄键中文 / Enter下一项/确认；按钮W/S切换；返回取消",false);
         label(root,"名称",16,61,250,muted);field(root,source_draft.name,16,90,768,42,128);
         label(root,"ICS / webcal 地址（保存在设备私有文件中）",16,147,760,muted);field(root,source_draft.url,16,176,768,48,2048);
         button(root,source_draft.enabled?"订阅：启用":"订阅：停用",16,250,230,44,[]{pull_fields();source_draft.enabled=!source_draft.enabled;render();set_focus(2);});
@@ -305,13 +307,21 @@ void render(){
     button(root,"取消同步",250,215,300,58,back);set_focus(0);
 }
 void physical_key(uint32_t code){
+    if(text_input.key(code))return;
     if(code==screen::KEY_HOME){cancel_sync=true;c1::cancel_requests();screen::quit=true;return;}
     if(code==screen::KEY_EXIT||code==LV_KEY_ESC){back();return;}
-    if(code==screen::KEY_MODE){report(std::string(screen::caps_lock()?"ABC 大写":"abc 小写")+"；Enter下一项，返回取消");return;}
+    if(code==screen::KEY_MODE){report(std::string(screen::caps_lock()?"ABC 大写":"abc 小写")+"；拍摄键中文 / Enter下一项，返回取消");return;}
     if(busy){if(code==LV_KEY_ENTER)back();return;}
     const bool editor=page==Page::Edit||page==Page::SourceEdit;
     if(editor&&focused<focus.size()&&focus[focused].text){
         auto o=focus[focused].obj;
+        auto at=std::find(fields.begin(),fields.end(),o);size_t index=at-fields.begin();
+        if(code==screen::KEY_SYMBOL&&at!=fields.end()&&((page==Page::Edit&&(index==0||index>=5))||(page==Page::SourceEdit&&index==0))){
+            auto origin=page;unsigned maximum=lv_textarea_get_max_length(o);
+            text_input.open("calendar",page==Page::SourceEdit?"订阅名称":index==0?"日程标题":index==5?"日程地点":"日程备注",lv_textarea_get_text(o),maximum,font,[origin,index](std::string value){
+                if(page==origin&&index<fields.size()){lv_textarea_set_text(fields[index],value.c_str());pull_fields();}
+            },index>=5);return;
+        }
         if(code==LV_KEY_ENTER||code==LV_KEY_NEXT||code=='\t'){pull_fields();set_focus(focused+1);return;}
         if(code==LV_KEY_BACKSPACE){lv_textarea_delete_char(o);return;}
         if(code==LV_KEY_LEFT){lv_textarea_cursor_left(o);return;}if(code==LV_KEY_RIGHT){lv_textarea_cursor_right(o);return;}
@@ -343,7 +353,7 @@ void physical_key(uint32_t code){
 }
 int main(int argc,char **argv){
     unsigned duration=0;
-    if(argc==2&&!strcmp(argv[1],"--version")){puts("C1Max Calendar 0.3.0");return 0;}
+    if(argc==2&&!strcmp(argv[1],"--version")){puts("C1Max Calendar 0.3.1");return 0;}
     if(argc==3&&!strcmp(argv[1],"--smoke-ms")){char *end=nullptr;auto n=strtoul(argv[2],&end,10);if(*end||n<1||n>60000)return 2;duration=unsigned(n);}
     else if(argc!=1){fprintf(stderr,"Usage: %s [--version | --smoke-ms 1..60000]\n",argv[0]);return 2;}
     signal(SIGINT,signal_handler);signal(SIGTERM,signal_handler);signal(SIGPIPE,SIG_IGN);
@@ -365,5 +375,5 @@ int main(int argc,char **argv){
         usleep(10000);
     }
     cancel_sync=true;c1::cancel_requests();if(job.valid())job.wait();
-    lv_obj_clean(lv_screen_active());focus.clear();lv_obj_set_style_text_font(lv_screen_active(),LV_FONT_DEFAULT,0);lv_tiny_ttf_destroy(font);screen::close();return 0;
+    text_input.close();lv_obj_clean(lv_screen_active());focus.clear();lv_obj_set_style_text_font(lv_screen_active(),LV_FONT_DEFAULT,0);lv_tiny_ttf_destroy(font);screen::close();return 0;
 }

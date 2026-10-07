@@ -32,6 +32,11 @@ static int app_font_shortcuts(const char *marker,const char *expected) {
     return valid&&!strcmp(name,expected);
 }
 static int font_shortcuts(void) {
+    static const char *ime_apps[]={"c1max-airtune\n","c1max-streampla\n","c1max-bilibili\n",
+        "c1max-calendar\n","c1max-mail\n","c1max-settings\n","c1max-moonpilot\n",
+        "c1max-crosspoin\n","c1max-tox\n"};
+    for(size_t i=0;i<sizeof(ime_apps)/sizeof(ime_apps[0]);i++)
+        if(app_font_shortcuts("/tmp/c1max-ime.pid",ime_apps[i]))return 1;
     return app_font_shortcuts("/tmp/c1max-terminal-font.pid","c1max-terminal\n") ||
            app_font_shortcuts("/tmp/c1max-crosspoint-font.pid","c1max-crosspoin\n") ||
            app_font_shortcuts("/tmp/c1max-tox-scroll.pid","c1max-tox\n");
