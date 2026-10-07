@@ -1,0 +1,11 @@
+{
+  "tool": "built-in image_gen",
+  "transparent_background": true,
+  "asset": "icons/settings.png",
+  "style_references": [
+    "icons/calculator.png",
+    "icons/calendar.png",
+    "icons/terminal.png"
+  ],
+  "prompt": "Use case: style-transfer. Create a replacement Settings app icon for a small C1Max launcher, replacing the fourth reference image. References 1 (calculator), 2 (calendar), and 3 (terminal) are STYLE REFERENCES ONLY: match their soft rounded 3D clay/plastic materials, warm ivory, teal accents, restrained navy shadows and upper-left studio lighting. The fourth reference is the old flat settings icon to replace. New subject: one substantial warm ivory eight-tooth gear, beautifully rounded chunky teeth, a teal inset circular center ring with a dark navy recessed center. Nearly front-facing, very slight 3D depth, clear recognizable silhouette at 96px. Object occupies about 74% of a square canvas, centered with generous transparent margins matching the references. Soft modeled highlights and subtle self-shadow, clean polished but tactile finish. Genuine transparent alpha background, no tile, no square plate, no floor, no drop-shadow rectangle, no checkerboard drawn into the image, no text, no letters, no extra objects. Produce one finished icon only."
+}
