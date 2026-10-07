@@ -73,7 +73,7 @@ std::string transfer(const std::string& initial,const Server& server,Temp& tmp,u
         int log=open((tmp.dir+"/log").c_str(),O_WRONLY|O_CREAT|O_TRUNC,0600);
         if(output<0||log<0){if(output>=0)close(output);if(log>=0)close(log);throw std::runtime_error("Cannot open download file");}
         std::vector<std::string> args={"wget","--config="+tmp.dir+"/config","--no-netrc","--no-hsts","--no-cookies","--no-proxy",
-            "--no-verbose","--server-response","--output-document=-","--ca-certificate="+c1::root()+"/shared/ca-certificates.crt",url};
+            "--no-verbose","--content-on-error","--server-response","--output-document=-","--ca-certificate="+c1::root()+"/shared/ca-certificates.crt",url};
         std::vector<char*> av;for(auto& s:args)av.push_back(s.data());av.push_back(nullptr);
         pid_t parent=getpid(),pid=fork();
         if(pid==0) {
@@ -109,6 +109,10 @@ std::string transfer(const std::string& initial,const Server& server,Temp& tmp,u
             auto next=resolve_url(url,h.location);
             if(url.rfind("https://",0)==0&&next.rfind("http://",0)==0)throw std::runtime_error("Refusing an insecure HTTPS redirect");
             url=next;progress.bytes=0;continue;
+        }
+        if(h.status==404&&progress.bytes.load()<=128){
+            auto body=c1::read_file(tmp.dir+"/body",128);while(!body.empty()&&isspace(static_cast<unsigned char>(body.back())))body.pop_back();
+            if(body=="No books found")throw NoBooksFound();
         }
         if(h.status==401||h.status==403)throw std::runtime_error("Access denied; check the server login");
         if(h.status!=200)throw std::runtime_error(h.status?"Server returned HTTP "+std::to_string(h.status):"Network/TLS failed; check Wi-Fi and clock");

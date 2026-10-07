@@ -45,7 +45,7 @@ for name in ids:
             digest.update(filename.encode()+b'\0'+(root/filename).read_bytes())
     for filename in ['CMakeLists.txt','dependencies.json','archives.json']:
         digest.update((root/filename).read_bytes())
-    apps.append({'id':name,'version':'0.3.0' if name=='tox' else '0.1.0' if name=='appstore' else '0.2.0' if name=='hidpilot' else '0.3.1' if name=='crosspoint' else '0.3.0' if name=='calendar' else '0.1.2' if name=='dosbox' else '0.1.1' if name=='pcsx4all' else '0.1.0' if name in ['terminal','gomoku','processing','moonpilot'] else '0.2.0','revision':digest.hexdigest()})
+    apps.append({'id':name,'version':'0.3.0' if name in ['piano','airtune','streamplayer','launcher'] else '0.3.0' if name=='tox' else '0.1.0' if name=='appstore' else '0.2.0' if name=='hidpilot' else '0.4.0' if name=='crosspoint' else '0.3.0' if name=='calendar' else '0.1.2' if name=='dosbox' else '0.1.1' if name=='pcsx4all' else '0.1.0' if name in ['terminal','gomoku','processing','moonpilot'] else '0.2.0','revision':digest.hexdigest()})
 catalog={'schema':1,'platform':'c1max-mipsel-linux','apps':apps}
 if not args.local:(root/'catalog.json').write_text(json.dumps(catalog,indent=2)+'\n')
 out=root/'.build/device'
@@ -106,6 +106,10 @@ shutil.copy2(root/'.deps/libmobi-0.12/COPYING',out/'crosspoint/LGPL-3.0-libmobi.
 shutil.copy2(root/'.deps/xpdf-4.06/COPYING',out/'crosspoint/GPL-2.0-Xpdf.txt')
 shutil.copy2(root/'.deps/xpdf-4.06/COPYING3',out/'crosspoint/GPL-3.0-Xpdf.txt')
 shutil.copy2(root/'.build/mips/c1max-pdftotext',out/'crosspoint')
+# Each store package is self-contained; CrossPoint must work without Terminal installed.
+shutil.copytree(out/'terminal/assets/rime-data',out/'crosspoint/assets/rime-data')
+shutil.copytree(out/'terminal/licenses',out/'crosspoint/licenses/ime')
+shutil.copytree(root/'.deps/xpdf-chinese-simplified',out/'crosspoint/assets/xpdf-chinese-simplified',ignore=shutil.ignore_patterns('.c1-source-sha256'))
 shutil.copy2(root/'.deps/mbedtls-2.28.10/LICENSE',out/'mail/LICENSE-MbedTLS.txt')
 shutil.copytree(root/'bilibili/licenses',out/'bilibili/licenses')
 shutil.copy2(root/'bilibili/README.md',out/'bilibili')
@@ -132,6 +136,8 @@ shutil.copy2(root/'.build/mips/c1max-capture',out/'shared')
 shutil.copy2(root/'.build/mips/c1max-volume',out/'shared')
 shutil.copy2(root/'.build/mips/c1max-power-guard',out/'shared')
 shutil.copy2(root/'.build/mips/c1max-hotkey',out/'shared')
+for owner in ['shared','piano','airtune','streamplayer']:
+    shutil.copy2(root/'.build/mips/c1max-audio',out/owner)
 font=root/'shared/fonts/NotoSansSC-Regular.ttf'
 if font.exists():shutil.copy2(font,out/'shared')
 shutil.copy2(root/'shared/fonts/OFL.txt',out/'shared/NotoSansSC-OFL.txt')

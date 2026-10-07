@@ -173,9 +173,15 @@ cleanup() {
         fi
         wait "$POWER_GUARD_PID" 2>/dev/null
     fi
+    if [ -x "$BASE/current/shared/c1max-audio" ]; then
+        "$BASE/current/shared/c1max-audio" --stop >/dev/null 2>&1 || true
+    fi
+    # A global mute must survive restoring the stock audio routing.
+    muted=$(amixer -c 0 cget name=softvolume 2>/dev/null | sed -n 's/^  : values=//p')
     if [ -f "$AUDIO" ]; then
         alsactl -f "$AUDIO" restore 0 >/dev/null 2>&1 || log 'Could not restore the saved mixer state'
     fi
+    if [ "$muted" = "0,0" ]; then amixer -c 0 cset name=softvolume 0,0 >/dev/null 2>&1 || true; fi
     if [ "$RESTORE_UI" = 1 ]; then
         if setprop ctl.start smartUI; then
             n=0

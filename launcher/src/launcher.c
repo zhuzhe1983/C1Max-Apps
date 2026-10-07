@@ -510,8 +510,13 @@ static void reload_apps(void){
     if(selected_app>=napps)selected_app=napps?napps-1:-1;
     if(current_page*PAGE_SIZE>=napps)current_page=0;
 }
+#include "../../shared/audio_client.h"
 static void launch_app(App *app){
     if(!app->present||!app->argv[0])return;
+    const char *exclusive[]={"nes","pcsx4all","dosbox","bilibili","moonpilot","camera","tox"};
+    int audio_exclusive=app->powerhome;
+    for(unsigned i=0;i<sizeof exclusive/sizeof exclusive[0];i++)if(!strcmp(app->icon_id,exclusive[i]))audio_exclusive=1;
+    if(audio_exclusive)c1_audio_command(0,C1_AUDIO_STOP,0,NULL);
     fprintf(stderr,"[launcher] Open %s\n",app->label);pid_t parent=getpid(),child=fork();
     if(child==0){
         setpgid(0,0);prctl(PR_SET_PDEATHSIG,SIGTERM);if(getppid()!=parent)_exit(1);

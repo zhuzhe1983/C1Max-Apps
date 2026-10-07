@@ -29,17 +29,22 @@ static Json clean_items(const Json&j){
     Json out=Json::array();for(auto&item:j){
         if(!item.is_object()||!item.contains("Id")||!item["Id"].is_string())continue;
         Json row={{"Id",item["Id"]}};
-        for(auto key:{"Name","SeriesName","Overview","Type"}){auto value=item.contains(key)&&item[key].is_string()?item[key].get<std::string>():std::string();
+        for(auto key:{"Name","SeriesName","Overview","Type","CollectionType","Album","AlbumArtist"}){auto value=item.contains(key)&&item[key].is_string()?item[key].get<std::string>():std::string();
             if(value.size()>512)value.resize(512);std::replace(value.begin(),value.end(),'\0',' ');row[key]=value;}
         for(auto key:{"ProductionYear","RunTimeTicks","CommunityRating"})if(item.contains(key)&&item[key].is_number())row[key]=item[key];
         if(row["Name"].get<std::string>().empty())row["Name"]="Untitled";out.push_back(row);
     }return out;
 }
 Json MediaClient::libraries(){return clean_items(call("GET","/Users/"+c1::encode(config.at("user_id"))+"/Views").at("Items"));}
-Json MediaClient::items(const std::string&parent,int start){
-    auto r=call("GET","/Users/"+c1::encode(config.at("user_id"))+"/Items?ParentId="+c1::encode(parent)+"&Recursive=true&IncludeItemTypes=Movie,Episode,Video&StartIndex="+std::to_string(start)+"&Limit=3&SortBy=SortName&SortOrder=Ascending&Fields=RunTimeTicks,SeriesName,Overview,ProductionYear,CommunityRating");
+Json MediaClient::items(const std::string&parent,int start,bool music,int limit){
+    start=std::max(0,start);limit=std::clamp(limit,1,128);
+    auto r=call("GET","/Users/"+c1::encode(config.at("user_id"))+"/Items?ParentId="+c1::encode(parent)+"&Recursive=true&IncludeItemTypes="+std::string(music?"Audio":"Movie,Episode,Video")+"&StartIndex="+std::to_string(start)+"&Limit="+std::to_string(limit)+"&SortBy=SortName&SortOrder=Ascending&Fields=RunTimeTicks,SeriesName,Overview,ProductionYear,CommunityRating,Album,AlbumArtist");
     auto items=clean_items(r.at("Items"));int total=r.contains("TotalRecordCount")&&r["TotalRecordCount"].is_number_integer()?r["TotalRecordCount"].get<int>():start+items.size();
     return {{"Items",items},{"TotalRecordCount",total}};
+}
+std::string MediaClient::audio_url(const std::string&id)const{
+    if(!ready()||id.empty())throw std::runtime_error("Music login/item unavailable");
+    return config.at("base").get<std::string>()+"/Audio/"+c1::encode(id)+"/stream.mp3?Static=false&AudioCodec=mp3&AudioBitRate=128000&AudioSampleRate=44100&AudioChannels=2&MaxAudioChannels=2&EnableAutoStreamCopy=false&StartTimeTicks=0&DeviceId=c1max-streamplayer-audio&api_key="+c1::encode(config.at("token"));
 }
 Playback MediaClient::playback(const std::string&id,int64_t start,StreamOptions options){
     // Bounded software decode; the display mode also determines the server size.

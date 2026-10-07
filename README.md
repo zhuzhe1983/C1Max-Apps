@@ -6,7 +6,7 @@
 apps/
 ├── appstore/       按需安装、逐应用更新与首页管理
 ├── launcher/       应用入口、原装桌面退出/恢复监督器
-├── streamplayer/   Emby / Jellyfin：登录、媒体库、服务器转码播放
+├── streamplayer/   Emby / Jellyfin 视频与音乐、可选后台音乐播放
 ├── calendar/       月历、本地日程增删改、ICS 订阅管理
 ├── terminal/       PTY / ANSI / UTF-8 终端、物理控制键、远程 Coding Agent attach
 ├── linux-tools/    独立 bash / less / nano / SSH 客户端工具包
@@ -24,7 +24,7 @@ apps/
 ├── crosspoint/     本地电子书与 OPDS/Calibre 书目浏览
 ├── camera/         OV5648 拍立得：四种画幅、实时滤镜、相纸边框与相册
 ├── mail/           POP3 收件、SMTP 发件与本地账号配置
-├── piano/          触屏钢琴
+├── piano/          触屏钢琴、经典旋律自动演奏与可选后台播放
 ├── nes/            InfoNES 平台适配与实验记录
 ├── shared/         LVGL 显示/触摸、网络、tinyalsa、中文字体、电源守护
 ├── tools/          Docker 交叉编译、打包、ADB 部署
@@ -49,10 +49,15 @@ apps/
 
 - **[Bilibili](bilibili/README.md)**：参考 wiliwili 的接口，为本机重写轻量界面。热门、竖屏精选、搜索／BV 号、分 P、扫码登录、本机收藏和历史；优先直连 360p H.264/AAC MP4，无需自建转码服务。L 右转 90°，P/O 直接切换视频；支持暂停、跳转、音量和填宽／完整画面。未实现 DASH-only、番剧、直播和弹幕，验证范围见应用说明。
 
-- **[Airtune 网络电台](airtune/README.md)**：拟物收音机界面，提供热门、国家、风格、心情和分组浏览，分类缓存后在后台刷新。SAVED 是本地电台列表，可收藏、手动添加 HTTP(S) 音频地址和删除；播放区显示连接状态与系统音量。电台目录来自 Radio-Browser，音频直接连接电台源。
-- **[CrossPoint 电子书](crosspoint/README.md)**：本地 EPUB、AZW3/MOBI、PDF、TXT、Markdown 文字阅读，以及 OPDS/Calibre 分类浏览、搜索、分页和下载。EPUB 按章节读取，W/S 换章、A/D 翻页；Shift＋音量 ± 调字号并保存。当前不渲染 EPUB 插图/完整 CSS，PDF 只提取文字，扫描版不适用。
+- **[Airtune 网络电台](airtune/README.md)**：拟物收音机界面，提供热门、国家、风格、心情和分组浏览，分类缓存后在后台刷新。SAVED 是本地电台列表，可收藏、手动添加 HTTP(S) 音频地址和删除；播放区显示真实连接状态与系统音量，可开关后台播放；搜索框内 W/S 正常输入文字。电台目录来自 Radio-Browser，音频直接连接电台源。
+- **[CrossPoint 电子书](crosspoint/README.md)**：本地 EPUB、AZW3/MOBI、PDF、TXT、Markdown 文字阅读，以及 OPDS/Calibre 分类浏览、搜索、分页和下载。列表 W/S 移动选择，G 设置服务器，Q/E 翻页（A/D 保留）；EPUB 阅读中 W/S 换章。搜索支持 Rime 拼音和中文书目；PDF 首次后台提取文字、再次打开读取缓存。Shift＋音量 ± 调字号并保存。当前不渲染 EPUB 插图/完整 CSS，PDF 只提取文字，扫描版不适用。
 - **[拍立得](camera/README.md)**：OV5648 实时取景，4:3、3:4、1:1、16:9 四种裁切画幅，六种滤镜，以及白相纸、奶油纸、黑胶片透明边框。空格／实体拍摄键拍照，带白闪和快门音；相册可浏览、确认删除。16:9 是裁切画幅，不是光学广角。
 - **[邮件](mail/README.md)**：POP3S/STLS 收取最近八封邮件，SMTP TLS 编写、发送纯文本邮件，账号保存在设备私有配置中。当前没有 IMAP、附件、OAuth 或完整 HTML/MIME 阅读。下图展示未发送的演示草稿，尚未用真实邮箱完成收发验收。
+
+- **[钢琴](piano/README.md)**：四首经典旋律简编、自动演奏、琴键高亮和可开关后台播放；拍摄键播放/暂停，Shift＋拍摄键切换后台。
+- **[StreamPlayer](streamplayer/README.md)**：在 Emby/Jellyfin 音乐库选择音轨播放，支持队列、上一首/下一首和可开关后台音乐；视频仍使用原有播放路径。
+
+钢琴、StreamPlayer 音乐、Airtune 的后台开关分别保存，默认关闭；同一时刻只播放一个来源。开启后回应用菜单或打开电子书可继续听，完全退出自定义桌面时停止。全局按住音量 − 到 3 秒立即静音；Shift＋音量快捷键不触发此操作。
 
 ## 设备截图
 
@@ -68,7 +73,7 @@ apps/
     <td><strong>计算器</strong><br><a href="docs/screenshots/calculator.png"><img src="docs/screenshots/calculator.png" alt="计算器显示运算结果" width="400"></a><br>物理键盘操作的四则运算界面。</td>
   </tr>
   <tr>
-    <td><strong>钢琴</strong><br><a href="docs/screenshots/piano.png"><img src="docs/screenshots/piano.png" alt="钢琴键盘界面" width="400"></a><br>适配屏幕宽度的钢琴键盘。</td>
+    <td><strong>钢琴</strong><br><a href="docs/screenshots/piano.png"><img src="docs/screenshots/piano.png" alt="钢琴键盘界面" width="400"></a><br>经典旋律自动演奏、琴键高亮与可选后台播放。</td>
     <td><strong>终端与 Linux 工具</strong><br><a href="docs/screenshots/terminal.png"><img src="docs/screenshots/terminal.png" alt="终端 shell 运行命令" width="400"></a><br>交互式 shell；另附 bash、less、nano、SSH 等常用工具。</td>
   </tr>
   <tr>

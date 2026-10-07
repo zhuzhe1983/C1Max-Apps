@@ -1,4 +1,5 @@
 #include "store.hpp"
+#include "audio_client.h"
 #include <mbedtls/sha256.h>
 #include <algorithm>
 #include <chrono>
@@ -33,6 +34,7 @@ void dirs(){fs::create_directories(home()+"/packages");fs::create_directories(ho
 struct Lock{int fd=-1;Lock(){dirs();fd=open((home()+"/install.lock").c_str(),O_CREAT|O_RDWR|O_CLOEXEC,0600);if(fd<0||flock(fd,LOCK_EX|LOCK_NB)){if(fd>=0)close(fd);throw std::runtime_error("另一个安装任务正在运行");}}~Lock(){if(fd>=0)close(fd);}};
 std::string fresh(const std::string&prefix){std::vector<char>b(prefix.begin(),prefix.end());b.push_back(0);auto*p=mkdtemp(b.data());if(!p)throw std::runtime_error("无法创建安装目录");return p;}
 void replace_link(const std::string&target,const std::string&link){unlink((link+".new").c_str());if(symlink(target.c_str(),(link+".new").c_str())||rename((link+".new").c_str(),link.c_str()))throw std::runtime_error("无法切换应用版本");int d=open(home().c_str(),O_RDONLY|O_DIRECTORY|O_CLOEXEC);if(d>=0){fsync(d);close(d);}}
+void stop_audio(const std::string&id){int owner=id=="piano"?C1_AUDIO_PIANO:id=="airtune"?C1_AUDIO_AIRTUNE:id=="streamplayer"?C1_AUDIO_STREAMPLAYER:0;if(owner)c1_audio_command(owner,C1_AUDIO_STOP,0,nullptr);}
 void stop_tox(){
     auto path=c1::data()+"/tox/service.sock";if(!fs::exists(path))return;
     sockaddr_un a{};a.sun_family=AF_UNIX;if(path.size()>=sizeof a.sun_path)throw std::runtime_error("Tox socket path too long");std::copy(path.begin(),path.end(),a.sun_path);
@@ -85,7 +87,7 @@ std::vector<App>fetch_catalog(){
 }
 std::string compare(const Local&l,const App&a){if(!l.installed)return "未安装";if(a.version.empty())return "已安装";if(version(l.version)<version(a.version))return "可更新";if(version(l.version)>version(a.version))return "本地版本较新";return l.revision==a.revision?"已是当前版本":"同版本，构建不同";}
 void set_visible(const std::string&id,bool visible){Lock lock;auto s=load_state();auto it=s.find(id);if(it==s.end()||!it->second.installed||id=="appstore")throw std::runtime_error("此应用不能隐藏");it->second.visible=visible;commit(s);}
-void uninstall(const std::string&id){Lock lock;auto s=load_state();auto it=s.find(id);if(it==s.end()||id=="appstore")throw std::runtime_error("不能卸载应用商店");if(id=="tox")stop_tox();it->second.installed=false;it->second.visible=false;commit(s);}
+void uninstall(const std::string&id){Lock lock;auto s=load_state();auto it=s.find(id);if(it==s.end()||id=="appstore")throw std::runtime_error("不能卸载应用商店");if(id=="tox")stop_tox();stop_audio(id);it->second.installed=false;it->second.visible=false;commit(s);}
 void rollback(){Lock lock;if(!fs::exists(home()+"/previous/state.json"))throw std::runtime_error("没有可回退的变更");auto old=fs::canonical(home()+"/previous").string(),now=fs::canonical(home()+"/current").string();replace_link(old,home()+"/current");replace_link(now,home()+"/previous");}
 void unpack(const std::string&bundle,const std::string&dest,const App&a){
     if(fs::file_size(bundle)!=a.size||sha(bundle)!=a.sha256)throw std::runtime_error("安装包 SHA-256 校验失败");std::ifstream in(bundle,std::ios::binary);char magic[8];in.read(magic,8);if(std::string(magic,8)!="C1PKG01\n")throw std::runtime_error("无效安装包");
@@ -114,7 +116,7 @@ void install(const App&a,std::atomic<bool>&cancel,const std::function<void(unsig
         if(!WIFEXITED(status)||WEXITSTATUS(status))throw std::runtime_error("下载失败，请检查 Wi-Fi / GitHub 连接");if(cancel)throw std::runtime_error("已取消下载");progress(85,"校验并安装…");unpack(bundle,stage,a);fs::remove(bundle);if(cancel)throw std::runtime_error("已取消安装");
         for(auto&e:fs::recursive_directory_iterator(stage))if(e.is_directory()){int d=open(e.path().c_str(),O_RDONLY|O_DIRECTORY|O_CLOEXEC);if(d<0)throw std::runtime_error("无法同步安装目录");int result=fsync(d);close(d);if(result)throw std::runtime_error("无法同步安装目录");}
         for(auto&p:{stage,home()+"/packages"}){int d=open(p.c_str(),O_RDONLY|O_DIRECTORY|O_CLOEXEC);if(d<0)throw std::runtime_error("无法同步安装目录");int result=fsync(d);close(d);if(result)throw std::runtime_error("无法同步安装目录");}
-        if(a.id=="tox")stop_tox();state[a.id]={true,true,a.version,a.revision,stage+"/"+a.id,a.title};commit(state);committed=true;progress(100,"已安装，返回首页即可使用");
+        if(a.id=="tox")stop_tox();stop_audio(a.id);state[a.id]={true,true,a.version,a.revision,stage+"/"+a.id,a.title};commit(state);committed=true;progress(100,"已安装，返回首页即可使用");
     }catch(...){if(child>0){kill(child,SIGKILL);while(waitpid(child,nullptr,0)<0&&errno==EINTR){}}if(!committed)fs::remove_all(stage);throw;}
 }
 }

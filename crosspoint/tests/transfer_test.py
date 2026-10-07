@@ -18,6 +18,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path in ['/redirect','/cross','/loop']:
             target='/feed' if self.path=='/redirect' else ('http://127.0.0.1:'+str(other.server_port)+'/feed' if self.path=='/cross' else '/loop')
             self.send_response(302);self.send_header('Location',target);self.send_header('Content-Length','0');self.end_headers();return
+        if self.path in ['/empty-search','/missing']:
+            body=b'No books found' if self.path=='/empty-search' else b'Not found'
+            self.send_response(404);self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body);return
         body=FEED if self.path=='/feed' else BOOK
         if self.path=='/html':body=b'<!DOCTYPE html><html>login</html>'
         self.send_response(200)
@@ -53,6 +56,8 @@ try:
         run('feed','/cross',auth=True)
         assert requests[-1][0]==other.server_port and requests[-1][2] is None
         run('feed','/loop',ok=False)
+        assert 'No books found' in run('feed','/empty-search',ok=False).stderr
+        assert 'HTTP 404' in run('feed','/missing',ok=False).stderr
         run('download','/book');run('download','/book')
         assert sorted(p.name for p in folder.iterdir())==['book (1).epub','book.epub']
         assert all(p.read_bytes()==BOOK for p in folder.iterdir())

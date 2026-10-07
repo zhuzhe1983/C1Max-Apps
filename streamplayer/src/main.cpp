@@ -1,4 +1,5 @@
 #include "client.hpp"
+#include "audio_client.h"
 #include "segment_stream.hpp"
 #include "subtitle_stream.hpp"
 #include "timeline.hpp"
@@ -49,8 +50,14 @@ static std::string video_fifo,frame_error;
 static bool decoder_pipe=false;
 static Y4mReader video_reader;
 static FrameWatchdog frame_watchdog;
-enum class View { Setup, Libraries, Items, Detail, Updates, Roms };
+enum class View { Setup, Libraries, Items, Detail, Updates, Roms, Music };
 static View view=View::Setup;
+static bool music_background=false;
+static c1_audio_status music_state{};
+static lv_obj_t *music_caption=nullptr,*music_position=nullptr;
+static void show_music();static void play_music();
+static bool music_library(){return !libraries.empty()&&library_index<libraries.size()&&libraries[library_index].value("CollectionType",std::string())=="music";}
+
 static Playback current;
 static StreamOptions requested_options,displayed_options;
 static std::unique_ptr<SegmentStream> segments;
@@ -142,24 +149,25 @@ static void render_items(){
     for(size_t i=0;i<rows.size();++i){
         auto card=button(browse_area,"",int(i)*208,0,198,[](lv_event_t*e){item_index=(size_t)lv_event_get_user_data(e);show_detail();},(void*)i);
         lv_obj_set_height(card,196);lv_obj_set_style_pad_all(card,0,0);lv_obj_set_style_bg_color(card,lv_color_hex(0x0a1119),0);if(i==item_index)lv_obj_set_style_border_color(card,accent(),0);
-        auto placeholder=label(card,LV_SYMBOL_VIDEO,12,57,170);lv_obj_set_style_text_align(placeholder,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_color(placeholder,accent(),0);
+        auto placeholder=label(card,rows[i].value("Type",std::string())=="Audio"?LV_SYMBOL_AUDIO:LV_SYMBOL_VIDEO,12,57,170);lv_obj_set_style_text_align(placeholder,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_color(placeholder,accent(),0);
         auto path=rows[i].value("Poster",std::string());if(!path.empty()){
             auto image=lv_image_create(card);lv_image_set_src(image,("A:"+path).c_str());lv_obj_set_pos(image,28,4);
             lv_obj_set_size(image,140,140);lv_image_set_inner_align(image,LV_IMAGE_ALIGN_CONTAIN);
         }
         auto name=label(card,rows[i].value("Name",std::string("Video")),10,146,176);lv_label_set_long_mode(name,LV_LABEL_LONG_DOT);
         std::string meta=rows[i].contains("ProductionYear")?std::to_string(rows[i]["ProductionYear"].get<int>()):rows[i].value("SeriesName",std::string());
+        if(rows[i].value("Type",std::string())=="Audio")meta=rows[i].value("AlbumArtist",std::string())+" / "+rows[i].value("Album",std::string());
         auto info=label(card,meta,10,174,176);if(small_font)lv_obj_set_style_text_font(info,small_font,0);lv_label_set_long_mode(info,LV_LABEL_LONG_DOT);lv_obj_set_style_text_color(info,lv_color_hex(0x8b98a8),0);
     }
     if(page>0)button(browse_area,"Previous",0,202,158,[](lv_event_t*){--page;show_items();});
     auto num=label(browse_area,std::to_string(page+1)+" / "+std::to_string(std::max(1,(total_items+2)/3)),240,210,140);lv_obj_set_style_text_align(num,LV_TEXT_ALIGN_CENTER,0);
     if((page+1)*3<total_items)button(browse_area,"Next",462,202,158,[](lv_event_t*){++page;show_items();});
-    status(rows.empty()?"No videos in this library":"A/D: page   ·   W/S: library   ·   J/K: select   ·   Enter: details");
+    status(rows.empty()?"No media in this library":"A/D: page   ·   W/S: library   ·   J/K: select   ·   Enter: details   ·   M: music");
 }
 static void show_items(){
     if(busy)return;view=View::Items;screen_base("StreamPlayer / Loading");
-    auto p=parent_id;int offset=page*3;work("Loading videos & covers...",[p,offset]{
-        auto j=client.items(p,offset);auto &items=j["Items"];
+    auto p=parent_id;int offset=page*3;bool music=music_library();work("Loading media & covers...",[p,offset,music]{
+        auto j=client.items(p,offset,music);auto &items=j["Items"];
         for(auto&item:items){try{item["Poster"]=client.poster(item.at("Id"));}catch(...){}}
         return j;
     },[](Json j){rows=j.at("Items");total_items=j.value("TotalRecordCount",0);item_index=0;render_items();});
@@ -171,11 +179,46 @@ static void show_detail(){
     auto heading=label(content,title,176,10,576);if(large_font)lv_obj_set_style_text_font(heading,large_font,0);lv_label_set_long_mode(heading,LV_LABEL_LONG_DOT);
     auto overview=label(content,item.value("Overview",std::string("")),176,50,576);lv_obj_set_height(overview,112);if(small_font)lv_obj_set_style_text_font(overview,small_font,0);lv_label_set_long_mode(overview,LV_LABEL_LONG_DOT);lv_obj_set_style_text_color(overview,lv_color_hex(0xa6b5c4),0);
     auto play=button(content,"Play",176,190,272,[](lv_event_t*){
-        if(busy)return;auto id=rows[item_index].at("Id").get<std::string>();auto next=std::make_shared<Playback>();auto old=current;bool dirty=server_session_dirty;auto options=requested_options;options.subtitle=-1;
+        if(busy)return;if(rows[item_index].value("Type",std::string())=="Audio"){play_music();return;}auto id=rows[item_index].at("Id").get<std::string>();auto next=std::make_shared<Playback>();auto old=current;bool dirty=server_session_dirty;auto options=requested_options;options.subtitle=-1;
         work("Preparing playback...",[id,next,old,dirty,options]{if(dirty)client.stop_transcode(old);*next=client.playback(id,0,options);return Json::object();},[next](Json){current=*next;server_session_dirty=true;pause_on_start=false;start_player(current);});
     });lv_obj_set_style_bg_color(play,accent(),0);lv_obj_set_style_text_color(play,lv_color_hex(0x041008),0);
     button(content,"Back",480,190,272,[](lv_event_t*){render_items();});
+    if(item.value("Type",std::string())=="Audio"){status("Music · MP3 / 44.1 kHz · background playback optional");return;}
     status("During playback: F width/fit   ·   S subtitles   ·   Enter pause   ·   Return stop");
+}
+static std::string music_time(int64_t ms){auto sec=std::max<int64_t>(0,ms)/1000;char b[32];snprintf(b,sizeof b,"%lld:%02lld",(long long)(sec/60),(long long)(sec%60));return b;}
+static void poll_music(){
+    if(screen::playing||mode!="stream")return;static uint32_t last=0;if(screen::tick()-last<400)return;last=screen::tick();
+    c1_audio_status current{};bool own=c1_audio_get(&current)==0&&current.owner==C1_AUDIO_STREAMPLAYER;music_state=own?current:c1_audio_status{};
+    if(view==View::Music){
+        if(music_caption)lv_label_set_text(music_caption,own?current.title:"No music playing");
+        std::string state=!own||current.state==C1_AUDIO_IDLE?"Stopped":current.state==C1_AUDIO_CONNECTING?"Connecting...":current.state==C1_AUDIO_PAUSED?"Paused":current.state==C1_AUDIO_ERROR?current.error:"Playing";
+        if(music_position)lv_label_set_text(music_position,(state+"  ·  "+music_time(current.position_ms)+" / "+music_time(current.duration_ms)+"  ·  "+std::to_string(current.index+1)+"/"+std::to_string(current.count)).c_str());
+    }
+}
+static void show_music(){
+    view=View::Music;screen_base("StreamPlayer / Music");
+    music_caption=label(content,music_state.title,24,18,716);if(large_font)lv_obj_set_style_text_font(music_caption,large_font,0);lv_label_set_long_mode(music_caption,LV_LABEL_LONG_DOT);
+    music_position=label(content,"",24,64,716);
+    button(content,"Previous",24,110,166,[](lv_event_t*){c1_audio_command(C1_AUDIO_STREAMPLAYER,C1_AUDIO_PREVIOUS,0,nullptr);});
+    button(content,"Play / Pause",208,110,166,[](lv_event_t*){c1_audio_command(C1_AUDIO_STREAMPLAYER,C1_AUDIO_PAUSE,0,nullptr);});
+    button(content,"Next",392,110,166,[](lv_event_t*){c1_audio_command(C1_AUDIO_STREAMPLAYER,C1_AUDIO_NEXT,0,nullptr);});
+    button(content,"Stop",576,110,166,[](lv_event_t*){c1_audio_command(C1_AUDIO_STREAMPLAYER,C1_AUDIO_STOP,0,nullptr);});
+    button(content,music_background?"Background: ON":"Background: OFF",24,174,350,[](lv_event_t*){int next=c1_audio_background_preference(C1_AUDIO_STREAMPLAYER,!music_background);if(next<0){status("Cannot save background preference");return;}music_background=next;c1_audio_command(C1_AUDIO_STREAMPLAYER,C1_AUDIO_BACKGROUND,next,nullptr);show_music();});
+    button(content,"Media library",392,174,350,[](lv_event_t*){show_libraries();});
+    status("Enter/Space pause · P/O previous/next · B background · Return library");poll_music();
+}
+static void play_music(){
+    if(item_index>=rows.size())return;const auto parent=parent_id;const auto selected=rows[item_index];int offset=page*3+int(item_index);
+    work("Preparing music queue...",[parent,selected,offset]{auto j=client.items(parent,offset,true,128);auto tracks=j.at("Items");
+        if(tracks.empty()||tracks[0].at("Id")!=selected.at("Id"))tracks=Json::array({selected});
+        for(auto& item:tracks)item["AudioUrl"]=client.audio_url(item.at("Id"));return tracks;
+    },[](Json tracks){bool first=true;int queued=0;for(auto& item:tracks){
+        auto url=item.at("AudioUrl").get<std::string>();if(url.size()>=sizeof(c1_audio_request::url))continue;
+        c1_audio_request r{};r.owner=C1_AUDIO_STREAMPLAYER;r.action=first?C1_AUDIO_PLAY:C1_AUDIO_APPEND;r.kind=C1_AUDIO_URL;r.background=music_background;r.duration_ms=item.value("RunTimeTicks",int64_t(0))/10000;
+        snprintf(r.url,sizeof r.url,"%s",url.c_str());c1_audio_text(r.title,sizeof r.title,item.value("Name",std::string("Music")).c_str());
+        if(c1_audio_call(&r,&music_state,first?1:0)){status("Cannot prepare music queue");break;}first=false;++queued;
+    }if(queued)show_music();});
 }
 static void command(const char*s){if(player_in>=0) {auto unused=write(player_in,s,strlen(s));(void)unused;}}
 static int volume_get(){
@@ -370,6 +413,7 @@ static int supported_frame_output(){
     close(fd[0]);available=output.find("yuv4mpeg")!=std::string::npos?1:(output.find("\tnull\t")!=std::string::npos?2:0);return available;
 }
 static void start_player(const Playback&p){
+    c1_audio_command(0,C1_AUDIO_STOP,0,nullptr);
     position=p.start;timeline.reset(p.start,p.duration);have_time=false;reported=false;segment_clock=false;segment_timeline=false;frame_width=frame_height=0;applied_change=-1;segment_state={};stream_notice.clear();
     requested_options=displayed_options=p.options;width_fill=p.options.width_fill;
     frame_error.clear();
@@ -531,6 +575,13 @@ static void physical_key(uint32_t key){
     }
     if(key==screen::KEY_HOME_LONG){if(mode=="roms")screen::quit=true;return;}
     if(key==screen::KEY_MODE){if(active_field)status(screen::caps_lock()?"ABC | Double Shift: abc | Shift: symbols | Enter: next":"abc | Double Shift: ABC | Shift: symbols | Enter: next");return;}
+    if(view==View::Music&&!screen::playing){
+        if(key==screen::KEY_EXIT){show_libraries();return;}
+        if(key==LV_KEY_ENTER||key==' '){c1_audio_command(C1_AUDIO_STREAMPLAYER,C1_AUDIO_PAUSE,0,nullptr);return;}
+        if(key=='p'||key=='P'){c1_audio_command(C1_AUDIO_STREAMPLAYER,C1_AUDIO_PREVIOUS,0,nullptr);return;}
+        if(key=='o'||key=='O'){c1_audio_command(C1_AUDIO_STREAMPLAYER,C1_AUDIO_NEXT,0,nullptr);return;}
+        if(key=='b'||key=='B'){auto next=c1_audio_background_preference(C1_AUDIO_STREAMPLAYER,!music_background);if(next>=0){music_background=next;c1_audio_command(C1_AUDIO_STREAMPLAYER,C1_AUDIO_BACKGROUND,next,nullptr);show_music();}return;}
+    }
     if(screen::playing){
         if(subtitle_panel){
             if(key==screen::KEY_EXIT||key=='s'){close_subtitles();return;}
@@ -554,6 +605,7 @@ static void physical_key(uint32_t key){
         return;
     }
     if(busy)return;
+    if(!active_field&&(key=='m'||key=='M')&&music_state.owner==C1_AUDIO_STREAMPLAYER){show_music();return;}
     if(view==View::Items){
         if(key=='a'&&page>0){--page;show_items();return;}
         if(key=='d'&&(page+1)*3<total_items){++page;show_items();return;}
@@ -580,7 +632,8 @@ int main(int argc,char**argv){
     if(!screen::open())return 1;
     auto fontpath="A:"+c1::root()+"/shared/NotoSansSC-Regular.ttf";font=lv_tiny_ttf_create_file(fontpath.c_str(),20);if(font)font->fallback=&lv_font_montserrat_18;
     small_font=lv_tiny_ttf_create_file(fontpath.c_str(),16);large_font=lv_tiny_ttf_create_file(fontpath.c_str(),24);
-    client.load();if(mode=="updates")show_updates();else if(mode=="roms")show_roms();else show_setup();
+    music_background=c1_audio_background_preference(C1_AUDIO_STREAMPLAYER,-1);c1_audio_get(&music_state);
+    client.load();if(mode=="stream"&&music_state.owner==C1_AUDIO_STREAMPLAYER&&music_state.state>=C1_AUDIO_CONNECTING&&music_state.state<=C1_AUDIO_PAUSED)show_music();else if(mode=="updates")show_updates();else if(mode=="roms")show_roms();else show_setup();
     while(!screen::quit&&!interrupted){
         lv_timer_handler();
         for(uint32_t key;!screen::quit&&!interrupted&&(key=screen::take_key())!=0;)physical_key(key);
@@ -593,13 +646,14 @@ int main(int argc,char**argv){
                 try{done(r["result"]);}catch(std::exception&){status("Unexpected server response; please retry");if(screen::playing){cleanup_player();ended=true;playback_failed=true;}}
             }else{status(r["error"].get<std::string>());if(restarting){cleanup_player();ended=true;playback_failed=true;}}
         }
-        poll_player();
+        poll_player();poll_music();
         if(ended&&!busy){
             ended=false;auto p=current;auto ticks=position;bool did=reported||have_time;auto retired=std::move(retired_sessions);retired_sessions.clear();
             work("Stopping server session...",[p,ticks,did,retired]{for(auto&r:retired)try{client.stop_transcode(r);}catch(...){}try{if(did)client.report(p,"Stopped",ticks);}catch(...){}client.stop_transcode(p);return Json::object();},[](Json){server_session_dirty=false;status(playback_failed?(!frame_error.empty()?frame_error:"Playback failed: stream or decoder unavailable"):"Stopped. Choose another video.");});
         }
         usleep(10000);
     }
+    if(mode=="stream")c1_audio_command(C1_AUDIO_STREAMPLAYER,C1_AUDIO_DETACH,0,nullptr);
     bool was_playing=screen::playing;cleanup_player();c1::cancel_requests();if(job.valid())job.wait();c1::reset_requests(900);if(was_playing||ended||server_session_dirty){try{if(reported||have_time)client.report(current,"Stopped",position);}catch(...){}try{client.stop_transcode(current);}catch(...){}}
     for(auto&p:retired_sessions)try{client.stop_transcode(p);}catch(...){}
     unlink((c1::data()+"/streamplayer/playback.m3u").c_str());if(audio_mixer)mixer_close(audio_mixer);screen::close();return 0;

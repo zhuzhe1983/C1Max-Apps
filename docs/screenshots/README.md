@@ -77,3 +77,5 @@
 2026-10-03 更新为气泡布局，新增 `tox-bubbles.png` 与 `tox-inline-media.png`：两个隔离身份实际通过 Tox 互发消息、JPEG 与 WAV。灰勾截图时暂停了专用收件进程，绿色圆勾来自实际回执；截图后恢复测试进程。附件内容为本仓库 Tox 图标和生成的静音 WAV，未使用私人照片或录音。
 
 `tox-store-updated.png` 为 2026-10-03 真机通过 GitHub 应用商店下载 Tox 0.3.0 后的完成页面。
+
+2026-10-07 更新 `piano.png`：C1 Max 运行《致爱丽丝》主题简编的实际 framebuffer，显示自动演奏高亮与后台开关。测试保持系统静音。

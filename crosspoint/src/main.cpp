@@ -2,6 +2,8 @@
 #include "net.hpp"
 #include "default_servers.hpp"
 #include "reader.hpp"
+#include "pdf.hpp"
+#include "c1ime.hpp"
 #include "opds.hpp"
 #include "transfer.hpp"
 #include "paginate.hpp"
@@ -24,7 +26,7 @@ namespace {
 using crosspoint::Server;
 enum class View { Library, Reader, Catalog, Book, Settings, Search, Busy, Error };
 enum class Navigation { Root, Forward, Back, Refresh };
-enum class Job { None, Feed, Download, OpenEpub, Chapter };
+enum class Job { None, Feed, Download, OpenEpub, Chapter, OpenPdf };
 constexpr uint32_t ink=0x263c38,paper=0xf3eddc,teal=0x345f59,muted=0x748078,copper=0xb07d52;
 constexpr int rows=6;
 View view=View::Library,return_view=View::Library;
@@ -39,6 +41,9 @@ crosspoint::Feed feed;
 struct Location {std::string url;int index=0;};
 std::vector<Location> history;
 Server settings_draft;bool have_settings_draft=false;
+std::unique_ptr<c1ime::Engine> ime;
+lv_obj_t *ime_row=nullptr,*ime_preedit=nullptr,*ime_mode=nullptr;
+void refresh_ime();void toggle_ime();
 lv_font_t *font=nullptr,*reader_font=nullptr;
 int reader_size=18;
 void* font_map=MAP_FAILED;size_t font_map_size=0;
@@ -89,6 +94,8 @@ void button(const std::string& s,int x,int y,int w,int h,std::function<void()> a
     auto* t=label(s,x,y+(h-20)/2,w,enabled?0xfaf6eb:muted);lv_obj_set_style_text_align(t,LV_TEXT_ALIGN_CENTER,0);
 }
 void frame(const std::string& title){
+    if(view!=View::Search)ime.reset();
+    ime_row=ime_preedit=ime_mode=nullptr;
     lv_obj_clean(lv_screen_active());actions.clear();hint=nullptr;query_field=nullptr;progress_label=progress_bar=nullptr;
     for(auto& f:fields)f=nullptr;
     auto* root=lv_screen_active();lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);
@@ -134,7 +141,7 @@ void show_page(){
     auto position=epub?"章 "+std::to_string(chapter_index+1)+"/"+std::to_string(epub->chapter_count())+"  ·  W/S 换章  ·  ":"";
     size_t start=page_origin;for(int i=0;i<page;++i)start+=pages[i].size();
     auto location=page_origin?"进度 "+std::to_string(start*100/std::max<size_t>(1,reader_text.size()))+"%":"第 "+std::to_string(page+1)+" 页";
-    footer(position+"A/D 翻页  ·  "+location+(!epub&&!page_origin&&reading_end>=reader_text.size()?" / 共 "+std::to_string(pages.size())+" 页":"")+"  ·  返回：书架");
+    footer(position+"Q/E 翻页  ·  "+location+(!epub&&!page_origin&&reading_end>=reader_text.size()?" / 共 "+std::to_string(pages.size())+" 页":"")+"  ·  返回：书架");
 }
 bool page_fits(const std::string& candidate){
     lv_point_t extent{};lv_text_get_size(&extent,candidate.c_str(),reader_font?reader_font:font?font:LV_FONT_DEFAULT,0,0,742,LV_TEXT_FLAG_NONE);
@@ -166,6 +173,11 @@ void open_book(){
             if(result_text.empty())throw std::runtime_error("EPUB contains no readable text");
         }catch(const std::exception& e){result_error=e.what();}done=true;});return;
     }
+    if(ext==".pdf"){
+        cancelled=false;done=false;result_error.clear();result_file.clear();result_text.clear();job=Job::OpenPdf;
+        busy("正在打开 PDF…",View::Library);
+        worker=std::thread([path]{crosspoint::read_pdf(path,result_text,result_error,cancelled);done=true;});return;
+    }
     epub.reset();
     note("正在打开图书…");lv_refr_now(nullptr);
     if(!crosspoint::read_book(book_dir()+"/"+reader_title,text,why)){error(why,View::Library);return;}
@@ -195,9 +207,9 @@ void library(){
     label("OPDS / CALIBRE",556,60,214,0xf3eddc);
     label(servers.empty()?"尚未设置服务器":servers[0].name.empty()?"在线书库":servers[0].name,556,94,212,0xdde8db);
     button("在线书库  O",554,137,216,44,[]{if(servers.empty())settings();else if(feed.url.empty())begin_feed(servers[0].url,Navigation::Root);else catalog();});
-    button("服务器设置  S",554,193,216,44,[]{field=0;settings();});
+    button("服务器设置  G",554,193,216,44,[]{field=0;settings();});
     label("EPUB · AZW3 · PDF · TXT",554,257,218,0xdde8db);
-    footer("↑↓ / W / X 选择  ·  A / D 翻页  ·  回车阅读  ·  R 刷新");
+    footer("W / S 选择  ·  Q / E 翻页  ·  回车阅读  ·  R 刷新");
 }
 void change_catalog_page(int direction){
     int first=(entry_index/rows)*rows;
@@ -221,7 +233,7 @@ void catalog(){
     }
     if(feed.items.empty())label("没有找到图书，试试其他关键词",32,137,700,muted);
     auto count=feed.items.empty()?"0":std::to_string(first+1)+"–"+std::to_string(std::min(first+rows,int(feed.items.size())));
-    footer(count+" / "+std::to_string(feed.items.size())+"  ·  W/S 选择  A/D 翻页  F 搜索  回车打开  返回上级");
+    footer(count+" / "+std::to_string(feed.items.size())+"  ·  W/S 选择  Q/E 翻页  F 搜索  回车打开  返回上级");
 }
 void open_entry(){if(feed.items.empty())return;if(feed.items[entry_index].navigation())begin_feed(feed.items[entry_index].href,Navigation::Forward);else{format_index=0;details();}}
 void details(){
@@ -248,7 +260,10 @@ void begin_feed(const std::string& url,Navigation nav){
     auto back=view==View::Search?View::Search:feed.url.empty()?View::Library:View::Catalog;
     auto server=servers[0];pending_navigation=nav;cancelled=false;done=false;result_error.clear();result_file.clear();progress.bytes=0;progress.total=0;
     job=Job::Feed;busy("正在加载目录…",back);
-    worker=std::thread([url,server]{try{auto d=crosspoint::fetch_document(url,server,cancelled,progress);if(!crosspoint::parse_feed(d.body,d.url,result_feed,result_error)){} }catch(const std::exception& e){result_error=e.what();}done=true;});
+    const bool is_search=view==View::Busy&&back==View::Search;const auto search_pattern=feed.search;
+    worker=std::thread([url,server,is_search,search_pattern]{try{auto d=crosspoint::fetch_document(url,server,cancelled,progress);crosspoint::parse_feed(d.body,d.url,result_feed,result_error);}
+        catch(const crosspoint::NoBooksFound& e){if(is_search){result_feed={};result_feed.url=url;result_feed.search=search_pattern;result_feed.title="没有匹配的图书";}else result_error=e.what();}
+        catch(const std::exception& e){result_error=e.what();}done=true;});
 }
 void download(){
     if(job!=Job::None||servers.empty()||feed.items.empty())return;
@@ -263,6 +278,7 @@ void render_return(){
 void poll_job(){
     if(job==Job::None)return;
     if(!done.load()){
+        if(job==Job::OpenPdf){if(progress_label&&last_progress.empty()){last_progress="首次提取整本 PDF 的文字；再次打开使用缓存";lv_label_set_text(progress_label,last_progress.c_str());}return;}
         if(job==Job::OpenEpub||job==Job::Chapter){if(progress_label&&last_progress.empty()){last_progress="只读取当前章节，无需解压整本书";lv_label_set_text(progress_label,last_progress.c_str());}return;}
         auto now=screen::tick();if(now-progress_at<150)return;progress_at=now;
         auto received=progress.bytes.load(),total=progress.total.load();
@@ -280,6 +296,9 @@ void poll_job(){
     // A completed atomic download wins a very late cancellation and stays visible.
     if(cancelled.load()&&result_file.empty()){result_epub.reset();render_return();note("已取消");return;}
     if(!result_error.empty()){result_epub.reset();error(result_error,return_view);return;}
+    if(finished==Job::OpenPdf){
+        epub.reset();reader_text=std::move(result_text);pages.clear();page_origin=reading_end=0;append_page();page=0;show_page();return;
+    }
     if(finished==Job::OpenEpub||finished==Job::Chapter){
         auto loaded=screen::tick();if(finished==Job::OpenEpub)epub=std::move(result_epub);
         chapter_index=result_chapter;reader_text=std::move(result_text);pages.clear();page_origin=reading_end=0;append_page();page=0;show_page();
@@ -297,13 +316,58 @@ void poll_job(){
 void submit_search(){
     search_query=lv_textarea_get_text(query_field);try{begin_feed(crosspoint::search_url(feed.search,search_query),Navigation::Forward);}catch(const std::exception& e){note(e.what());}
 }
+void commit_candidate(int index){
+    if(!ime||!query_field)return;auto text=ime->select(index);if(!text.empty())lv_textarea_add_text(query_field,text.c_str());refresh_ime();
+}
+void refresh_ime(){
+    if(!ime_row||!ime_preedit||!ime_mode)return;
+    bool chinese=ime&&ime->ready()&&ime->mode()==c1ime::Mode::Chinese;
+    lv_label_set_text(ime_mode,chinese?"拼音 / English":"English / 拼音");
+    lv_label_set_text(ime_preedit,chinese?ime->buffer().c_str():"支持 Calibre 查询，例如 author: 或 formats:EPUB");
+    lv_obj_clean(ime_row);if(!chinese)return;
+    auto choices=ime->candidates();int n=std::min(9,int(choices.size()));
+    // Five ordinary candidates plus a second row when a schema returns more.
+    for(int i=0;i<n;i++){
+        auto* item=lv_button_create(ime_row);lv_obj_set_pos(item,(i%5)*143,(i/5)*30);lv_obj_set_size(item,139,28);
+        lv_obj_set_style_bg_color(item,lv_color_hex(teal),0);lv_obj_set_style_pad_all(item,2,0);lv_obj_set_style_shadow_width(item,0,0);
+        auto* text=lv_label_create(item);lv_label_set_text(text,(std::to_string(i+1)+" "+choices[i].text).c_str());lv_obj_set_width(text,131);lv_label_set_long_mode(text,LV_LABEL_LONG_DOT);lv_obj_center(text);
+        lv_obj_add_event_cb(item,[](lv_event_t* e){int i=int(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)));deferred=[i]{commit_candidate(i);};},LV_EVENT_CLICKED,reinterpret_cast<void*>(intptr_t(i)));
+    }
+}
+void toggle_ime(){
+    if(!ime){ime=std::make_unique<c1ime::Engine>(c1::root()+"/crosspoint/assets/rime-data",data_dir()+"/rime");
+        if(!ime->initialize()){note("拼音不可用："+ime->error());ime.reset();return;}}
+    ime->toggle_mode();refresh_ime();
+    note("拍摄键切换中英 · 空格/回车选词 · Shift+数字选词 · ←→候选翻页");
+}
+bool search_ime_key(uint32_t k){
+    if(k==screen::KEY_SYMBOL){toggle_ime();return true;}
+    if(!ime||!ime->ready()||ime->mode()!=c1ime::Mode::Chinese)return false;
+    if(ime->state()!=c1ime::State::Inactive){
+        if(k==screen::KEY_EXIT){ime->cancel();refresh_ime();return true;}
+        if(k==LV_KEY_BACKSPACE){ime->backspace();refresh_ime();return true;}
+        if(k==' '||k==LV_KEY_ENTER){commit_candidate(0);return true;}
+        if(k>='1'&&k<='9'){commit_candidate(int(k-'1'));return true;}
+        if(k==LV_KEY_LEFT||k==LV_KEY_UP){ime->page_up();refresh_ime();return true;}
+        if(k==LV_KEY_RIGHT||k==LV_KEY_DOWN){ime->page_down();refresh_ime();return true;}
+    }
+    if(k>=32&&k<127){char c=char(k);if(c>='A'&&c<='Z')c+=32;
+        if(ime->input(c)){auto text=ime->take_commit();if(!text.empty())lv_textarea_add_text(query_field,text.c_str());refresh_ime();return true;}}
+    return false;
+}
 void search(){
     if(feed.search.empty()){note("这个目录没有提供搜索");return;}view=View::Search;frame("搜索书库");panel(16,48,768,245);
-    label("输入书名、作者或关键词",34,77,728);query_field=lv_textarea_create(lv_screen_active());lv_obj_set_pos(query_field,34,119);lv_obj_set_size(query_field,732,48);
+    label("输入书名、作者或关键词",34,68,500);
+    auto* mode=panel(576,58,190,34,teal);clickable(mode,[]{toggle_ime();});ime_mode=label("English / 拼音",584,64,174,0xfaf6eb);
+    query_field=lv_textarea_create(lv_screen_active());lv_obj_set_pos(query_field,34,101);lv_obj_set_size(query_field,732,46);
     lv_textarea_set_one_line(query_field,true);lv_textarea_set_max_length(query_field,160);lv_textarea_set_text(query_field,search_query.c_str());lv_obj_set_style_text_color(query_field,lv_color_hex(ink),0);
     if(font)lv_obj_set_style_text_font(query_field,font,0);lv_obj_add_state(query_field,LV_STATE_FOCUSED);lv_textarea_set_cursor_pos(query_field,LV_TEXTAREA_CURSOR_LAST);
-    label("支持 Calibre 查询，例如 author: 或 formats:EPUB",34,188,724,muted);
-    button("搜索",34,232,142,44,[]{submit_search();});button("返回",188,232,118,44,[]{catalog();});footer("实体键盘输入  ·  回车搜索  ·  右上退格删除  ·  返回取消");
+    ime_preedit=label("",34,153,724,muted);ime_row=panel(34,180,732,60);refresh_ime();
+    button("搜索",34,245,142,36,[]{if(ime&&ime->state()!=c1ime::State::Inactive){commit_candidate(0);return;}submit_search();});
+    button("返回",188,245,118,36,[]{catalog();});
+    button("候选上页",472,245,142,36,[]{if(ime){ime->page_up();refresh_ime();}});
+    button("候选下页",624,245,142,36,[]{if(ime){ime->page_down();refresh_ime();}});
+    footer("拍摄键：拼音/英文 · 空格选词 · 回车搜索 · 右上退格删除 · 返回取消");
 }
 void save_settings(){
     Server s{lv_textarea_get_text(fields[0]),trim(lv_textarea_get_text(fields[1])),lv_textarea_get_text(fields[2]),lv_textarea_get_text(fields[3])};
@@ -327,6 +391,7 @@ void key(uint32_t k){
     if(k==screen::KEY_HOME){cancelled=true;screen::quit=true;return;}
     if(k==screen::KEY_FONT_UP||k==screen::KEY_FONT_DOWN){if(view==View::Reader)resize_reader(k==screen::KEY_FONT_UP?2:-2);return;}
     if(view==View::Busy){if(k==screen::KEY_EXIT){cancelled=true;note("正在取消…");}return;}
+    if(view==View::Search&&search_ime_key(k))return;
     if(k==screen::KEY_EXIT){
         if(view==View::Error)render_return();
         else if(view==View::Book||view==View::Search)catalog();
@@ -347,7 +412,7 @@ void key(uint32_t k){
         else if(k>=32&&k<127)lv_textarea_add_char(query_field,k);return;
     }
     bool up=k==LV_KEY_UP||k=='w'||k=='W',down=k==LV_KEY_DOWN||k=='s'||k=='S';
-    bool left=k==LV_KEY_LEFT||k=='a'||k=='A',right=k==LV_KEY_RIGHT||k=='d'||k=='D';
+    bool left=k==LV_KEY_LEFT||k=='a'||k=='A'||k=='q'||k=='Q',right=k==LV_KEY_RIGHT||k=='d'||k=='D'||k=='e'||k=='E';
     if(view==View::Reader){if(epub&&(up||down)){load_chapter(down?1:-1);return;}
     if(left&&page==0&&page_origin){auto previous=crosspoint::previous_page(reader_text,page_origin,page_fits);page_origin-=previous.size();pages.insert(pages.begin(),std::move(previous));}
     else if(left&&page>0)--page;else if(right||k==LV_KEY_ENTER){
@@ -365,10 +430,10 @@ void key(uint32_t k){
         else if(k==LV_KEY_ENTER){download();return;}details();return;
     }
     if(view==View::Library){
-        if(k=='s'||k=='S'){field=0;settings();return;}
+        if(k=='g'||k=='G'){field=0;settings();return;}
         if(k=='o'||k=='O'){if(servers.empty())settings();else if(feed.url.empty())begin_feed(servers[0].url,Navigation::Root);else catalog();return;}
         if(k=='r'||k=='R'){scan();library();return;}
-        if(up&&book_index>0)--book_index;else if((k==LV_KEY_DOWN||k=='x'||k=='X')&&book_index+1<int(books.size()))++book_index;
+        if(up&&book_index>0)--book_index;else if((down||k=='x'||k=='X')&&book_index+1<int(books.size()))++book_index;
         else if(left)book_index=std::max(0,book_index-rows);else if(right)book_index=std::min(std::max(0,int(books.size())-1),book_index+rows);
         else if(k==LV_KEY_ENTER){open_book();return;}library();
     }
@@ -394,7 +459,7 @@ int main(){
         if(deferred&&!stopped&&!screen::quit){auto action=std::move(deferred);deferred={};action();}
         for(uint32_t k;(k=screen::take_key());)key(k);poll_job();usleep(8000);
     }
-    cancelled=true;if(worker.joinable())worker.join();
+    cancelled=true;if(worker.joinable())worker.join();ime.reset();
     lv_obj_clean(lv_screen_active());lv_obj_set_style_text_font(lv_screen_active(),LV_FONT_DEFAULT,0);
     if(reader_font)lv_tiny_ttf_destroy(reader_font);if(font)lv_tiny_ttf_destroy(font);if(font_map!=MAP_FAILED)munmap(font_map,font_map_size);screen::close();return 0;
 }

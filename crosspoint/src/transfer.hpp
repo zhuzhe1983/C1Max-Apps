@@ -2,8 +2,10 @@
 #include "opds.hpp"
 #include <atomic>
 #include <string>
+#include <stdexcept>
 
 namespace crosspoint {
+struct NoBooksFound : std::runtime_error { NoBooksFound():std::runtime_error("No books found"){} };
 struct Server { std::string name,url,user,password; };
 // Downloads are capped at 128 MiB; native 32-bit atomics avoid libatomic on MIPS.
 struct Progress { std::atomic<uint32_t> bytes{0}, total{0}; std::atomic<bool> saving{false}; };

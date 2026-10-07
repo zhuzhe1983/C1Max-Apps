@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <sys/file.h>
 #include <unistd.h>
+#include "../../shared/mute_hold.h"
 
 #define HOLD_MS 1500u
 #define BACK_HOLD_MS 2000u
@@ -107,6 +108,18 @@ static int foreground_busy(const char *path) {
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#include <tinyalsa/mixer.h>
+
+static void mute_system(void) {
+    struct mixer *m=mixer_open(0);
+    struct mixer_ctl *c=m?mixer_get_ctl_by_name(m,"softvolume"):NULL;
+    if(c&&mixer_ctl_get_type(c)==MIXER_CTL_TYPE_INT&&mixer_ctl_get_num_values(c)==2){
+        long low=mixer_ctl_get_range_min(c),levels[2]={low,low};
+        if(mixer_ctl_set_array(c,levels,2)==0)fprintf(stderr,"[hotkey] Volume down held 3s: system muted\n");
+        else fprintf(stderr,"[hotkey] Could not mute system volume\n");
+    }else fprintf(stderr,"[hotkey] System volume control unavailable\n");
+    if(m)mixer_close(m);
+}
 
 static volatile sig_atomic_t quitting;
 static void stop(int signal_number) { (void)signal_number; quitting = 1; }
@@ -186,7 +199,7 @@ static pid_t launch(const char *script, const char *log_path,
 }
 int main(int argc, char **argv) {
     if (argc == 2 && !strcmp(argv[1], "--version")) {
-        puts("C1Max hotkey 0.3.0 (Shift+Enter: hold 1500ms; Back: hold 2000ms; fire at threshold)"); return 0;
+        puts("C1Max hotkey 0.4.0 (Shift+Enter 1500ms; Back 2000ms; Volume- mute 3000ms; fire at threshold)"); return 0;
     }
     if (argc != 1) { fprintf(stderr, "Usage: %s [--version]\n", argv[0]); return 2; }
     const char *root = getenv("C1_APPS_ROOT"), *data = getenv("C1_APPS_DATA");
@@ -219,6 +232,7 @@ int main(int argc, char **argv) {
     static const char *devices[] = {"/dev/input/event0", "/dev/input/event1"};
     struct pollfd inputs[2] = {{.fd = -1, .events = POLLIN}, {.fd = -1, .events = POLLIN}};
     struct hotkey_state state = {0};
+    struct c1_mute_hold mute = {0};
     int dropped[2] = {0}, active = 0, result = 1;
     pid_t child = -1;
     for (int i = 0; i < 2; ++i) {
@@ -232,6 +246,7 @@ int main(int argc, char **argv) {
     while (!quitting && active) {
         uint64_t now;
         if (clock_ms(&now)) { perror("[hotkey] Clock"); goto done; }
+        if(c1_mute_due(&mute,now))mute_system();
         if (child > 0) {
             int status;
             pid_t reaped = waitpid(child, &status, WNOHANG);
@@ -267,7 +282,7 @@ int main(int argc, char **argv) {
             int remaining = elapsed >= BACK_HOLD_MS ? 0 : (int)(BACK_HOLD_MS - elapsed);
             if (remaining < timeout) timeout = remaining;
         }
-        int count = poll(inputs, 2, timeout);
+        int count = poll(inputs, 2, c1_mute_timeout(&mute,now,timeout));
         if (count < 0) { if (errno == EINTR) continue; perror("[hotkey] poll"); goto done; }
         for (int i = 0; i < 2 && !quitting; ++i) {
             if (inputs[i].fd < 0 || !inputs[i].revents) continue;
@@ -275,13 +290,14 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "[hotkey] Disconnected: %s\n", devices[i]);
                 close(inputs[i].fd); inputs[i].fd = -1; --active;
                 memset(state.keys[i], 0, sizeof state.keys[i]); inhibit(&state);
+                c1_mute_reset(&mute);
                 continue;
             }
             struct input_event event;
             ssize_t bytes;
             while (!quitting && (bytes = read(inputs[i].fd, &event, sizeof event)) == sizeof event) {
                 if (event.type == EV_SYN && event.code == SYN_DROPPED) {
-                    dropped[i] = 1; inhibit(&state); continue;
+                    dropped[i] = 1; inhibit(&state); c1_mute_reset(&mute); continue;
                 }
                 if (dropped[i]) {
                     if (event.type == EV_SYN && event.code == SYN_REPORT) {
@@ -291,7 +307,11 @@ int main(int argc, char **argv) {
                 }
                 if (event.type != EV_KEY) continue;
                 if (clock_ms(&now)) { perror("[hotkey] Clock"); goto done; }
+                if(c1_mute_due(&mute,now))mute_system();
                 key_update(&state, i, slot_for_code(event.code), event.value, now);
+                int shifted=state.keys[0][LEFT_SHIFT]||state.keys[0][RIGHT_SHIFT]||state.keys[1][LEFT_SHIFT]||state.keys[1][RIGHT_SHIFT];
+                if(shifted&&mute.down)mute.blocked=1;
+                if(event.code==KEY_VOLUMEDOWN)c1_mute_key(&mute,i,event.value,now,shifted);
             }
             if (!quitting && (bytes == 0 || (bytes > 0 && bytes != sizeof event) ||
                 (bytes < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR))) {

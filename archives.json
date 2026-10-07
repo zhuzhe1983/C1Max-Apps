@@ -10,5 +10,9 @@
   "xpdf-4.06": {
     "url": "https://dl.xpdfreader.com/xpdf-4.06.tar.gz",
     "sha256": "1c38f527c46caee0f712386d42a885b96a31ed9ce11904e872559859894d137e"
+  },
+  "xpdf-chinese-simplified": {
+    "url": "https://dl.xpdfreader.com/xpdf-chinese-simplified.tar.gz",
+    "sha256": "f946b8d1659812d7ed25d235ae9d693b37cd6927f34d72f32284d286ce2813b4"
   }
 }

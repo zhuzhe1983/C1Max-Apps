@@ -1,5 +1,6 @@
 #include "display.hpp"
 #include "net.hpp"
+#include "audio_client.h"
 #include <lvgl.h>
 #include <algorithm>
 #include <chrono>
@@ -54,8 +55,12 @@ lv_obj_t *now_name=nullptr,*now_meta=nullptr,*volume_text=nullptr,*volume_bar=nu
 lv_font_t *font_small=nullptr,*font=nullptr,*font_large=nullptr;
 struct mixer *audio_mixer=nullptr;
 struct mixer_ctl *volume_ctl=nullptr;
-int selected=0,playing_index=-1,player_in=-1,player_pid=-1,last_volume=-2;
+int selected=0,playing_index=-1,player_pid=-1,last_volume=-2;
 uint32_t last_volume_poll=0,loading_started=0,connecting_started=0;
+bool background=false;
+struct c1_audio_status audio_state{};
+void poll_audio();void toggle_background();void pause_audio();void stop_player();
+std::atomic<bool> closing{false};
 bool query_mode=false,add_mode=false,busy=false,category_list=false,connecting=false,content_loaded=false;
 Browse browse=Browse::Popular;
 int add_step=0;
@@ -80,7 +85,7 @@ lv_obj_t *panel(int x,int y,int w,int h,uint32_t color,int radius=12){
 }
 void update_badge(){
     if(!badge_text)return;
-    const char *text=busy?"LOADING":connecting?"CONNECTING":player_pid>0?"ON AIR":"READY";
+    const char *text=busy?"LOADING":connecting?"CONNECTING":player_pid>0?(audio_state.state==C1_AUDIO_PAUSED?"PAUSED":"ON AIR"):"READY";
     lv_label_set_text(badge_text,text);
     lv_obj_set_style_bg_color(badge,lv_color_hex(busy||connecting?brass:player_pid>0?teal:0x5a6d65),LV_PART_MAIN);
 }
@@ -184,11 +189,12 @@ std::vector<std::string> radio_api_hosts(){
 Json radio_json(const std::string &endpoint){
     std::string error="Radio directory unavailable";
     for(const auto &host:radio_api_hosts())try{
+        if(closing.load())throw std::runtime_error("Cancelled");
         c1::reset_requests(7000);
-        auto r=c1::http("GET","https://"+host+endpoint,{"User-Agent: C1Max-Airtune/1.1","Accept: application/json"});
+        auto r=c1::http("GET","https://"+host+endpoint,{"User-Agent: C1Max-Airtune/1.1","Accept: application/json"},"",&closing);
         if(r.status!=200)throw std::runtime_error("Radio directory HTTP "+std::to_string(r.status));
         return Json::parse(r.body);
-    }catch(const std::exception &e){error=e.what();}
+    }catch(const std::exception &e){error=e.what();if(closing.load())break;}
     throw std::runtime_error(error);
 }
 std::vector<Station> parse_stations(const Json &data){
@@ -294,7 +300,7 @@ void change_browse(Browse b){if(busy)return;browse=b;query_mode=false;load_brows
 void button_style(lv_obj_t *o,uint32_t color){lv_obj_set_style_bg_color(o,lv_color_hex(color),0);lv_obj_set_style_bg_opa(o,LV_OPA_COVER,0);lv_obj_set_style_text_color(o,lv_color_hex(ink),0);lv_obj_set_style_border_width(o,0,0);lv_obj_set_style_radius(o,7,0);}
 void paint(){
     std::string old_query=query?std::string(lv_textarea_get_text(query)):current_query;
-    query=nullptr;now_name=now_meta=volume_text=volume_bar=nullptr;
+    query=nullptr;status_line=nullptr;now_name=now_meta=volume_text=volume_bar=nullptr;
     auto *root=lv_screen_active();lv_obj_clean(root);lv_obj_remove_flag(root,LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(root,lv_color_hex(0xe9e2d2),0);lv_obj_set_style_text_color(root,lv_color_hex(ink),0);if(font)lv_obj_set_style_text_font(root,font,0);
     panel(12,6,776,38,0xf7f2e6,11);
@@ -322,6 +328,16 @@ void paint(){
     lv_textarea_set_max_length(query,add_mode?(add_step==0?80:2048):256);
     const std::string input_text=add_mode?(add_step==0?add_name:add_url):(query_mode?old_query:current_query);
     lv_textarea_set_text(query,input_text.c_str());lv_obj_set_style_bg_color(query,lv_color_hex(0xfffcf5),0);lv_obj_set_style_text_color(query,lv_color_hex(ink),0);
+    for(auto event:{LV_EVENT_PRESSED,LV_EVENT_CLICKED,LV_EVENT_FOCUSED})lv_obj_add_event_cb(query,[](lv_event_t *e){
+        if(add_mode)return;
+        query_mode=true;
+        auto *field=static_cast<lv_obj_t*>(lv_event_get_target(e));
+        lv_obj_add_state(field,LV_STATE_FOCUSED);
+        lv_obj_set_style_border_color(field,lv_color_hex(teal),0);
+        lv_obj_set_style_border_width(field,2,0);
+        status("Type a station name · Enter searches · Return cancels");
+    },event,nullptr);
+    if(query_mode||add_mode)lv_obj_add_state(query,LV_STATE_FOCUSED);
     lv_obj_set_style_border_color(query,lv_color_hex(query_mode||add_mode?teal:0xd4c8aa),0);lv_obj_set_style_border_width(query,query_mode||add_mode?2:1,0);lv_obj_set_style_radius(query,8,0);lv_obj_set_style_pad_left(query,12,0);lv_obj_set_style_pad_right(query,10,0);if(add_mode&&font)lv_obj_set_style_text_font(query,font,0);else if(font_small)lv_obj_set_style_text_font(query,font_small,0);
     if(saved_page){auto *add=lv_button_create(root);lv_obj_set_pos(add,406,103);lv_obj_set_size(add,109,31);button_style(add,teal);auto *text=lv_label_create(add);lv_label_set_text(text,"+  ADD STATION");lv_obj_center(text);lv_obj_set_style_text_color(text,lv_color_hex(0xffffff),0);if(font_small)lv_obj_set_style_text_font(text,font_small,0);lv_obj_add_event_cb(add,[](lv_event_t*){if(!busy)begin_add_station();},LV_EVENT_CLICKED,nullptr);}
     const int start=(selected/5)*5;const int total=int(category_list?categories.size():stations.size());const int shown=std::max(0,std::min(5,total-start));
@@ -366,12 +382,15 @@ void paint(){
         label("NOW PLAYING",553,61,218,0xd6c9ad,14);
         now_name=label("Choose a station",553,86,218,0xf8f2e6,22);lv_obj_set_height(now_name,38);lv_label_set_long_mode(now_name,LV_LABEL_LONG_DOT);
         now_meta=label("WORLD STREAMS",553,128,218,0xc5d6c8,14);lv_label_set_long_mode(now_meta,LV_LABEL_LONG_DOT);
-        label("AUDIO OUTPUT",553,157,218,0xc5d6c8,13);
+        auto audio_button=[&](const char *caption,int x,int y,int w,lv_event_cb_t callback){auto *b=lv_button_create(root);lv_obj_set_pos(b,x,y);lv_obj_set_size(b,w,27);button_style(b,teal);auto *t=lv_label_create(b);lv_label_set_text(t,caption);if(font_small)lv_obj_set_style_text_font(t,font_small,0);lv_obj_set_style_text_color(t,lv_color_hex(0xffffff),0);lv_obj_center(t);lv_obj_add_event_cb(b,callback,LV_EVENT_CLICKED,nullptr);};
+        audio_button(background?"BACKGROUND: ON":"BACKGROUND: OFF",553,150,218,[](lv_event_t*){toggle_background();});
+        audio_button(audio_state.state==C1_AUDIO_PAUSED?"RESUME":"PAUSE",553,236,104,[](lv_event_t*){pause_audio();});
+        audio_button("STOP",667,236,104,[](lv_event_t*){stop_player();});
         volume_text=label("SYSTEM VOLUME  --",553,178,218,0xf5e7c9,16);
         volume_bar=lv_bar_create(root);lv_obj_set_pos(volume_bar,553,207);lv_obj_set_size(volume_bar,218,12);lv_bar_set_range(volume_bar,0,100);lv_bar_set_value(volume_bar,last_volume<0?0:last_volume,LV_ANIM_OFF);
         lv_obj_set_style_bg_color(volume_bar,lv_color_hex(0x3d5650),LV_PART_MAIN);lv_obj_set_style_bg_opa(volume_bar,LV_OPA_COVER,LV_PART_MAIN);lv_obj_set_style_radius(volume_bar,4,LV_PART_MAIN);
         lv_obj_set_style_bg_color(volume_bar,lv_color_hex(0x7fc5a8),LV_PART_INDICATOR);lv_obj_set_style_bg_opa(volume_bar,LV_OPA_COVER,LV_PART_INDICATOR);lv_obj_set_style_radius(volume_bar,4,LV_PART_INDICATOR);
-        label("Hardware volume keys  − / +",553,232,220,0xc5d6c8,13);
+
     }
     status_line=label("",16,287,768,muted,16);lv_label_set_long_mode(status_line,LV_LABEL_LONG_DOT);
     const char *help=add_mode?"POWER returns to launcher":browse==Browse::Saved?"A add station   BACKSPACE / F delete   ENTER play / stop   POWER menu":"↑↓ browse   ENTER choose / play   Q search   F save / remove   SAVED: A add, BACKSPACE delete   POWER menu";
@@ -379,19 +398,35 @@ void paint(){
     update_player_panel();update_volume(true);update_badge();
 }
 
+void poll_audio(){
+    c1_audio_status next{};int previous=audio_state.state;
+    bool own=c1_audio_get(&next)==0&&next.owner==C1_AUDIO_AIRTUNE;
+    audio_state=own?next:c1_audio_status{};player_pid=own&&next.state>=C1_AUDIO_CONNECTING&&next.state<=C1_AUDIO_PAUSED?1:-1;
+    connecting=player_pid>0&&next.state==C1_AUDIO_CONNECTING;
+    if(player_pid>0){playing_station.name=next.title;playing_station.url=next.url;}
+    else {playing_index=-1;playing_station={};}
+    if(previous!=audio_state.state){update_player_panel();update_badge();if(audio_state.state==C1_AUDIO_ERROR)status(next.error);}
+}
 void stop_player(){
-    if(player_in>=0){write(player_in,"quit\n",5);close(player_in);player_in=-1;}
-    if(player_pid>0){for(int i=0;i<20;i++){if(waitpid(player_pid,nullptr,WNOHANG)==player_pid){player_pid=-1;break;}usleep(50000);}if(player_pid>0){kill(player_pid,SIGTERM);waitpid(player_pid,nullptr,0);player_pid=-1;}}
-    playing_index=-1;playing_station=Station{};connecting=false;update_player_panel();update_badge();
+    c1_audio_command(C1_AUDIO_AIRTUNE,C1_AUDIO_STOP,0,nullptr);poll_audio();update_player_panel();update_badge();
+}
+void pause_audio(){
+    if(c1_audio_command(C1_AUDIO_AIRTUNE,C1_AUDIO_PAUSE,0,&audio_state))status("Wait for the station to connect");
+    else {poll_audio();paint();}
+}
+void toggle_background(){
+    auto value=c1_audio_background_preference(C1_AUDIO_AIRTUNE,!background);
+    if(value<0){status("Cannot save background preference");return;}background=value;
+    c1_audio_command(C1_AUDIO_AIRTUNE,C1_AUDIO_BACKGROUND,background,nullptr);paint();
+    status(background?"Radio keeps playing when you return to the app menu":"Returning to the app menu stops radio playback");
 }
 void play(){
     if(stations.empty()||selected<0||selected>=int(stations.size()))return;
-    if(!valid_stream_url(stations[selected].url)){status("This older save needs Radio-Browser to restore its stream URL");return;}
-    stop_player();const Station station=stations[selected];int pipes[2];if(pipe(pipes)){status("Audio process unavailable");return;}
-    pid_t parent=getpid(),pid=fork();
-    if(pid==0){prctl(PR_SET_PDEATHSIG,SIGTERM);if(getppid()!=parent)_exit(1);dup2(pipes[0],STDIN_FILENO);int log=open("/dev/null",O_WRONLY);if(log>=0){dup2(log,STDOUT_FILENO);dup2(log,STDERR_FILENO);}close(pipes[0]);close(pipes[1]);execlp("mplayer","mplayer","-noconfig","all","-slave","-quiet","-ao","media","-cache","256","-cache-min","5",station.url.c_str(),(char*)nullptr);_exit(127);}
-    close(pipes[0]);if(pid<0){close(pipes[1]);status("Cannot start MPlayer");return;}
-    player_pid=pid;player_in=pipes[1];playing_station=station;playing_index=selected;connecting=true;connecting_started=screen::tick();update_player_panel();status("Connecting to "+station.name+"…");
+    const Station station=stations[selected];if(!valid_stream_url(station.url)||station.url.size()>=sizeof(c1_audio_request::url)){status("This stream URL is unavailable or too long");return;}
+    c1_audio_request request{};request.owner=C1_AUDIO_AIRTUNE;request.action=C1_AUDIO_PLAY;request.kind=C1_AUDIO_URL;request.background=background;
+    snprintf(request.url,sizeof request.url,"%s",station.url.c_str());c1_audio_text(request.title,sizeof request.title,station.name.c_str());
+    if(c1_audio_call(&request,&audio_state,1)){status("Cannot start audio service");return;}
+    playing_station=station;playing_index=selected;poll_audio();update_player_panel();status("Connecting to "+station.name+"…");
 }
 void open_selected(){if(busy)return;if(category_list)load_category();else play();}
 void change_selected(int delta){
@@ -408,9 +443,9 @@ void remove_saved_selection(){
     favorites_save();stations=saved_stations_view();selected=stations.empty()?0:std::min(selected,int(stations.size())-1);content_loaded=true;paint();status("Removed from local SAVED list");
 }
 void key(uint32_t k){
-    if(k==screen::KEY_HOME){stop_player();screen::quit=true;return;}
+    if(k==screen::KEY_HOME){screen::quit=true;return;}
     if(k==screen::KEY_MODE)return;
-    if(busy)return;
+    if(busy&&!query_mode)return;
     if(add_mode){
         if(k==screen::KEY_EXIT){add_mode=false;add_step=0;add_name.clear();add_url.clear();paint();status("Add station cancelled");return;}
         if(k==LV_KEY_BACKSPACE){lv_textarea_delete_char(query);return;}
@@ -426,13 +461,15 @@ void key(uint32_t k){
     }
     if(query_mode){if(k==screen::KEY_EXIT){query_mode=false;paint();status("Search cancelled");return;}
         if(k==LV_KEY_BACKSPACE)lv_textarea_delete_char(query);
-        else if(k==LV_KEY_ENTER){current_query=query_text();query_mode=false;browse=Browse::Search;load_browse();}
+        else if(k==LV_KEY_ENTER){if(busy){status("Directory is still loading · Enter searches when ready");return;}current_query=query_text();query_mode=false;browse=Browse::Search;load_browse();}
         else if(k>=32&&k<127)lv_textarea_add_char(query,k);return;}
     if(k==screen::KEY_EXIT){
         if(!category_list&&(browse==Browse::Country||browse==Browse::Genre||browse==Browse::Mood||browse==Browse::Group)){category_list=true;selected=0;categories.clear();load_browse();}
         else if(browse!=Browse::Popular)change_browse(Browse::Popular);
         else if(player_pid>0)stop_player();return;
     }
+    if(k=='b'||k=='B'){toggle_background();return;}
+    if(k==' '){pause_audio();return;}
     if(k=='q'||k=='Q'){query_mode=true;lv_textarea_set_text(query,"");paint();status("Type a station name · Enter searches");return;}
     if(browse==Browse::Saved&&(k=='a'||k=='A')){begin_add_station();return;}
     if(browse==Browse::Saved&&(k==LV_KEY_BACKSPACE||k=='f'||k=='F')){remove_saved_selection();return;}
@@ -451,6 +488,7 @@ int main(){
     if(!screen::open())return 1;
     const std::string font_path="A:"+c1::root()+"/shared/NotoSansSC-Regular.ttf";
     font_small=lv_tiny_ttf_create_file(font_path.c_str(),14);font=lv_tiny_ttf_create_file(font_path.c_str(),18);font_large=lv_tiny_ttf_create_file(font_path.c_str(),24);
+    background=c1_audio_background_preference(C1_AUDIO_AIRTUNE,-1);poll_audio();
     favorites_load();paint();status("Loading popular stations…");load_browse();
     uint32_t last_animation=0;
     while(!stopped&&!screen::quit){
@@ -463,13 +501,11 @@ int main(){
             update_badge();
         }
         if(busy&&now-last_animation>=350){last_animation=now;static int phase=0;phase=(phase+1)%4;std::string dots(phase,'.');if(status_line)lv_label_set_text(status_line,(working_message+dots).c_str());if(badge_text)lv_label_set_text(badge_text,("LOAD"+dots).c_str());}
-        if(connecting&&now-connecting_started>=6500){connecting=false;status("On air · "+(playing_index>=0&&playing_index<int(stations.size())?stations[playing_index].name:std::string("stream")));}
-        if(player_pid>0&&waitpid(player_pid,nullptr,WNOHANG)==player_pid){player_pid=-1;connecting=false;if(player_in>=0){close(player_in);player_in=-1;}playing_index=-1;playing_station=Station{};update_player_panel();status("Stream ended · choose another station");}
-        if(now-last_volume_poll>=500){last_volume_poll=now;update_volume();}
+        if(now-last_volume_poll>=500){last_volume_poll=now;update_volume();poll_audio();}
         if(category_list)update_player_panel();
         usleep(8000);
     }
-    if(request_job.valid())request_job.wait();stop_player();lv_obj_clean(lv_screen_active());lv_obj_set_style_text_font(lv_screen_active(),LV_FONT_DEFAULT,0);
+    closing=true;c1::cancel_requests();if(request_job.valid())request_job.wait();c1_audio_command(C1_AUDIO_AIRTUNE,C1_AUDIO_DETACH,0,nullptr);lv_obj_clean(lv_screen_active());lv_obj_set_style_text_font(lv_screen_active(),LV_FONT_DEFAULT,0);
     if(font_small)lv_tiny_ttf_destroy(font_small);if(font)lv_tiny_ttf_destroy(font);if(font_large)lv_tiny_ttf_destroy(font_large);
     if(audio_mixer)mixer_close(audio_mixer);screen::close();return 0;
 }

@@ -20,6 +20,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <time.h>
+#include "audio_client.h"
+#include "songs.h"
 #include <signal.h>
 #include <errno.h>
 #include <poll.h>
@@ -61,6 +64,7 @@ static void blit_rect(int x0,int y0,int x1,int y1){
 static inline void bb_set(int dx,int dy,uint32_t c){ g_back[(long)dy*DISP_W + dx] = c; }
 
 // ---------------- 键盘布局 ----------------
+#define KEY_TOP 76
 #define NKEYS 24
 // 24 个键 = 2 个八度 C4..B5：14 白键 + 10 黑键
 // 白键 MIDI: 60 62 64 65 67 69 71  72 74 76 77 79 81 83
@@ -88,15 +92,15 @@ static void layout_keys(void){
     int x0 = (DISP_W - used)/2;          // 居中留边
     for(int i=0;i<NWHITE;i++){
         Key *k=&g_keys[i];
-        k->is_black=0; k->x=x0+i*ww; k->y=0; k->w=ww; k->h=DISP_H;
+        k->is_black=0; k->x=x0+i*ww; k->y=KEY_TOP; k->w=ww; k->h=DISP_H-KEY_TOP;
         k->midi=white_midi[i]; k->freq=midi_freq(k->midi);
     }
-    int bw = ww*2/3, bh = DISP_H*3/5;    // 黑键更窄更短
+    int bw = ww*2/3, bh = (DISP_H-KEY_TOP)*3/5;    // 黑键更窄更短
     for(int j=0;j<10;j++){
         Key *k=&g_keys[NWHITE+j];
         int wa = black_after[j];
         int cx = g_keys[wa].x + ww;      // 两白键交界
-        k->is_black=1; k->x=cx-bw/2; k->y=0; k->w=bw; k->h=bh;
+        k->is_black=1; k->x=cx-bw/2; k->y=KEY_TOP; k->w=bw; k->h=bh;
         k->midi=black_midi[j]; k->freq=midi_freq(k->midi);
     }
 }
@@ -142,11 +146,13 @@ static void draw_key(int idx,int pressed){
     }
     blit_rect(x0,y0,x1,y1);
 }
+static void draw_toolbar(void);
 static void draw_all(void){
     // 底色
     for(int y=0;y<DISP_H;y++) for(int x=0;x<DISP_W;x++) bb_set(x,y,argb(10,10,14));
     for(int i=0;i<NWHITE;i++) paint_key(i,g_gate[i]); // 先白键
     for(int j=NWHITE;j<NKEYS;j++) paint_key(j,g_gate[j]); // 黑键覆盖
+    draw_toolbar();
     blit_rect(0,0,DISP_W,DISP_H);
 }
 
@@ -161,7 +167,7 @@ static int verify_render(uint32_t*reference){
     if(memcmp(reference,g_back,DISP_W*DISP_H*sizeof(*g_back)))return 0;
     for(int i=0;i<NKEYS;i++){
         Key*k=&g_keys[i];
-        int x=k->x+k->w/2,y=k->is_black?80:300;
+        int x=k->x+k->w/2,y=k->is_black?k->y+k->h/2:300;
         uint32_t expected=k->is_black?(g_gate[i]?argb(80,120,255):argb(24,24,28)):
                                         (g_gate[i]?argb(150,180,255):argb(248,248,250));
         if(g_back[(long)y*DISP_W+x]!=expected)return 0;
@@ -258,6 +264,87 @@ static void map_touch(int tx,int ty,int*dx,int*dy){
 static volatile int g_run=1;
 static void on_sig(int s){(void)s; g_run=0;}
 
+static struct pcm *manual_pcm;
+static int selected_song=0,background=0,auto_active=0;
+static struct c1_audio_status music;
+static struct pcm *open_pcm(void){
+    enable_speaker();
+    static const struct { unsigned ps, pc; } cand[] = {
+        {1280,8},{1280,4},{1024,8},{1024,4},{2048,4},{960,8},{512,8},{256,8}
+    };
+    struct pcm*pcm=NULL;
+    for(unsigned i=0;i<sizeof(cand)/sizeof(cand[0]);i++){
+        struct pcm_config cfg; memset(&cfg,0,sizeof(cfg));
+        cfg.channels=2; cfg.rate=SR; cfg.format=PCM_FORMAT_S16_LE;
+        cfg.period_size=cand[i].ps; cfg.period_count=cand[i].pc;
+        struct pcm*p=pcm_open(0,0,PCM_OUT,&cfg);
+        if(p&&pcm_is_ready(p)){
+            pcm=p; PERIOD=(int)cand[i].ps; if(PERIOD>MAXPER)PERIOD=MAXPER;
+            printf("pcm ready: 2ch %uHz period=%u x%u (cand %u)\n",SR,cand[i].ps,cand[i].pc,i);
+            break;
+        }
+        if(p){ fprintf(stderr,"cand %u (%u x%u) failed: %s\n",i,cand[i].ps,cand[i].pc,pcm_get_error(p)); pcm_close(p);}
+    }
+    return pcm;
+
+}
+static long long millis(void){struct timespec t;clock_gettime(CLOCK_MONOTONIC,&t);return (long long)t.tv_sec*1000+t.tv_nsec/1000000;}
+static void text_at(int x,int y,const char*s,int scale){
+    for(;*s&&x+8*scale<=DISP_W;s++,x+=8*scale)for(int r=0;r<8;r++)for(int c=0;c<8;c++)if(font8x8_basic[(unsigned char)*s&127][r]&(1<<c))
+        for(int j=0;j<scale;j++)for(int i=0;i<scale;i++)bb_set(x+c*scale+i,y+r*scale+j,argb(232,242,235));
+}
+static void draw_toolbar(void){
+    for(int y=0;y<KEY_TOP;y++)for(int x=0;x<DISP_W;x++)bb_set(x,y,argb(24,49,47));
+    text_at(16,18,"<",2);text_at(66,18,auto_active?(music.state==C1_AUDIO_PAUSED?"PLAY":"PAUSE"):"PLAY",2);text_at(173,18,">",2);
+    text_at(223,18,songs[selected_song].title,2);text_at(642,18,background?"BG: ON":"BG: OFF",2);
+    if(music.owner==C1_AUDIO_PIANO&&music.state==C1_AUDIO_ERROR){text_at(16,53,"Audio unavailable - try Play again",1);return;}
+    text_at(16,53,"CAMERA play/pause  ENTER next  BACK previous  SHIFT+CAMERA background",1);
+}
+static void refresh_music(void){
+    struct c1_audio_status next;int active=c1_audio_get(&next)==0&&next.owner==C1_AUDIO_PIANO&&next.state>=C1_AUDIO_CONNECTING&&next.state<=C1_AUDIO_PAUSED;
+    if(next.owner==C1_AUDIO_PIANO)music=next;
+    if(active){if(next.song>=0&&next.song<SONG_COUNT)selected_song=next.song;}
+    if(active||auto_active){auto_active=active;int note=active&&music.state==C1_AUDIO_PLAYING?song_note(selected_song,music.position_ms):0;
+        for(int i=0;i<NKEYS;i++){int on=note==g_keys[i].midi;if(g_gate[i]!=on){g_gate[i]=on;draw_key(i,on);}}
+        draw_toolbar();blit_rect(0,0,DISP_W,KEY_TOP);
+    }
+}
+static void start_song(int song){
+    selected_song=(song+SONG_COUNT)%SONG_COUNT;if(manual_pcm){pcm_close(manual_pcm);manual_pcm=NULL;}
+    memset((void*)g_gate,0,sizeof g_gate);memset(g_env,0,sizeof g_env);
+    struct c1_audio_request r={0};r.action=C1_AUDIO_PLAY;r.owner=C1_AUDIO_PIANO;r.kind=C1_AUDIO_SONG;r.index=selected_song;r.background=background;r.duration_ms=song_duration(selected_song);
+    const char*root=getenv("C1_APPS_ROOT");if(!root)root="/storage/apps/current";snprintf(r.url,sizeof r.url,"%s/piano/c1max-piano",root);snprintf(r.title,sizeof r.title,"%s",songs[selected_song].title);
+    auto_active=c1_audio_call(&r,&music,1)==0;
+    if(auto_active)for(int i=1;i<SONG_COUNT;i++){r.action=C1_AUDIO_APPEND;r.index=(selected_song+i)%SONG_COUNT;r.duration_ms=song_duration(r.index);snprintf(r.title,sizeof r.title,"%s",songs[r.index].title);c1_audio_call(&r,NULL,0);}
+    draw_all();
+}
+static void control(int action){
+    if(action==0)start_song(selected_song-1);
+    if(action==1){if(auto_active)c1_audio_command(C1_AUDIO_PIANO,C1_AUDIO_PAUSE,0,&music);else start_song(selected_song);}
+    if(action==2)start_song(selected_song+1);
+    if(action==3){int value=c1_audio_background_preference(C1_AUDIO_PIANO,!background);if(value>=0){background=value;c1_audio_command(C1_AUDIO_PIANO,C1_AUDIO_BACKGROUND,background,&music);}}
+    draw_toolbar();blit_rect(0,0,DISP_W,KEY_TOP);
+}
+static void manual(void){
+    if(manual_pcm)return;c1_audio_command(0,C1_AUDIO_STOP,0,NULL);auto_active=0;memset((void*)g_gate,0,sizeof g_gate);memset(g_env,0,sizeof g_env);manual_pcm=open_pcm();draw_all();
+}
+static int play_song_audio(int song){
+    if(song<0||song>=SONG_COUNT)return 2;layout_keys();for(int k=0;k<NKEYS;k++)g_step[k]=g_keys[k].freq/SR;
+    struct pcm *pcm=open_pcm();if(!pcm)return 1;setvbuf(stdout,NULL,_IOLBF,0);fcntl(0,F_SETFL,O_NONBLOCK);puts("C1_PIANO_READY");
+    long long position=0;int paused=0,failed=0,failures=0;char pending[1024];size_t used=0;
+    while(g_run&&position<song_duration(song)+220){
+        char ch;while(read(0,&ch,1)==1){if(ch=='\n'){pending[used]=0;used=0;
+            if(!strcmp(pending,"quit")){g_run=0;break;}
+            if(!strcmp(pending,"pause"))paused=!paused;
+            if(strstr(pending,"get_time_pos"))printf("C1_POSITION=%.3f\n",position/1000.0);
+            char *seek=strstr(pending,"seek ");if(seek){position+=(long long)(atof(seek+5)*1000);if(position<0)position=0;memset(g_env,0,sizeof g_env);}
+        }else if(used<sizeof pending-1)pending[used++]=ch;}
+        int note=paused?0:song_note(song,position);for(int i=0;i<NKEYS;i++)g_gate[i]=note==g_keys[i].midi;
+        render_period();if(pcm_writei(pcm,g_buf,PERIOD)<0){pcm_prepare(pcm);if(++failures>=6){failed=1;break;}continue;}failures=0;
+        if(!paused)position+=(long long)PERIOD*1000/SR;
+    }
+    pcm_close(pcm);return failed;
+}
 int main(int argc,char**argv){
     if(argc==2&&!strcmp(argv[1],"--render-test"))return render_test();
     signal(SIGINT,on_sig); signal(SIGTERM,on_sig);
@@ -265,6 +352,8 @@ int main(int argc,char**argv){
 
     for(int i=0;i<SINLEN;i++) g_sin[i]=sinf(2.0f*(float)M_PI*i/SINLEN);
 
+    if(argc==4&&!strcmp(argv[1],"--audio-only")&&!strcmp(argv[2],"--song"))return play_song_audio(atoi(argv[3]));
+    background=c1_audio_background_preference(C1_AUDIO_PIANO,-1);
     // fb2
     int fbfd=open("/dev/fb2",O_RDWR);
     if(fbfd<0){perror("open fb2");return 1;}
@@ -288,41 +377,28 @@ int main(int argc,char**argv){
     if(evfd<0) perror("open event2");   // 无触摸也让声音/画面能测
     else { struct input_event tmp; while(read(evfd,&tmp,sizeof(tmp))==(int)sizeof(tmp)){} } // 丢弃开机前残留事件
 
-    // 音频：Ingenic AS 驱动对 period/buffer 挑剔(aplay 协商到 1280x8)。
-    // 逐个候选尝试，用第一个能开的。
-    enable_speaker();
-    static const struct { unsigned ps, pc; } cand[] = {
-        {1280,8},{1280,4},{1024,8},{1024,4},{2048,4},{960,8},{512,8},{256,8}
-    };
-    struct pcm*pcm=NULL;
-    for(unsigned i=0;i<sizeof(cand)/sizeof(cand[0]);i++){
-        struct pcm_config cfg; memset(&cfg,0,sizeof(cfg));
-        cfg.channels=2; cfg.rate=SR; cfg.format=PCM_FORMAT_S16_LE;
-        cfg.period_size=cand[i].ps; cfg.period_count=cand[i].pc;
-        struct pcm*p=pcm_open(0,0,PCM_OUT,&cfg);
-        if(p&&pcm_is_ready(p)){
-            pcm=p; PERIOD=(int)cand[i].ps; if(PERIOD>MAXPER)PERIOD=MAXPER;
-            printf("pcm ready: 2ch %uHz period=%u x%u (cand %u)\n",SR,cand[i].ps,cand[i].pc,i);
-            break;
-        }
-        if(p){ fprintf(stderr,"cand %u (%u x%u) failed: %s\n",i,cand[i].ps,cand[i].pc,pcm_get_error(p)); pcm_close(p);}
-    }
-    if(!pcm) fprintf(stderr,"pcm_open failed for all candidates; running silent\n");
-
+    manual_pcm=NULL;
     // 触摸解析状态(单点协议 B 之外的单点：ABS_X/ABS_Y + BTN_TOUCH)
     int matrix=open("/dev/input/event0",O_RDONLY|O_NONBLOCK),gpio=open("/dev/input/event1",O_RDONLY|O_NONBLOCK);
-    int physical[NKEYS]={0};
+    int physical[NKEYS]={0}; int shift_down=0;
     const int note_keys[NKEYS]={KEY_A,KEY_W,KEY_S,KEY_E,KEY_D,KEY_F,KEY_T,KEY_G,KEY_Y,KEY_H,KEY_U,KEY_J,KEY_K,KEY_O,KEY_L,KEY_P,KEY_Z,KEY_X,KEY_C,KEY_V,KEY_B,KEY_N,KEY_M,KEY_Q};
     int touching=0, cur_tx=0, cur_ty=0, cur_key=-1;
     long long elapsed=0; long long per_us=(long long)PERIOD*1000000/SR;
-    int frames_written=0, write_err=0;
+    int frames_written=0, write_err=0;long long last_music=0;int toolbar_down=0;
+    refresh_music();
 
     while(g_run){
         struct input_event ke;
         while(matrix>=0&&read(matrix,&ke,sizeof ke)==sizeof ke)if(ke.type==EV_KEY){
-            for(int n=0;n<NKEYS;n++)if(ke.code==note_keys[n])for(int k=0;k<NKEYS;k++)if(g_keys[k].midi==60+n){physical[k]=ke.value!=0;g_gate[k]=physical[k]||cur_key==k;draw_key(k,g_gate[k]);}
+            if(ke.code==KEY_LEFTSHIFT||ke.code==KEY_RIGHTSHIFT)shift_down=ke.value!=0;
+            if(ke.code==KEY_SPACE&&ke.value==1)control(1);
+            for(int n=0;n<NKEYS;n++)if(ke.code==note_keys[n]){if(ke.value)manual();if(!manual_pcm)continue;for(int k=0;k<NKEYS;k++)if(g_keys[k].midi==60+n){physical[k]=ke.value!=0;g_gate[k]=physical[k]||cur_key==k;draw_key(k,g_gate[k]);}}
         }
-        while(gpio>=0&&read(gpio,&ke,sizeof ke)==sizeof ke)if(ke.type==EV_KEY&&ke.value&&ke.code==KEY_POWER)g_run=0;
+        while(gpio>=0&&read(gpio,&ke,sizeof ke)==sizeof ke)if(ke.type==EV_KEY&&ke.value==1){
+            if(ke.code==KEY_POWER)g_run=0;
+            else if(ke.code==KEY_SPACE)control(1);else if(ke.code==KEY_ENTER)control(2);
+            else if(ke.code==KEY_BACKSPACE||ke.code==KEY_ESC)control(0);else if(ke.code==KEY_SHUFFLE)control(shift_down?3:1);
+        }
         // 1) 非阻塞排空触摸事件
         if(evfd>=0){
             struct input_event ie; int changed=0;
@@ -338,7 +414,10 @@ int main(int argc,char**argv){
             }
             if(changed){
                 int want=-1;
-                if(touching){ int dx,dy; map_touch(cur_tx,cur_ty,&dx,&dy); want=hit_key(dx,dy); }
+                if(touching){int dx,dy;map_touch(cur_tx,cur_ty,&dx,&dy);
+                    if(dy<KEY_TOP){if(!toolbar_down){if(dx<53)control(0);else if(dx<160)control(1);else if(dx<214)control(2);else if(dx>=628)control(3);}toolbar_down=1;}
+                    else {want=hit_key(dx,dy);if(want>=0)manual();}
+                }else toolbar_down=0;
                 if(want!=cur_key){
                     if(cur_key>=0){ g_gate[cur_key]=physical[cur_key]; draw_key(cur_key,g_gate[cur_key]); }
                     if(want>=0){ g_gate[want]=1; draw_key(want,1); }
@@ -347,10 +426,11 @@ int main(int argc,char**argv){
             }
         }
         // 2) 渲染一个 period 并写 PCM（阻塞→定拍）
-        render_period();
-        if(pcm){
-            int rc=pcm_writei(pcm,g_buf,PERIOD);
-            if(rc<0){ write_err++; pcm_prepare(pcm); }
+        if(millis()-last_music>=150){last_music=millis();refresh_music();}
+        if(manual_pcm){
+            render_period();
+            int rc=pcm_writei(manual_pcm,g_buf,PERIOD);
+            if(rc<0){ write_err++; pcm_prepare(manual_pcm); }
             else frames_written+=PERIOD;
         } else {
             usleep(per_us);   // 无 PCM 时也维持循环节奏
@@ -360,7 +440,8 @@ int main(int argc,char**argv){
     }
 
     printf("exit: frames_written=%d write_err=%d\n",frames_written,write_err);
-    if(pcm) pcm_close(pcm);
+    if(manual_pcm)pcm_close(manual_pcm);
+    c1_audio_command(C1_AUDIO_PIANO,C1_AUDIO_DETACH,0,NULL);
     if(evfd>=0) close(evfd);
     if(matrix>=0)close(matrix);if(gpio>=0)close(gpio);
     free(g_back); munmap(g_fb,map_sz); close(fbfd);

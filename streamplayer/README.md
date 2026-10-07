@@ -44,3 +44,14 @@
 接口依据：[Emby Video Streaming](https://dev.emby.media/doc/restapi/Video-Streaming.html)、[转码尺寸及字幕参数](https://dev.emby.media/reference/RestAPI/VideoService/getVideosByIdStreamByContainer.html)。键盘映射见 [键盘说明](../docs-keyboard.md)。
 
 独立字幕接口：[Emby SubtitleService](https://dev.emby.media/reference/RestAPI/SubtitleService/getVideosByIdByMediasourceidSubtitlesByIndexByStartpositionticksStreamByFormat.html)，使用 `StartPositionTicks`、`EndPositionTicks` 与 `CopyTimestamps=true`。SUP/PGS 字段与调色板格式参照 [FFmpeg 4.2 SUP demuxer](https://github.com/FFmpeg/FFmpeg/blob/n4.2/libavformat/supdec.c) 和 [PGS decoder](https://github.com/FFmpeg/FFmpeg/blob/n4.2/libavcodec/pgssubdec.c)，本地实现设有独立的帧、对象、字幕和内存边界。
+
+## 音乐与后台播放（0.3.0）
+
+音乐资料库会列出音轨、专辑和艺人信息。选择音轨后，通过服务器输出 MP3（128 kbps、44.1 kHz、双声道）；界面提供上一首、播放/暂停、下一首、停止和后台开关。一次从选中的音轨开始载入最多 128 首连续播放，避免将大型音乐库载入内存。播放结束会自动进入队列下一首。
+
+- 空格/回车暂停；P/O 上一首/下一首；B 切换后台；M 从浏览界面返回音乐控制页。
+- 后台默认关闭；打开后，短按电源回应用菜单仍播放，重新进入 StreamPlayer 可接管控制。关闭后台则退出时停止。此开关只用于音乐，视频退出仍会停止。
+- 新音源抢占旧音源；游戏等独占音频的应用及完全退出自定义桌面会停止后台播放。个人开关和令牌仍在 Git 忽略的设备数据目录中。
+- 当前音乐控制不提供进度拖动、倍速、歌词或跨重启恢复队列。
+
+依据官方 [Emby AudioService](https://dev.emby.media/reference/RestAPI/AudioService/getAudioByIdStreamByContainer.html) 与 [Jellyfin AudioController](https://github.com/jellyfin/jellyfin/blob/master/Jellyfin.Api/Controllers/AudioController.cs)。`tests/run-music.sh` 在 Linux 内以真实 HTTP 测试服务器检查音乐/视频筛选、元数据、列表上限、认证与 URL 编码；共享音频进程另有生命周期测试。真实 Emby 音乐库已验证返回 Audio 项及 MP3 音频；Jellyfin 仍需独立服务器联测。

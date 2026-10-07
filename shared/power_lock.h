@@ -18,11 +18,11 @@ static long long powerlock_milliseconds(void) {
 /* Vendor libsysutils dispatches NUL-terminated FrameworkListener commands.
  * PowerManager identifies each registration by PID and replies with "ok\0".
  * A successful write alone does not mean a suspend lock was acquired. */
-static int powerlock_command(int fd, const char *command) {
+static int powerlock_command_timeout(int fd, const char *command, int timeout_ms) {
     char frame[96], reply[64];
     int length = snprintf(frame, sizeof(frame), "Register %s %ld", command, (long)getpid());
     if (length < 0 || length >= (int)sizeof(frame)) { errno = EINVAL; return -1; }
-    const long long deadline = powerlock_milliseconds() + 1000;
+    const long long deadline = powerlock_milliseconds() + timeout_ms;
     int flags = MSG_DONTWAIT;
 #ifdef MSG_NOSIGNAL
     flags |= MSG_NOSIGNAL;
@@ -56,5 +56,8 @@ static int powerlock_command(int fd, const char *command) {
     }
     errno = EPROTO;
     return -1;
+}
+static inline int powerlock_command(int fd, const char *command) {
+    return powerlock_command_timeout(fd, command, 1000);
 }
 #endif
