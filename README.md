@@ -82,7 +82,7 @@ Airtune 的本地电台筛选、StreamPlayer 的远程媒体搜索、Bilibili �
   </tr>
   <tr>
     <td><strong>五子棋</strong><br><a href="docs/screenshots/gomoku.png"><img src="docs/screenshots/gomoku.png" alt="五子棋进行中的对局" width="400"></a><br>人机／双人对局、悔棋与自动续局。</td>
-    <td><strong>NES 游戏</strong><br><a href="docs/screenshots/nes.png"><img src="docs/screenshots/nes.png" alt="NES 设备端渲染和输入自测画面" width="400"></a><br>当前图为设备端渲染／输入自测；运行游戏需自行准备 `.nes` 文件。</td>
+    <td><strong>NES 游戏</strong><br><a href="docs/screenshots/nes.png"><img src="docs/screenshots/nes.png" alt="NES 0.2.1 真机运行坦克大战" width="400"></a><br>0.2.1 真机运行用户提供的《坦克大战》，支持系统音量与静音。</td>
   </tr>
   <tr>
     <td><strong>PCSX4all</strong><br><a href="docs/screenshots/pcsx4all.png"><img src="docs/screenshots/pcsx4all.png" alt="PCSX4all 运行《北欧女神》标题菜单" width="400"></a><br>PS1 游戏运行画面示例，游戏镜像不随仓库发布。</td>
@@ -137,7 +137,7 @@ python3 ./tools/deploy.py --serial MagicPen-931f06 --start
 
 默认构建与打包只包含公开应用，并排除 Git 忽略的本地素材。可选的本地应用通过 `./tools/build.sh --local` 启用：`config/apps.local.cmake` 添加构建目标，`config/dependencies.local.json` 提供额外依赖（不可覆盖公开版本），`config/Dockerfile.local` 扩展工具链。`config/package.local.py` 接收 `root`、`payload`、`catalog` 三个变量，可添加本地安装文件与清单；这些配置均被 Git 忽略。单独打包使用 `python3 tools/package.py --local`，本地清单只写入 `.build/device/catalog.json`，不会覆盖公开的 `catalog.json`。
 
-构建固定 LVGL / InfoNES / PCSX4all / DOSBox Pure 的提交及 QuickJS / zlib 源码校验值，编译静态 MIPS ELF，生成运行包。部署先传到新的 release 目录、逐文件校验 SHA-256，再通过 `rename(2)` 原子切换 `current`。保留旧版本，不覆盖用户数据；运行中的 launcher 必须先退出。
+构建固定 LVGL / InfoNES / Game_Music_Emu / PCSX4all / DOSBox Pure 的提交及 QuickJS / zlib 源码校验值，编译静态 MIPS ELF，生成运行包。部署先传到新的 release 目录、逐文件校验 SHA-256，再通过 `rename(2)` 原子切换 `current`。保留旧版本，不覆盖用户数据；运行中的 launcher 必须先退出。
 
 ```text
 /storage/apps/
@@ -229,7 +229,7 @@ sh ./dosbox/tests/run.sh
 # 设备上执行构建生成的 c1max-api-test：清单/版本/URL 校验
 ```
 
-StreamPlayer 的 Emby 实机结果与未迁移部分见 [播放器说明](streamplayer/README.md)。日历/计算器各有独立模型测试。NES 需要自备 ROM，已加入 WASD/J/K 物理按键；2026-10-02 用自制游戏 Alter Ego（mapper 0）在真机确认标题、关卡和暂停菜单正常显示，商业 ROM 兼容性仍需用户自测。
+StreamPlayer 的 Emby 实机结果与未迁移部分见 [播放器说明](streamplayer/README.md)。日历/计算器各有独立模型测试。[NES 0.2.1](nes/README.md) 支持 WASD/J/K 物理按键，修复系统音量并改用 Nes_Snd_Emu 合成。已用自制游戏 Alter Ego 和用户提供的《坦克大战》（mapper 0）验证画面／输入，后者还验证了音频与静音；其他游戏兼容性需分别测试。
 
 DOS 的导入与键盘说明见 [DOSBox](dosbox/README.md)。PS1 的镜像路径、按键和兼容性见 [PCSX4all](pcsx4all/README.md)，绘图语言的支持范围与示例来源见 [Processing 2D](processing/README.md)。
 

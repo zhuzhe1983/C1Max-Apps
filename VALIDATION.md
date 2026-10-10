@@ -1,3 +1,11 @@
+# 2026-10-10：NES 音量和声音合成
+
+NES 0.2.1 接入固定 Nes_Snd_Emu / Blip_Buffer，修复原 pAPU 的包络、扫频与噪声问题；PCM 实时应用系统音量、平滑增益、处理短写与错误，声卡失败时按帧限速。CPU 时钟／APU 状态接口在构建副本接入，原依赖保持未修改。
+
+主机 ASan/UBSan、MIPS/QEMU 音频／APU／CPU 显示回归、完整 MIPS 构建通过。用户 NAS 的《坦克大战》已拷到设备，校验一致；游戏运行和音量归零后实际 PCM 全零通过，约占单核 33%、RSS 1.2 MiB。仍不声称逐周期精确仿真、所有 ROM 兼容或最终音色已由用户验收。详见[专项记录](docs/2026-10-10-nes-audio-qa.md)。
+
+---
+
 # 2026-10-07：跨应用中文输入和中文搜索
 
 - 新增共享的 Rime＋LVGL 实体键盘编辑器，接入 Airtune、StreamPlayer、Bilibili、Calendar、Mail、Settings、Tox、MoonPilot 和 CrossPoint 设置。Terminal 与 CrossPoint 原搜索框保留既有内联输入。词库随应用独立打包，设备不编译词库；密码、令牌、地址和 ID 字段不进入拼音学习记录。

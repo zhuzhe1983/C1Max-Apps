@@ -45,5 +45,9 @@
   "term-ime-dict": {
     "url": "https://github.com/adam-ikari/term-ime-dict.git",
     "commit": "6155542fbfa63a6e527a1610531dd66fc050b82f"
+  },
+  "game-music-emu": {
+    "url": "https://github.com/libgme/game-music-emu.git",
+    "commit": "9e23d10f9fd2a6a2f33b10912dd8dc7153258995"
   }
 }

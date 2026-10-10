@@ -27,7 +27,7 @@
 
 本次应用截图操作使用临时应用数据目录，完成后清理。图像不包含个人服务器地址、访问令牌或邮箱凭据。没有将演示邮件包装成真实收发验证。
 
-原有 StreamPlayer、日历、计算器、钢琴、终端、五子棋、NES、PCSX4all、DOSBox、Processing 截图保留。PCSX4all 展示用户提供游戏的运行画面；NES 当前是设备渲染/输入自测；DOSBox 展示随项目提供的 DOS LAB。游戏镜像不在仓库中。
+原有 StreamPlayer、日历、计算器、钢琴、终端、五子棋、NES、PCSX4all、DOSBox、Processing 截图保留。PCSX4all 展示用户提供游戏的运行画面；NES 原自测图于 2026-10-10 替换为《坦克大战》实机画面（见下）；DOSBox 展示随项目提供的 DOS LAB。游戏镜像不在仓库中。
 
 ## Bilibili（2026-09-27 联网复测）
 
@@ -79,3 +79,7 @@
 `tox-store-updated.png` 为 2026-10-03 真机通过 GitHub 应用商店下载 Tox 0.3.0 后的完成页面。
 
 2026-10-07 更新 `piano.png`：C1 Max 运行《致爱丽丝》主题简编的实际 framebuffer，显示自动演奏高亮与后台开关。测试保持系统静音。
+
+## NES 0.2.1（2026-10-10）
+
+`nes.png` 为正式部署版从首页选择用户 NAS 中的《坦克大战》后运行第一关的 framebuffer。只转换 BGRA 并旋转为 800×340 PNG，没有重绘、拼接；截图时保持系统静音。ROM 不在仓库或更新包中。

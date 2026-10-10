@@ -25,7 +25,7 @@
 extern "C" {
 #include "../../launcher/src/typeface.h"
 }
-#include "tinyalsa/asoundlib.h"
+#include "audio.hpp"
 
 // ---------------- 显示 ----------------
 static int fbfd=-1; static uint8_t* fbmem=0; static long frame_sz=0; static int fb_stride=1360;
@@ -39,9 +39,7 @@ static int VP_X0 = (DISP_W - VP_W)/2;   // 219
 static int lutx[VP_W], luty[VP_H];      // display→NES 采样查表
 
 // ---------------- 声音 ----------------
-static struct pcm* pcm=0;
-static int SND_RATE=44100;
-static short mixbuf[1024*2];
+static nes_audio::FrameClock silent_clock;
 
 // ---------------- 输入 ----------------
 static int ev_touch=-1, ev_key=-1, ev_return=-1;
@@ -160,27 +158,9 @@ void InfoNES_LoadFrame(){
 // ---- 声音 ----
 void InfoNES_SoundInit(){}
 int InfoNES_SoundOpen(int samples_per_sync,int rate){
-  SND_RATE=rate;
-  struct pcm_config cfg; memset(&cfg,0,sizeof cfg);
-  cfg.channels=2; cfg.rate=rate; cfg.format=PCM_FORMAT_S16_LE;
-  cfg.period_size=1024; cfg.period_count=8;
-  pcm=pcm_open(0,0,PCM_OUT,&cfg);
-  if(!pcm||!pcm_is_ready(pcm)){ fprintf(stderr,"pcm_open失败: %s\n",pcm?pcm_get_error(pcm):"null"); pcm=0; return 0;}
-  fprintf(stderr,"PCM opened %dHz\n",rate);
-  return 1;
+  silent_clock.reset();return nes_audio::open(samples_per_sync,rate)?1:0;
 }
-void InfoNES_SoundClose(){ if(pcm){pcm_close(pcm);pcm=0;} }
-void InfoNES_SoundOutput(int samples,BYTE*w1,BYTE*w2,BYTE*w3,BYTE*w4,BYTE*w5){
-  if(!pcm) return;
-  if(samples>1024) samples=1024;
-  for(int i=0;i<samples;i++){
-    int m=(int)w1[i]+w2[i]+w3[i]+w4[i]+w5[i]; // 0..1275
-    int v=(m-640)*48;                          // 居中放大
-    if(v>32767)v=32767; if(v<-32768)v=-32768;
-    mixbuf[i*2]=(short)v; mixbuf[i*2+1]=(short)v;  // L=R
-  }
-  pcm_writei(pcm,mixbuf,samples);
-}
+void InfoNES_SoundClose(){nes_audio::close();}
 
 // ---- 输入 ----
 static void input_init(){
@@ -246,6 +226,8 @@ static void poll_touch(){
   }
 }
 void InfoNES_PadState(DWORD*p1,DWORD*p2,DWORD*sys){
+  if(nes_audio::active())silent_clock.reset();
+  else if(!g_quit){unsigned delay=silent_clock.delay(monotonic_us());if(delay)usleep(delay);}
   poll_touch();
   struct input_event e;
   while(ev_key>=0&&read(ev_key,&e,sizeof e)==sizeof e){
@@ -267,15 +249,9 @@ void InfoNES_PadState(DWORD*p1,DWORD*p2,DWORD*sys){
   *sys = g_quit ? PAD_SYS_QUIT : 0;
 }
 
-// ---- 帧同步 ~60fps ----
-static long last_us=0;
-static long now_us(){ struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t); return t.tv_sec*1000000L+t.tv_nsec/1000; }
-void InfoNES_Wait(){
-  if(pcm) return;               // 有声音时用音频节流，跳过
-  long target=16666; long n=now_us();
-  if(last_us){ long d=n-last_us; if(d<target) usleep(target-d); }
-  last_us=now_us();
-}
+// InfoNES calls this after every scanline. Silent pacing lives in PadState,
+// once per VBlank; PCM back-pressure supplies timing while audio is healthy.
+void InfoNES_Wait(){}
 int InfoNES_Menu(){ return 0; }  // 直接进游戏
 
 int main(int argc,char**argv){

@@ -25,7 +25,7 @@ for name,entry in json.loads(tool_verification.read_text())['binaries'].items():
 for name in ['terminal/assets/shellrc','terminal/assets/inputrc','launcher/run.sh','launcher/apps.txt','launcher/desktop-service.sh']:
     if b'\r' in (root/name).read_bytes():raise SystemExit(name+' has CRLF line endings; re-checkout with LF (see .gitattributes)')
 versions={
-    'launcher':'0.3.0', 'piano':'0.3.0', 'nes':'0.2.0',
+    'launcher':'0.3.0', 'piano':'0.3.0', 'nes':'0.2.1',
     'streamplayer':'0.3.1', 'calendar':'0.3.1', 'calculator':'0.2.0',
     'settings':'0.2.1', 'terminal':'0.1.0', 'gomoku':'0.1.0',
     'pcsx4all':'0.1.1', 'processing':'0.1.0', 'dosbox':'0.1.2',
@@ -69,6 +69,8 @@ for name in ['run.sh','apps.txt','desktop-service.sh']:
     if name.endswith('.sh'):(out/'launcher'/name).chmod(0o755)
 shutil.copytree(root/'launcher/licenses',out/'launcher/licenses')
 shutil.copy2(root/'.build/mips/c1max-streamplayer',out/'nes/c1max-nes-browser')
+shutil.copy2(root/'nes/README.md',out/'nes')
+shutil.copytree(root/'nes/licenses',out/'nes/licenses')
 shutil.copy2(root/'.build/mips/c1max-yuv-pipe.so',out/'streamplayer')
 (out/'streamplayer/licenses').mkdir()
 shutil.copy2(root/'streamplayer/vendor/ffmpeg42/COPYING.LGPLv2.1',out/'streamplayer/licenses/FFmpeg-LGPL-2.1.txt')

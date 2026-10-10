@@ -1,0 +1,11 @@
+Nes_Snd_Emu and Blip_Buffer
+Copyright (C) 2003-2006 Shay Green and Game_Music_Emu contributors.
+Source: https://github.com/libgme/game-music-emu
+Pinned Game_Music_Emu 0.6.5 commit: 9e23d10f9fd2a6a2f33b10912dd8dc7153258995
+License: LGPL-2.1-or-later; included alongside this notice.
+
+The C1 Max integration is in nes/src/apu.cpp and nes/tools/prepare_core.py.
+Buildable application source and dependency pins are distributed at
+https://github.com/zhuzhe1983/C1Max-Apps . The bundled executable is statically
+linked; tools/build.sh rebuilds/relinks it with modifications to this library.
+No cartridge/game data is included.
