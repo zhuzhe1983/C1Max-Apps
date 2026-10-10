@@ -2,7 +2,7 @@
   "schema": 1,
   "platform": "c1max-mipsel-linux",
   "runtime": 1,
-  "release": "apps-20261002-tox-outbox",
+  "release": "nes-0.2.1",
   "apps": [
     {
       "id": "piano",
@@ -17,14 +17,14 @@
     },
     {
       "id": "nes",
-      "version": "0.2.0",
-      "revision": "25ffe40c89b4a80a4f1e792aabe074e7641c10b143159f6e0e442facf81995c0",
+      "version": "0.2.1",
+      "revision": "b8a8c18cc98b2bf43da97f696c9efd2c250f3c45cea00cf52f4e35ffbd984873",
       "title": "NES 游戏",
-      "description": "NES 游戏 · C1 Max 原生应用",
-      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/apps-20261002-media-store/nes-0.2.0-25ffe40c89b4.c1pkg",
-      "size": 3404321,
-      "unpacked": 3403234,
-      "sha256": "87b1074dbd8d639093214cc76f295db274bcf0f01c4cd7523e0bca6a78b88ddc"
+      "description": "红白机游戏 · 修复音色、系统音量与静音",
+      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/nes-0.2.1/nes-0.2.1-b8a8c18cc98b.c1pkg",
+      "size": 5616242,
+      "unpacked": 5614749,
+      "sha256": "ef17f5c0194ebda6329b9ced22be4422e829d84c85359a54539b5aef58474185"
     },
     {
       "id": "streamplayer",
