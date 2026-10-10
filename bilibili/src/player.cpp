@@ -1,5 +1,6 @@
 #include "player.hpp"
 #include "display.hpp"
+#include "cast.hpp"
 #include <algorithm>
 #include <cerrno>
 #include <cmath>
@@ -15,8 +16,23 @@
 namespace bili {
 Player::~Player(){stop();}
 bool Player::command(const std::string&s,const char*prefix){if(input_<0)return false;auto text=prefix+s+"\n";if(write(input_,text.data(),text.size())!=(ssize_t)text.size()){error="播放器控制连接已断开";return false;}return true;}
-void Player::start(const Stream&s){
+void Player::start(const Stream&s,const std::string&title){
     stop();error.clear();ended=loaded=paused=false;position=0;duration=s.duration;reader_=Y4mReader{};lines_.clear();
+    mode_=getenv("C1_BILI_QA_LOCAL")?casting::OutputMode::Local:casting::output_mode("bilibili");
+    try{
+        if(mode_!=casting::OutputMode::Local){
+            auto state=casting::status();if(!state.value("connected",false))throw std::runtime_error("请先在设置连接投屏设备；T 可切回仅本机");
+            auto url=relay_.start(s.url,state.at("device").value("host",std::string()));
+            auto result=casting::load("bilibili",url,title,"video/mp4");
+            if(!result.value("ok",false)||!result.value("accepted",false))throw std::runtime_error(result.value("error",std::string("无法开始投屏")));
+            remote_=true;remote_loaded_=false;pending_pause_=false;pending_seek_=-1;content_id_=result.value("accepted_id",uint64_t(0));remote_volume_=-1;last_cast_=0;cast_started_=screen::tick();
+        }
+        if(mode_!=casting::OutputMode::Remote)local_start(s,mode_==casting::OutputMode::Both);
+    }catch(...){stop();throw;}
+}
+std::string Player::output_label()const{return casting::output_mode_label(mode_);}
+void Player::set_remote_volume(int value){if(!remote_)return;value=std::clamp(value,0,100);auto r=casting::command("bilibili","volume",value/100.0);if(r.value("ok",false))remote_volume_=value;}
+void Player::local_start(const Stream&s,bool quiet){
     bool local=getenv("C1_BILI_QA_LOCAL")&&s.url=="/tmp/c1-bili-direct.mp4";
     if(!local&&!media_url(s.url))throw std::runtime_error("无效的视频源");
     // The stock libavformat HTTPS stream crashes with SIGBUS on byte seeks,
@@ -30,10 +46,10 @@ void Player::start(const Stream&s){
     video_=open(fifo_.c_str(),O_RDWR|O_NONBLOCK|O_CLOEXEC);if(video_<0){stop();throw std::runtime_error("无法打开视频缓冲");}
     fcntl(video_,F_SETPIPE_SZ,512*1024);
     int in[2],out[2];if(pipe2(in,O_CLOEXEC)){stop();throw std::runtime_error("无法创建控制管道");}if(pipe2(out,O_CLOEXEC)){close(in[0]);close(in[1]);stop();throw std::runtime_error("无法创建输出管道");}
-    const char*silent=getenv("C1_BILI_SILENT");
+    const char*silent=getenv("C1_BILI_SILENT");bool mute=quiet||(silent&&std::string(silent)=="1");
     // Stock MPlayer routes HTTPS through libavformat, where -referrer and
     // -user-agent are not forwarded. Configure both HTTP transport paths.
-    std::vector<std::string> args={"mplayer","-noconfig","all","-slave","-quiet","-identify","-noconsolecontrols","-nolirc","-nojoystick","-nomouseinput","-nosub","-noautosub","-osdlevel","0","-cache","512","-cache-min","10","-framedrop","-vo","null","-ao",silent&&std::string(silent)=="1"?"null":"media","-user-agent","Mozilla/5.0","-referrer","https://www.bilibili.com/","-lavfstreamopts","user_agent=Mozilla/5.0,referer=https://www.bilibili.com/",playback_url};
+    std::vector<std::string> args={"mplayer","-noconfig","all","-slave","-quiet","-identify","-noconsolecontrols","-nolirc","-nojoystick","-nomouseinput","-nosub","-noautosub","-osdlevel","0","-cache","512","-cache-min","10","-framedrop","-vo","null","-ao",mute?"null":"media","-user-agent","Mozilla/5.0","-referrer","https://www.bilibili.com/","-lavfstreamopts","user_agent=Mozilla/5.0,referer=https://www.bilibili.com/",playback_url};
     std::vector<char*>av;for(auto&a:args)av.push_back(a.data());av.push_back(nullptr);
     if(!screen::video_begin()){for(int fd:{in[0],in[1],out[0],out[1]})close(fd);stop();throw std::runtime_error("无法准备视频显示");}
     auto preload=c1::root()+"/streamplayer/c1max-yuv-pipe.so";pid_t parent=getpid();pid_=fork();
@@ -43,13 +59,42 @@ void Player::start(const Stream&s){
     started_=last_frame_=last_query_=last_stats_=screen::tick();
 }
 void Player::stop(){
+    if(remote_)casting::detach("bilibili");remote_=remote_loaded_=false;content_id_=0;remote_volume_=-1;
+    local_stop();relay_.stop();
+}
+void Player::local_stop(){
     if(pid_>0){std::fprintf(stderr,"[bilibili] stop frames=%llu position_ms=%d paused=%d\n",(unsigned long long)frames(),int(position*1000),int(paused));command("quit");pid_t p=pid_;pid_=-1;kill(-p,SIGTERM);bool done=false;for(int i=0;i<25;i++){if(waitpid(p,nullptr,WNOHANG)==p){done=true;break;}usleep(10000);}if(!done){kill(-p,SIGKILL);while(waitpid(p,nullptr,0)<0&&errno==EINTR){}}}
     for(int fd:{input_,output_,video_})if(fd>=0)close(fd);input_=output_=video_=-1;if(!fifo_.empty())unlink(fifo_.c_str());fifo_.clear();screen::playing=false;screen::video_end();
 }
-void Player::pause(){if(!active()||!loaded||!command("pause",""))return;paused=!paused;last_frame_=screen::tick();}
-void Player::seek(double seconds){if(!active()||!loaded||!std::isfinite(seconds))return;position=std::clamp(seconds,0.0,double(std::max(0,duration-1)));command("seek "+std::to_string(position)+" 2","pausing_keep ");last_frame_=screen::tick();}
+void Player::pause(){if(!active()||!loaded)return;
+    if(remote_){if(!remote_loaded_)pending_pause_=!paused;else{auto r=casting::command("bilibili",paused?"play":"pause");if(!r.value("ok",false)){error="投屏控制失败，请返回重试";return;}}}
+    if(pid_>0&&!command("pause",""))return;paused=!paused;last_frame_=screen::tick();
+}
+void Player::seek(double seconds){if(!active()||!loaded||!std::isfinite(seconds))return;position=std::clamp(seconds,0.0,double(std::max(0,duration-1)));if(remote_){if(!remote_loaded_)pending_seek_=position;else casting::command("bilibili","seek",position);}if(pid_>0)command("seek "+std::to_string(position)+" 2","pausing_keep ");last_frame_=screen::tick();}
+void Player::remote_poll(){
+    auto now=screen::tick();if(!remote_||now-last_cast_<650)return;last_cast_=now;auto s=casting::status();
+    if(!s.value("connected",false)){error="投屏连接已断开 · 返回后可切换仅本机";return;}
+    if(s.value("content_id",uint64_t(0))!=content_id_||s.value("owner",std::string())!="bilibili"){
+        if(remote_loaded_)error="远端播放已结束或被其他内容替换";
+        else if(now-cast_started_>45000)error="接收器未开始播放 · 返回后可切换仅本机";
+        return;
+    }
+    if(!s.value("error",std::string()).empty()||s.value("state",std::string())=="error"){error="投屏失败 · "+s.value("error",std::string("请返回后切换仅本机"));return;}
+    if(s.contains("volume")&&s["volume"].is_number())remote_volume_=std::clamp(int(s["volume"].get<double>()*100+.5),0,100);
+    auto state=s.value("state",std::string());if(state=="playing"||state=="paused"){
+        if(!remote_loaded_){
+            if(pending_seek_>=0)casting::command("bilibili","seek",pending_seek_);
+            if(pending_pause_)casting::command("bilibili","pause");
+            pending_seek_=-1;pending_pause_=false;
+        }
+        remote_loaded_=true;if(remote_only()||pid_<=0){loaded=true;paused=state=="paused";position=s.value("position",position);auto len=s.value("duration",0.0);if(len>0&&len<86400)duration=len;}
+    }else if(remote_loaded_&&state=="idle")ended=true;
+    else if(!remote_loaded_&&now-cast_started_>45000)error="投屏加载超时 · 返回后可切换仅本机";
+}
 void Player::poll(){
-    if(!active())return;uint8_t bytes[8192];size_t budget=768*1024;ssize_t n;
+    if(!active())return;
+    remote_poll();if(ended||!error.empty()){stop();ended=true;return;}
+    if(pid_<=0)return;uint8_t bytes[8192];size_t budget=768*1024;ssize_t n;
     while(budget&&(n=read(video_,bytes,std::min(sizeof(bytes),budget)))>0){budget-=size_t(n);if(!reader_.feed(bytes,n,[&](auto rgb,int w,int h,int an,int ad){screen::video_frame(rgb,w,h,an,ad);loaded=true;last_frame_=screen::tick();})){error=reader_.error();break;}}
     char buf[4096];size_t remaining=32768;while(remaining&&(n=read(output_,buf,std::min(sizeof(buf),remaining)))>0){remaining-=n;lines_.append(buf,n);if(lines_.size()>32768)lines_.erase(0,lines_.size()-32768);}
     size_t at;while((at=lines_.find_first_of("\r\n"))!=std::string::npos){auto line=lines_.substr(0,at);lines_.erase(0,at+1);
@@ -68,6 +113,9 @@ void Player::poll(){
     bool timedout=(!loaded&&now-started_>30000)||(loaded&&!paused&&now-last_frame_>15000);
     if(timedout&&error.empty())error="视频加载超时，请检查网络后重试";
     screen::video_refresh(paused);
+    // Two network consumers need not finish in the same millisecond. Hold the
+    // final local frame until the receiver ends instead of cutting its tail off.
+    if(exited&&remote_&&error.empty()&&loaded&&WIFEXITED(status)&&!WEXITSTATUS(status)){screen::video_refresh(true);return;}
     if(exited||timedout||!error.empty()){stop();ended=true;}
 }
 }

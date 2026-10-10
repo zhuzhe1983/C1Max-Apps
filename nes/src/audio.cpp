@@ -14,6 +14,8 @@ bool volume_warning=false;
 int minimum=0,maximum=255;
 int requested_samples=0,requested_rate=0;
 uint64_t last_service=0,retry_at=0;
+void (*cast_capture)(const int16_t *,size_t,unsigned,unsigned)=nullptr;
+bool (*cast_local)()=nullptr;
 
 void close_device(){
     if(device)pcm_close(device);
@@ -29,7 +31,10 @@ bool read_volume() {
         values[0]=values[1]=minimum;
         if(!volume_warning)std::fprintf(stderr,"NES: system volume unavailable; muting audio\n");
     }
-    volume_warning=!ok;mix.volume(values[0],values[1],minimum,maximum);return ok;
+    volume_warning=!ok;
+    // Keep PCM timing and the existing 5ms gain ramp in both directions.
+    if(cast_local&&!cast_local())values[0]=values[1]=minimum;
+    mix.volume(values[0],values[1],minimum,maximum);return ok;
 }
 void speaker_route() {
     static const struct {const char *name,*value;} route[]={
@@ -103,7 +108,9 @@ void service(uint64_t now){
     if(!device&&now>=retry_at){retry_at=now+2000000;open_device(requested_rate);}
 }
 void output(int samples,const int16_t *mono){
-    if(samples<=0||!mono||!device)return;
+    if(samples<=0||!mono)return;
+    if(cast_capture&&requested_rate)cast_capture(mono,size_t(samples),1,unsigned(requested_rate));
+    if(!device)return;
     read_volume();
     int16_t buffer[1024*2];
     for(int offset=0;offset<samples&&device;){
@@ -113,4 +120,5 @@ void output(int samples,const int16_t *mono){
         offset+=count;
     }
 }
+void cast_hooks(void (*capture)(const int16_t *,size_t,unsigned,unsigned),bool (*local)()){cast_capture=capture;cast_local=local;}
 }

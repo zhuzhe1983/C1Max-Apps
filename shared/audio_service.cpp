@@ -1,6 +1,7 @@
 // One audio owner for the three lightweight players. No display/input handles.
 #include "audio_client.h"
 #include "cast.hpp"
+#include "output_mode.hpp"
 #include "power_lock.h"
 #include <algorithm>
 #include <cerrno>
@@ -83,7 +84,11 @@ struct Player {
         status.index=index;status.count=queue.size();status.position_ms=0;status.duration_ms=queue[index].duration;
         status.song=queue[index].kind==C1_AUDIO_SONG?queue[index].song:-1;
         text(status.title,queue[index].title);text(status.url,queue[index].url);status.error[0]=0;
-        if(queue[index].kind==C1_AUDIO_URL&&casting::selected()){
+        const auto output_mode=casting::output_mode(status.owner==C1_AUDIO_AIRTUNE?"airtune":"streamplayer");
+        // Both retains the app's cover/transport UI locally, but has a single
+        // audible endpoint. Never unexpectedly start the speaker after failure.
+        if(queue[index].kind==C1_AUDIO_URL&&output_mode!=casting::OutputMode::Local){
+            if(!casting::selected()){error("未连接接收器，请连接投屏或在设置中选择仅本机");return;}
             const auto&t=queue[index];auto result=casting::load("audio",t.url,t.title,casting::audio_mime(t.url),t.duration==0);
             if(!result.value("ok",false)){error(result.value("error",std::string("投屏发送失败")));return;}
             cast_content=result.value("accepted_id",uint64_t(0));remote=true;status.state=C1_AUDIO_CONNECTING;started=clock_at=now_ms();last_cast=0;return;

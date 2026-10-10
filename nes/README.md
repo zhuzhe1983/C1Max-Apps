@@ -31,3 +31,8 @@ W/S/A/D 为方向，J/K 为 A/B，Q 为 Select，E 或回车为 Start。左右�
 - MIPS 构建目标 `c1max-nes-audio-test`、`c1max-nes-apu-test`、`c1max-nes-core-test`：输出、声音合成、实际 CPU 接口与 RGB555 显示回归。
 
 许可证与可重新链接的源码说明见 [licenses](licenses/NOTICE.txt)，实测记录见 [2026-10-10 排查记录](../docs/2026-10-10-nes-audio-qa.md)。
+## 游戏投屏
+
+可在「设置 → 无线投屏」分别选择仅本机、仅远端、双屏，下一次启动 ROM 生效。当前需已配对 Mac 运行桥接和 Kodi；NES 只发送游戏区域，远端保持 4:3。连接成功前、失败后继续本机显示；双屏只在远端出声。采集目标 20 fps，模拟器的独立 VBlank 限速不变。HLS 有缓冲延迟，操作仍建议看本机。配置及限制见 [Mac 游戏桥接](../tools/cast-receiver/README.md)。
+
+开发诊断可设置 `C1_NES_STATS=1`，每 300 个 VBlank 打印 `NES_STATS`：实际模拟帧率、生成画面数、投屏采集尝试数和本机输出状态。默认不记录；统计不改变限速。Mac 日志中的接收帧率与模拟帧率不同，网络拥塞会丢旧投屏帧。

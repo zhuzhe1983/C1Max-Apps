@@ -1,6 +1,7 @@
 #pragma once
 #include <algorithm>
 #include <cstdint>
+#include <cstddef>
 
 namespace nes_audio {
 // Signed mono samples arrive DC-filtered and band-limited from Nes_Snd_Emu.
@@ -45,4 +46,6 @@ bool active();
 // BOOTTIME microseconds, so actual device suspend is included in the gap.
 void service(uint64_t now);
 void output(int samples,const int16_t *mono);
+// Optional transport hooks; installed by the platform, absent in audio tests.
+void cast_hooks(void (*capture)(const int16_t *,size_t,unsigned,unsigned), bool (*local)());
 }

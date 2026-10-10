@@ -37,7 +37,7 @@ apps/
 
 旧的顶层 `launcher/`、`piano/`、`emu/` 已分别迁入这里，tinyalsa 合并到 `shared/`。来源是 CardputerZero 的应用保留在各自 README 中；未改写原工程。
 
-可从 **设置 → 无线投屏** 选择 Google Cast / DLNA 接收器，让 StreamPlayer、Airtune 在电视或 Mac Kodi 上播放。[使用方法与当前限制](docs/casting.md)。当前只支持媒体投送，游戏和全桌面镜像尚未开放。
+可从 **设置 → 无线投屏** 为 StreamPlayer、Bilibili、Airtune、NES、PCSX4all、DOSBox 分别选择 **仅本机／仅远端／本机＋远端**；默认仅本机，下次开始内容时生效，双屏默认只由远端出声。视频／电台使用 Google Cast 或 DLNA 接收器；游戏另需[已配对的 Mac 桥接和 Kodi](tools/cast-receiver/README.md)，按 320×240、目标 20 fps 投送游戏区域。游戏 HLS 有多秒延迟，不适合看远端玩动作游戏。全桌面镜像与 AirPlay 尚未实现，详见[使用方法、音频策略与限制](docs/casting.md)。
 
 ## 新增应用
 
@@ -49,15 +49,15 @@ apps/
 - **[HID 键鼠](hidpilot/README.md)**：USB HID 与 ADB / MTP 共存，触控板、实体键盘、修饰键和滚轮控制电脑。0.2.0 起专注手动输入。
 - **[MoonPilot AI](moonpilot/README.md)**：独立的 Moonlight / Sunshine 远程操作应用，包含手动添加主机、PIN 配对、桌面预览、模型单步／十步操作，以及可配置 ASR、对话和 TTS。配对协议回归与真机解码通过；真实 Sunshine 串流和 AI 闭环待主机接入后验证。
 
-- **[Bilibili](bilibili/README.md)**：参考 wiliwili 的接口，为本机重写轻量界面。热门、竖屏精选、搜索／BV 号、分 P、扫码登录、本机收藏和历史；优先直连 360p H.264/AAC MP4，无需自建转码服务。L 右转 90°，P/O 直接切换视频；支持暂停、跳转、音量和填宽／完整画面。未实现 DASH-only、番剧、直播和弹幕，验证范围见应用说明。
+- **[Bilibili](bilibili/README.md)**：参考 wiliwili 的接口，为本机重写轻量界面。热门、竖屏精选、搜索／BV 号、分 P、扫码登录、本机收藏和历史；优先直连 360p H.264/AAC MP4，无需自建转码服务；支持本机／远端／双屏，投屏用受控转发补齐 CDN Referer。L 右转 90°，P/O 直接切换视频；支持暂停、跳转、音量和填宽／完整画面。未实现 DASH-only、番剧、直播和弹幕，验证范围见应用说明。
 
-- **[Airtune 网络电台](airtune/README.md)**：拟物收音机界面，提供热门、国家、风格、心情和分组浏览，分类缓存后在后台刷新。SAVED 是本地电台列表，可收藏、手动添加 HTTP(S) 音频地址和删除；播放区显示真实连接状态与系统音量，可开关后台播放；搜索框内 W/S 正常输入文字。电台目录来自 Radio-Browser，音频直接连接电台源。
+- **[Airtune 网络电台](airtune/README.md)**：拟物收音机界面，提供热门、国家、风格、心情和分组浏览，分类缓存后在后台刷新。SAVED 是本地电台列表，可收藏、手动添加 HTTP(S) 音频地址和删除；播放区显示真实连接状态与系统音量，可开关后台播放；搜索框内 W/S 正常输入文字。可选择本机或 Google Cast／DLNA 播放，双屏保留本机电台界面、只由远端出声。电台目录来自 Radio-Browser，音频直接连接电台源。
 - **[CrossPoint 电子书](crosspoint/README.md)**：本地 EPUB、AZW3/MOBI、PDF、TXT、Markdown 文字阅读，以及 OPDS/Calibre 分类浏览、搜索、分页和下载。列表 W/S 移动选择，G 设置服务器，Q/E 翻页（A/D 保留）；EPUB 阅读中 W/S 换章。搜索支持 Rime 拼音和中文书目；PDF 首次后台提取文字、再次打开读取缓存。Shift＋音量 ± 调字号并保存。当前不渲染 EPUB 插图/完整 CSS，PDF 只提取文字，扫描版不适用。
 - **[拍立得](camera/README.md)**：OV5648 实时取景，4:3、3:4、1:1、16:9 四种裁切画幅，六种滤镜，以及白相纸、奶油纸、黑胶片透明边框。空格／实体拍摄键拍照，带白闪和快门音；相册可浏览、确认删除。16:9 是裁切画幅，不是光学广角。
 - **[邮件](mail/README.md)**：POP3S/STLS 收取最近八封邮件，SMTP TLS 编写、发送纯文本邮件，账号保存在设备私有配置中。当前没有 IMAP、附件、OAuth 或完整 HTML/MIME 阅读。下图展示未发送的演示草稿，尚未用真实邮箱完成收发验收。
 
 - **[钢琴](piano/README.md)**：四首经典旋律简编、自动演奏、琴键高亮和可开关后台播放；拍摄键播放/暂停，Shift＋拍摄键切换后台。
-- **[StreamPlayer](streamplayer/README.md)**：在 Emby/Jellyfin 音乐库选择音轨播放，支持队列、上一首/下一首和可开关后台音乐；视频仍使用原有播放路径。
+- **[StreamPlayer](streamplayer/README.md)**：在 Emby/Jellyfin 音乐库选择音轨播放，支持队列、上一首/下一首和可开关后台音乐；视频支持本机／远端／双屏，双屏分别建立本机低分辨率和远端最高 720p 会话，本机静音。
 
 钢琴、StreamPlayer 音乐、Airtune 的后台开关分别保存，默认关闭；同一时刻只播放一个来源。开启后回应用菜单或打开电子书可继续听，完全退出自定义桌面时停止。全局按住音量 − 到 3 秒立即静音；Shift＋音量快捷键不触发此操作。
 

@@ -7,12 +7,12 @@ int main(int argc,char**argv){
    MediaClient c;c.load();auto libs=c.libraries();std::cout<<"libraries="<<libs.size()<<std::endl;
    for(auto&l:libs){auto items=c.items(l.at("Id"));if(items.at("Items").empty())continue;auto item=items.at("Items").at(0);StreamOptions options;options.television=std::string(argv[1])=="--live-tv";auto p=c.playback(item.at("Id"),0,options);
     c1::save_private(c1::data()+"/streamplayer/test-playback.m3u","#EXTM3U\n"+(options.television?p.hls_url:p.url)+"\n");
-    c1::save_private(c1::data()+"/streamplayer/test-session.json",Json{{"item",p.item},{"source",p.source},{"session",p.session}}.dump());
+    c1::save_private(c1::data()+"/streamplayer/test-session.json",Json{{"item",p.item},{"source",p.source},{"session",p.session},{"television",p.options.television}}.dump());
     std::cout<<"PlaybackInfo returned transcode URL; saved privately. TV profile="<<options.television<<std::endl;return 0;
    }return 2;
   }
   if(argc>1 && std::string(argv[1])=="--stop-test"){
-   MediaClient c;c.load();auto j=Json::parse(c1::read_file(c1::data()+"/streamplayer/test-session.json"));Playback p;p.item=j["item"];p.source=j["source"];p.session=j["session"];c.stop_transcode(p);return 0;
+   MediaClient c;c.load();auto j=Json::parse(c1::read_file(c1::data()+"/streamplayer/test-session.json"));Playback p;p.item=j["item"];p.source=j["source"];p.session=j["session"];p.options.television=j.value("television",false);c.stop_transcode(p);return 0;
   }
   auto app=Json{{"id","piano"},{"version","0.1.0"},{"revision",std::string(64,'a')}};
   auto local=Json{{"schema",1},{"platform","c1max-mipsel-linux"},{"apps",Json::array({app})}};

@@ -38,7 +38,7 @@ target_include_directories(c1max-psx-core PRIVATE src "${PSX}" "${PSX}/plugin_li
 target_include_directories(c1max-psx-core PRIVATE "${CMAKE_SOURCE_DIR}/.deps/lvgl/src/libs/tiny_ttf")
 target_compile_definitions(c1max-psx-core PRIVATE USE_GPULIB GPU_UNAI SPU_PCSXREARMED PSXREC mips GCW_ZERO TMPFS_MIRRORING TMPFS_DIR="/tmp" XA_HACK HAVE_LIBRETRO "INLINE=static __inline__" "asm=__asm__ __volatile__")
 target_compile_options(c1max-psx-core PRIVATE -O2 -mplt -mno-shared "$<$<COMPILE_LANGUAGE:CXX>:-Wno-narrowing;-Wno-register>")
-target_link_libraries(c1max-psx-core zlibstatic tinyalsa pthread m)
+target_link_libraries(c1max-psx-core zlibstatic tinyalsa c1gamecast pthread m)
 set_target_properties(c1max-psx-core PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 add_executable(c1max-pcsx4all src/library.cpp ../shared/display.cpp ../shared/keyboard.cpp)
 target_link_libraries(c1max-pcsx4all c1net lvgl m)

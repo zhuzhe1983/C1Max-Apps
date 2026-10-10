@@ -18,6 +18,8 @@ static unsigned opens=0,closes=0,prepares=0,fail_opens=0,reads=0;
 static long volumes[2]={255,255};
 static std::deque<int> writes;
 static std::vector<int16_t> captured;
+static std::vector<int16_t> cast_captured;
+static bool cast_local=true;
 extern "C" {
 struct mixer *mixer_open(unsigned int){return mixer_exists?&fake_mixer:nullptr;}
 void mixer_close(struct mixer*){}
@@ -149,4 +151,14 @@ static void resume(){
     for(uint64_t t=1010000;t<3000000;t+=10000)nes_audio::service(t);
     assert(opens==failed);fail_opens=0;nes_audio::service(3000000);assert(nes_audio::active());
 }
-int main(){mixing();io();pacing();resume();reset();std::puts("PASS NES: PCM/volume, bounded recovery, resume/retry/mute and independent VBlank clock");}
+static void casting(){
+    reset();cast_local=true;cast_captured.clear();
+    nes_audio::cast_hooks([](const int16_t *data,size_t frames,unsigned channels,unsigned rate){assert(channels==1&&rate==44100);cast_captured.insert(cast_captured.end(),data,data+frames);},[](){return cast_local;});
+    assert(nes_audio::open(735,44100));auto wave=signal(4096);send(wave);assert(cast_captured==wave&&energy(captured)>0);
+    cast_local=false;captured.clear();cast_captured.clear();send(wave);
+    assert(cast_captured==wave&&captured.size()==wave.size()*2&&energy(captured)==0); // PCM clock still receives frames.
+    cast_local=true;volumes[0]=128;captured.clear();send(wave);assert(energy(captured)>0&&energy(captured)<energy(captured,1)*.3);
+    cast_local=false;writes={-EIO};send(wave);assert(!nes_audio::active());cast_captured.clear();send(wave);assert(cast_captured==wave); // A failed local DAC must not cut the remote stream.
+    nes_audio::cast_hooks(nullptr,nullptr);reset();
+}
+int main(){mixing();io();pacing();resume();casting();reset();std::puts("PASS NES: PCM/volume, bounded recovery, resume/retry/mute, cast fade/capture and independent VBlank clock");}

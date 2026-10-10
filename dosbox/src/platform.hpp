@@ -24,10 +24,10 @@ class Platform {
     fb_var_screeninfo initial_{},current_{};
     std::vector<uint32_t> last_,guides_[9],notice_,notice_large_;
     unsigned width_=0,height_=0;
-    bool dirty_=true,last_stretch_=false,last_game_=true,last_caps_=false,last_power_notice_=false;
+    bool dirty_=true,last_stretch_=false,last_game_=true,last_caps_=false,last_power_notice_=false,last_remote_=false;
     int last_prefix_=0;
     clockid_t event_clock_=CLOCK_REALTIME;
-    std::string last_hint_;
+    std::string last_hint_,last_cast_notice_;
     void begin(){ioctl(fb_,FBIOGET_VSCREENINFO,&current_);unsigned p=pages_>1?(current_.yoffset/800+1)%pages_:0;current_.yoffset=p*800;page_=mapped_+size_t(p)*stride_*800;}
     bool end(){__sync_synchronize();current_.xoffset=0;current_.activate=FB_ACTIVATE_VBL;return ioctl(fb_,FBIOPAN_DISPLAY,&current_)==0;}
     void pixel(int x,int y,uint32_t color){if(x>=0&&x<800&&y>=0&&y<340)*(uint32_t*)(page_+size_t(799-x)*stride_+y*4)=color|0xff000000;}
@@ -35,6 +35,8 @@ class Platform {
     void text(int x,int y,const std::string&s,uint32_t color=0xd9e5ed,int scale=2){for(unsigned char c:s){if(x+8*scale>800)break;if(c>=128)c='?';for(int j=0;j<8;j++)for(int i=0;i<8;i++)if(font8x8_basic[c][j]&(1<<i))for(int dy=0;dy<scale;dy++)for(int dx=0;dx<scale;dx++)pixel(x+i*scale+dx,y+j*scale+dy,color);x+=8*scale;}}
 public:
     bool stretch=false;
+    bool remote=false;
+    std::string cast_notice;
     int touch_x=400,touch_y=170;
     bool touching=false;
     ~Platform(){close();}
@@ -105,8 +107,10 @@ public:
         width_=w;height_=h;last_.resize(size_t(w)*h);for(unsigned y=0;y<h;y++)memcpy(last_.data()+size_t(y)*w,(const char*)data+y*pitch,w*4);dirty_=true;return true;
     }
     void present(const std::string&hint={},bool game=true,int prefix=0,bool caps=false,bool power_notice=false){
-        if(!mapped_||last_.empty()||(!dirty_&&stretch==last_stretch_&&hint==last_hint_&&game==last_game_&&prefix==last_prefix_&&caps==last_caps_&&power_notice==last_power_notice_))return;begin();blank(0);int vw=viewport_width(),left=viewport_left();unsigned yy[340];for(unsigned y=0;y<340;y++)yy[y]=(y*height_/340)*width_;
-        for(int x=0;x<vw;x++){unsigned sx=x*width_/vw;auto *p=(uint32_t*)(page_+size_t(799-left-x)*stride_);for(int y=0;y<340;y++)p[y]=last_[yy[y]+sx]|0xff000000;}
+        if(!mapped_||last_.empty()||(!dirty_&&stretch==last_stretch_&&hint==last_hint_&&game==last_game_&&prefix==last_prefix_&&caps==last_caps_&&power_notice==last_power_notice_&&remote==last_remote_&&cast_notice==last_cast_notice_))return;begin();blank(0);int vw=viewport_width(),left=viewport_left();unsigned yy[340];for(unsigned y=0;y<340;y++)yy[y]=(y*height_/340)*width_;
+        if(!remote)for(int x=0;x<vw;x++){unsigned sx=x*width_/vw;auto *p=(uint32_t*)(page_+size_t(799-left-x)*stride_);for(int y=0;y<340;y++)p[y]=last_[yy[y]+sx]|0xff000000;}
+        if(remote){text(200,132,"PLAYING ON MAC",0x99ddc9,2);text(200,169,"Physical controls remain active",0xb8c8d5,1);}
+        if(!cast_notice.empty())text(left+8,remote?207:320,cast_notice,0x99ddc9,1);
         for(int side=0;side<2;side++){
             int edge=side?left+vw:0,available=side?800-edge:left;
             for(int x=edge;x<edge+available;x++){auto *col=(uint32_t*)(page_+size_t(799-x)*stride_);std::fill(col,col+340,0xff0b121a);}
@@ -118,7 +122,7 @@ public:
             const int panel_left=(left-dosguide::Width)/2,banner_w=98,banner_h=44,bx=panel_left,by=8;
             for(int y=0;y<banner_h;y++)for(int x=0;x<banner_w;x++)pixel(bx+x,by+y,notice_[y*banner_w+x]);
         }
-        if(end()){dirty_=false;last_stretch_=stretch;last_hint_=hint;last_game_=game;last_prefix_=prefix;last_caps_=caps;last_power_notice_=power_notice;}
+        if(end()){dirty_=false;last_stretch_=stretch;last_hint_=hint;last_game_=game;last_prefix_=prefix;last_caps_=caps;last_power_notice_=power_notice;last_remote_=remote;last_cast_notice_=cast_notice;}
     }
     void menu(int selected,const std::vector<std::string>&items,const std::string&hint,bool power_notice=false){
         if(!mapped_)return;dirty_=true;begin();blank(0x111c2b);text(30,20,"DOSBox / C1Max",0x8bddd2,3);

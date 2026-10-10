@@ -1,7 +1,7 @@
 #pragma once
 #include "net.hpp"
 #include "stream_options.hpp"
-struct Playback {std::string url,hls_url,item,source,session;int64_t duration=0,start=0;StreamOptions options;std::vector<SubtitleTrack> subtitles;};
+struct Playback {std::string url,hls_url,item,source,session;int64_t duration=0,start=0;StreamOptions options;std::vector<SubtitleTrack> subtitles; const char* device_id()const{return options.television?"c1max-streamplayer-tv":"c1max-streamplayer";}};
 class MediaClient {
 public:
     Json config=Json::object();
@@ -19,6 +19,6 @@ public:
     void report(const Playback&p,const std::string&event,int64_t ticks,bool paused=false);
     void stop_transcode(const Playback&p,const std::atomic<bool>*cancel=nullptr);
 private:
-    std::vector<std::string> headers() const;
-    Json call(const std::string &method,const std::string &path,const Json&body=nullptr);
+    std::vector<std::string> headers(bool television=false) const;
+    Json call(const std::string &method,const std::string &path,const Json&body=nullptr,bool television=false);
 };

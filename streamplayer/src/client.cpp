@@ -13,11 +13,12 @@ void MediaClient::load(){
     }catch(...){config=c1::default_server("streamplayer");}
 }
 bool MediaClient::ready()const{return config.is_object()&&!config.value("token",std::string()).empty()&&!config.value("user_id",std::string()).empty();}
-std::vector<std::string> MediaClient::headers()const{
+std::vector<std::string> MediaClient::headers(bool television)const{
     std::vector<std::string> h={"Content-Type: application/json","Accept: application/json","X-Emby-Authorization: MediaBrowser Client=\"C1Max StreamPlayer\", Device=\"C1Max\", DeviceId=\"c1max-streamplayer\", Version=\"0.1.0\""};
+    if(television)h[2]="X-Emby-Authorization: MediaBrowser Client=\"C1Max StreamPlayer\", Device=\"C1Max TV\", DeviceId=\"c1max-streamplayer-tv\", Version=\"0.4.0\"";
     auto token=config.value("token",std::string());if(!token.empty())h.push_back("X-Emby-Token: "+token);return h;
 }
-Json MediaClient::call(const std::string&m,const std::string&p,const Json&body){return c1::request(m,config.at("base").get<std::string>()+p,headers(),body);}
+Json MediaClient::call(const std::string&m,const std::string&p,const Json&body,bool television){return c1::request(m,config.at("base").get<std::string>()+p,headers(television),body);}
 void MediaClient::login(const std::string&input,const std::string&user,const std::string&pw,const std::string&type){
     std::string base=input;while(!base.empty()&&base.back()=='/')base.pop_back();c1::origin(base);
     if(base.find_first_of("?#")!=std::string::npos)throw std::runtime_error("Server address must not contain a query or fragment");
@@ -67,7 +68,7 @@ Playback MediaClient::playback(const std::string&id,int64_t start,StreamOptions 
     start=std::max<int64_t>(0,start);body["StartTimeTicks"]=start;body["SubtitleStreamIndex"]=server_subtitle;
     params+="&SubtitleStreamIndex="+std::to_string(server_subtitle)+"&SubtitleMethod="+(options.television&&server_subtitle>=0?"Encode":"External");
     params+="&StartTimeTicks="+std::to_string(start)+"&CopyTimestamps=false";
-    auto r=call("POST","/Items/"+c1::encode(id)+"/PlaybackInfo?UserId="+c1::encode(config.at("user_id"))+"&MaxStreamingBitrate="+std::to_string(total_rate)+params,body);
+    auto r=call("POST","/Items/"+c1::encode(id)+"/PlaybackInfo?UserId="+c1::encode(config.at("user_id"))+"&MaxStreamingBitrate="+std::to_string(total_rate)+params+"&DeviceId="+(options.television?"c1max-streamplayer-tv":"c1max-streamplayer"),body,options.television);
     Playback p;p.options=options;p.item=id;p.start=start;p.session=r.value("PlaySessionId",std::string());
     if(p.session.empty())throw std::runtime_error("Missing playback session ID");
     for(auto&s:r.at("MediaSources")){
@@ -87,7 +88,7 @@ Playback MediaClient::playback(const std::string&id,int64_t start,StreamOptions 
         // Normalize negotiated constraints instead of appending duplicate query keys.
         auto pos=url.find('?');std::string path=url.substr(0,pos);std::map<std::string,std::string> q;
         auto add=[&](std::string query){size_t off=0;while(off<query.size()){auto end=query.find('&',off);auto part=query.substr(off,end==std::string::npos?end:end-off);auto eq=part.find('=');auto key=part.substr(0,eq);std::transform(key.begin(),key.end(),key.begin(),[](unsigned char c){return std::tolower(c);});if(!key.empty())q[key]=(eq==std::string::npos?"":part.substr(eq+1));if(end==std::string::npos)break;off=end+1;}};
-        if(pos!=std::string::npos)add(url.substr(pos+1));add(params.substr(1));q["api_key"]=c1::encode(config.at("token"));q["deviceid"]="c1max-streamplayer";
+        if(pos!=std::string::npos)add(url.substr(pos+1));add(params.substr(1));q["api_key"]=c1::encode(config.at("token"));q["deviceid"]=p.device_id();
         url=path+"?";for(auto&kv:q)url+=kv.first+"="+kv.second+"&";url.pop_back();p.url=url;
         if(options.television){auto mark=url.find("/stream.ts?");if(mark==std::string::npos)throw std::runtime_error("Missing TV stream path");p.hls_url=url;p.hls_url.replace(mark,11,"/master.m3u8?");}
         else p.hls_url=hls_url(p,options,p.session);return p;
@@ -131,9 +132,10 @@ std::string MediaClient::poster(const std::string&id){
     if(be(16)>256||be(20)>256)return "";c1::save_private(path,data);return path;
 }
 void MediaClient::report(const Playback&p,const std::string&e,int64_t ticks,bool paused){
-    call("POST","/Sessions/Playing"+(e.empty()?"":"/"+e),{{"ItemId",p.item},{"MediaSourceId",p.source},{"PlaySessionId",p.session},{"PositionTicks",ticks},{"IsPaused",paused},{"CanSeek",p.duration>0},{"SubtitleStreamIndex",p.options.subtitle},{"PlayMethod","Transcode"}});
+    call("POST","/Sessions/Playing"+(e.empty()?"":"/"+e),{{"ItemId",p.item},{"MediaSourceId",p.source},{"PlaySessionId",p.session},{"PositionTicks",ticks},{"IsPaused",paused},{"CanSeek",p.duration>0},{"SubtitleStreamIndex",p.options.subtitle},{"PlayMethod","Transcode"}},p.options.television);
 }
 void MediaClient::stop_transcode(const Playback&p,const std::atomic<bool>*cancel){
-    auto r=c1::http("DELETE",config.at("base").get<std::string>()+"/Videos/ActiveEncodings?DeviceId=c1max-streamplayer&PlaySessionId="+c1::encode(p.session),headers(),"",cancel);
+    if(p.session.empty())return;
+    auto r=c1::http("DELETE",config.at("base").get<std::string>()+"/Videos/ActiveEncodings?DeviceId="+p.device_id()+"&PlaySessionId="+c1::encode(p.session),headers(p.options.television),"",cancel);
     if(r.status<200||r.status>=300)throw std::runtime_error("Cannot stop server transcode");
 }

@@ -19,6 +19,12 @@ int main(int argc,char**argv){assert(argc==2);MediaClient c;c.config={{"base",ar
     assert(large.hls_url.find("/master.m3u8?")!=std::string::npos&&large.hls_url.find("maxwidth=1280")!=std::string::npos);
     assert(large.hls_url.find("maxheight=720")!=std::string::npos&&large.hls_url.find("subtitlemethod=Encode")!=std::string::npos);
     assert(large.hls_url.find("subtitlestreamindex=2")!=std::string::npos&&large.hls_url.find("api_key=fixture%20%2B%20token")!=std::string::npos);
+    assert(std::string(small.device_id())=="c1max-streamplayer"&&std::string(large.device_id())=="c1max-streamplayer-tv");
+    assert(small.session!=large.session);
+    assert(large.hls_url.find("deviceid=c1max-streamplayer-tv")!=std::string::npos);
+    c.report(small,"",120000000);c.report(large,"Progress",130000000,true);
+    c.stop_transcode(small);c.stop_transcode(large); // Exact session+device, never stop both outputs.
+    c.stop_transcode(Playback{}); // Missing session must never become a wildcard stop.
     assert(large.subtitles.size()==1&&large.subtitles[0].index==2&&large.duration==600000000);
     assert(local.max_width()==400&&local.max_height()==288);local.width_fill=false;assert(local.max_height()==170);
     puts("PASS music API: music/video libraries, bounded tracks, metadata, authenticated MP3 URL and encoded IDs");

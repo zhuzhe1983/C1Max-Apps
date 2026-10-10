@@ -1,6 +1,6 @@
 # Airtune
 
-Native C1 Max internet-radio app with a tactile tuner interface. It reads public station metadata from Radio-Browser, which Airtune itself names as the source for station metadata. Station audio is opened directly from the station's published stream URL by the system MPlayer; the app does not relay audio through Airtune.
+Native C1 Max internet-radio app with a tactile tuner interface. It reads public station metadata from Radio-Browser, which Airtune itself names as the source for station metadata. In local mode, system MPlayer opens the station's published stream URL. In remote mode, the selected receiver reads that URL instead; neither path relays audio through the Airtune website.
 
 ## Device screenshot
 
@@ -21,6 +21,22 @@ Touching/focusing the search field now enters text editing: W/S and all other le
 The right panel has Pause/Resume, Stop, and a persistent **Background** switch (off by default). Space pauses/resumes; B toggles background outside text fields. With background enabled, Power returns to the launcher while a small independent audio worker keeps playing; reopening Airtune reconnects to that worker. A new station/music source replaces the old one. Games and other exclusive audio apps, or completely leaving the custom desktop, stop background audio. Connecting/playing/error now come from the player process, replacing the old fixed 6.5-second assumption. The worker keeps the device awake only while audio is active; the saved screen timeout is unchanged.
 
 `c1max-airtune-focus-test` runs the actual LVGL event/key handlers under QEMU and covers touch focus, W/S typing, async redraw, backspace and returning to navigation. Shared audio lifecycle tests: `tests/run-audio.sh` in the Linux builder.
+
+## Output modes and casting
+
+In **Settings → Wireless casting**, connect a Google Cast or DLNA receiver, then choose Airtune's own **Local / Remote / Both** output preference. It defaults to Local and is read when starting the next station, without moving an existing session.
+
+| Mode | C1 Max | Receiver |
+| --- | --- | --- |
+| Local | Station interface and local sound | No media sent by Airtune |
+| Remote | Station interface and playback controls | Station audio and title |
+| Both | Station interface and playback controls, silent locally | Station audio and title |
+
+For radio, Remote and Both intentionally use one audible endpoint. Both does not create a second local player or mirror the tuner interface onto the TV. The receiver decides how to display the station title and other media information. Pause/Resume, Stop and the existing optional Background switch continue to work through the shared audio service. Starting a new music/radio source replaces its previous source.
+
+The receiver must be able to reach and decode the station URL. No receiver, a failed load or a lost connection produces an error and stops playback; it never unexpectedly enables the C1 Max speaker. To return to local audio, choose Local in Settings and start the station again. Physical volume keys and the three-second volume-down mute notify the active receiver when it provides volume control; a disconnected receiver may briefly retain its own buffered audio.
+
+A Mac running Kodi with its UPnP/DLNA renderer enabled can receive radio without the game bridge service. AirPlay/Apple TV and full-interface mirroring are not implemented. Protocol limits, privacy and verification boundaries are documented in [Wireless casting](../docs/casting.md).
 
 ## 中文输入
 

@@ -1,4 +1,5 @@
 #include "audio_client.h"
+#include "output_mode.hpp"
 #include <cassert>
 #include <chrono>
 #include <cstdio>
@@ -41,6 +42,28 @@ int main(int argc,char**argv){
     r=track(C1_AUDIO_AIRTUNE,true);assert(c1_audio_call(&r,&s,1)==0&&s.owner==C1_AUDIO_AIRTUNE&&s.count==1);
     r=track(C1_AUDIO_AIRTUNE,true,"file:///etc/passwd");assert(c1_audio_call(&r,&s,0)==-1);assert(c1_audio_get(&s)==0&&s.owner==C1_AUDIO_AIRTUNE);
     r=track(C1_AUDIO_AIRTUNE,true,"http://fixture.invalid/fail");assert(c1_audio_call(&r,&s,1)==0);until([&]{return c1_audio_get(&s)==0&&s.state==C1_AUDIO_ERROR;});assert(*s.error);
+    // A selected receiver must not override Local. Remote/Both use one remote
+    // audible endpoint, and losing that endpoint must never start a local one.
+    assert(!fs::exists(root/"cast-loads"));
+    auto starts=[&]{std::ifstream f(root/"player-starts");return std::string(std::istreambuf_iterator<char>(f),{});};
+    for(auto output:{casting::OutputMode::Remote,casting::OutputMode::Both}){
+        assert(casting::set_output_mode("airtune",output));auto local_starts=starts();
+        r=track(C1_AUDIO_AIRTUNE,true);assert(c1_audio_call(&r,&s,1)==0);
+        until([&]{return c1_audio_get(&s)==0&&s.state==C1_AUDIO_PLAYING;});assert(starts()==local_starts);
+        assert(c1_audio_command(C1_AUDIO_AIRTUNE,C1_AUDIO_PAUSE,0,&s)==0);
+        until([&]{return c1_audio_get(&s)==0&&s.state==C1_AUDIO_PAUSED;});
+        assert(c1_audio_command(C1_AUDIO_AIRTUNE,C1_AUDIO_SEEK,10,&s)==0);
+        until([&]{return c1_audio_get(&s)==0&&s.position_ms==10000;});
+        assert(c1_audio_command(C1_AUDIO_AIRTUNE,C1_AUDIO_PAUSE,0,&s)==0);
+        until([&]{return c1_audio_get(&s)==0&&s.state==C1_AUDIO_PLAYING;});
+        std::ofstream(root/"disconnect")<<"1";
+        until([&]{return c1_audio_get(&s)==0&&s.state==C1_AUDIO_ERROR;});assert(starts()==local_starts&&*s.error);
+        assert(c1_audio_call(&r,&s,1)==-1&&s.state==C1_AUDIO_ERROR);assert(starts()==local_starts);
+        fs::remove(root/"disconnect");
+    }
+    assert(casting::set_output_mode("airtune",casting::OutputMode::Local));
+    r=track(C1_AUDIO_AIRTUNE,true);assert(c1_audio_call(&r,&s,1)==0);
+    until([&]{return c1_audio_get(&s)==0&&s.state==C1_AUDIO_PLAYING;});
     assert(c1_audio_command(0,C1_AUDIO_SHUTDOWN,0,nullptr)==0);until([&]{return !fs::exists(tmp/"data/audio/service.sock");});
     puts("PASS audio service: lazy start, private settings, play/pause, ownership/preemption, UI death, background/reattach, queue, failures and shutdown");
 }

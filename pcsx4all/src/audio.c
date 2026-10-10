@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
+#include "../../shared/game_cast_c.h"
 extern int c1_psx_mute;
 static struct pcm *device;
 /* Keep PCM back-pressure away from the emulator/vblank thread. The SPU buffer
@@ -61,6 +62,7 @@ static int init(void){
 static void *audio_writer(void *unused){
     (void)unused;
     unsigned char block[AUDIO_CHUNK_BYTES];
+    int local_gain=256;
     for(;;){
         pthread_mutex_lock(&audio_mutex);
         while(!audio_count&&!audio_stopping)pthread_cond_wait(&audio_ready,&audio_mutex);
@@ -69,6 +71,14 @@ static void *audio_writer(void *unused){
         memcpy(block,audio_queue[audio_head],bytes);
         audio_head=(audio_head+1)%AUDIO_QUEUE_SLOTS;--audio_count;
         pthread_mutex_unlock(&audio_mutex);
+        /* Fade local output; preserve PCM back-pressure and the SPU clock. */
+        int target=c1_game_cast_local_audio()?256:0;
+        int16_t *samples=(int16_t*)block;
+        for(unsigned i=0;i<bytes/4;i++){
+            if(local_gain<target)++local_gain;else if(local_gain>target)--local_gain;
+            samples[i*2]=(int16_t)((int)samples[i*2]*local_gain/256);
+            samples[i*2+1]=(int16_t)((int)samples[i*2+1]*local_gain/256);
+        }
         unsigned frames=bytes/4,offset=0;
         while(offset<frames){
             int written=pcm_writei(device,block+offset*4,frames-offset);
@@ -100,8 +110,10 @@ static int busy(void){
     return full;
 }
 static void feed(void *data,int bytes){
-    if(!device||bytes<=0||bytes%4)return;
+    if(bytes<=0||bytes%4)return;
     if(bytes>AUDIO_CHUNK_BYTES){fprintf(stderr,"PCSX audio block exceeds output queue; dropped\n");return;}
+    if(!c1_psx_mute)c1_game_cast_audio((const int16_t*)data,(size_t)bytes/4,2,44100);
+    if(!device)return;
     pthread_mutex_lock(&audio_mutex);
     if(!audio_stopping&&!audio_failed){
         if(audio_count==AUDIO_QUEUE_SLOTS){audio_head=(audio_head+1)%AUDIO_QUEUE_SLOTS;--audio_count;if(!audio_drop_reported){fprintf(stderr,"PCSX audio queue overrun; dropping stale samples to keep playback current\n");audio_drop_reported=1;}}

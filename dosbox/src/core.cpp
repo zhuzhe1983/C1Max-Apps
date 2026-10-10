@@ -3,6 +3,7 @@
 #include "input.hpp"
 #include "platform.hpp"
 #include "tinyalsa/asoundlib.h"
+#include "../../shared/game_cast.hpp"
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
@@ -21,6 +22,8 @@ bool shutdown_requested=false,menu_requested=false,library_requested=false,headl
 unsigned frames=0,frame_limit=0,cycles=2750,memsize=8;
 uint64_t hash=0,last_present=0,hint_until=0,power_hint_until=0;
 double fps=70.086;
+unsigned audio_rate=44100;
+int audio_gain=256;
 std::string directory,root;
 dos::Platform platform;
 dos::Input keys;
@@ -49,12 +52,20 @@ void video(const void *data,unsigned width,unsigned height,size_t pitch){
     ++frames;auto *p=(const uint8_t*)data;uint64_t h=1469598103934665603ULL;
     for(unsigned y=0;y<height;y+=8)for(unsigned x=0;x<width;x+=8){uint32_t pixel;memcpy(&pixel,p+y*pitch+x*4,4);h^=pixel;h*=1099511628211ULL;}hash=h;
     if(frames==1){printf("DOS_VIDEO %ux%u pitch=%zu\n",width,height,pitch);fflush(stdout);}
+    if(game_cast::video_due())game_cast::frame_xrgb8888((const uint32_t*)data,width,height,pitch,platform.stretch?16:4,platform.stretch?9:3);
     auto now=dos::micros();
-    if(!headless&&now-last_present>=33333){platform.frame(data,width,height,pitch);platform.present(now<hint_until?keys.hint():"",keys.game(),keys.prefix(),keys.caps(),now<power_hint_until);last_present=now;}
+    if(!headless&&now-last_present>=33333){platform.frame(data,width,height,pitch);platform.remote=!game_cast::local_video();platform.cast_notice=game_cast::message();platform.present(now<hint_until?keys.hint():"",keys.game(),keys.prefix(),keys.caps(),now<power_hint_until);last_present=now;}
 }
 void sample(int16_t,int16_t){}
 size_t batch(const int16_t *data,size_t n){
-    if(audio_device&&pcm_writei(audio_device,data,n)<0){fprintf(stderr,"DOS audio failed; continuing silently\n");pcm_close(audio_device);audio_device=nullptr;}
+    if(audio_enabled)game_cast::audio(data,n,2,audio_rate);
+    if(audio_device){
+        int target=game_cast::local_audio()?256:0;int16_t block[1024*2];
+        for(size_t at=0;at<n;){unsigned count=unsigned(std::min(size_t(1024),n-at));
+            for(unsigned i=0;i<count;i++){if(audio_gain<target)++audio_gain;else if(audio_gain>target)--audio_gain;for(unsigned c=0;c<2;c++)block[i*2+c]=int16_t(int(data[(at+i)*2+c])*audio_gain/256);}
+            if(pcm_writei(audio_device,block,count)<0){fprintf(stderr,"DOS audio failed; continuing silently\n");pcm_close(audio_device);audio_device=nullptr;break;}at+=count;
+        }
+    }
     return n;
 }
 void poll(){
@@ -91,6 +102,7 @@ void menu(){
     keys.clear();platform.touching=false;platform.present("",keys.game(),keys.prefix(),keys.caps());hint_until=dos::micros()+2500000;
 }
 int finish(int code,const char *error=nullptr){
+    game_cast::stop();
     if(audio_device){pcm_close(audio_device);audio_device=nullptr;}platform.close();
     if(error)fprintf(stderr,"DOS: %s\n",error);
     if(!headless&&(library_requested||shutdown_requested||error)){
@@ -133,6 +145,8 @@ int main(int argc,char **argv){
     retro_set_environment(environment);retro_set_video_refresh(video);retro_set_audio_sample(sample);retro_set_audio_sample_batch(batch);retro_set_input_poll(poll);retro_set_input_state(input);retro_init();
     retro_game_info info{archive?file.c_str():conf.c_str(),nullptr,0,nullptr};if(!retro_load_game(&info)){retro_deinit();return finish(1,"DOS core could not load the program");}
     retro_system_av_info av{};retro_get_system_av_info(&av);if(av.timing.fps>1&&av.timing.fps<200)fps=av.timing.fps;
+    audio_rate=unsigned(av.timing.sample_rate);
+    if(!headless)game_cast::start("dosbox",shell?"DOSBox":command);
     if(audio_enabled){pcm_config c{};c.channels=2;c.rate=av.timing.sample_rate;c.format=PCM_FORMAT_S16_LE;c.period_size=1024;c.period_count=4;audio_device=pcm_open(0,0,PCM_OUT,&c);if(!audio_device||!pcm_is_ready(audio_device)){if(audio_device)pcm_close(audio_device);audio_device=nullptr;fprintf(stderr,"DOS audio unavailable; muted\n");}}
     printf("DOS_READY fps=%.2f audio=%.0f muted=%d memory=%u cycles=%u cpu=normal\n",fps,av.timing.sample_rate,!audio_device,memsize,cycles);fflush(stdout);
     auto started=dos::micros(),deadline=started;hint_until=started+3000000;unsigned runs=0;

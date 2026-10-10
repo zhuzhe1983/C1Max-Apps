@@ -25,12 +25,12 @@ for name,entry in json.loads(tool_verification.read_text())['binaries'].items():
 for name in ['terminal/assets/shellrc','terminal/assets/inputrc','launcher/run.sh','launcher/apps.txt','launcher/desktop-service.sh']:
     if b'\r' in (root/name).read_bytes():raise SystemExit(name+' has CRLF line endings; re-checkout with LF (see .gitattributes)')
 versions={
-    'launcher':'0.3.2', 'piano':'0.3.0', 'nes':'0.2.2',
-    'streamplayer':'0.4.0', 'calendar':'0.3.1', 'calculator':'0.2.0',
-    'settings':'0.3.0', 'terminal':'0.1.0', 'gomoku':'0.1.0',
-    'pcsx4all':'0.1.1', 'processing':'0.1.0', 'dosbox':'0.1.2',
-    'airtune':'0.4.0', 'crosspoint':'0.4.1', 'camera':'0.2.0',
-    'mail':'0.2.1', 'bilibili':'0.2.1', 'hidpilot':'0.2.0',
+    'launcher':'0.3.2', 'piano':'0.3.0', 'nes':'0.3.0',
+    'streamplayer':'0.5.0', 'calendar':'0.3.1', 'calculator':'0.2.0',
+    'settings':'0.3.1', 'terminal':'0.1.0', 'gomoku':'0.1.0',
+    'pcsx4all':'0.2.0', 'processing':'0.1.0', 'dosbox':'0.2.0',
+    'airtune':'0.5.0', 'crosspoint':'0.4.1', 'camera':'0.2.0',
+    'mail':'0.2.1', 'bilibili':'0.3.0', 'hidpilot':'0.2.0',
     'moonpilot':'0.1.1', 'tox':'0.3.1', 'appstore':'0.1.1',
 }
 apps=[]

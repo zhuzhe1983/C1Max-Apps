@@ -10,6 +10,7 @@
 #include "video.hpp"
 #include "../../launcher/src/font8x8.h"
 #include "../../shared/power_hold.hpp"
+#include "../../shared/game_cast.hpp"
 #include <algorithm>
 #include <csignal>
 #include <string>
@@ -119,8 +120,21 @@ void video_frame(const uint16_t *vram,int x,int y,int width,int height,int activ
         printf("C1MAX_PSX_VIDEO source=%dx%d active=%d rgb=%d\n",width,height,active,rgb24?24:15);fflush(stdout);
     }
     source={vram,x,y,width,height,active,rgb24};if(!source.valid())return;
+    if(game_cast::video_due()){
+        uint32_t capture[320*240];int top=(height-active)/2;
+        for(int cy=0;cy<240;cy++){
+            int sy=cy*height/240-top,row=(sy<0||sy>=active)?-1:((y+sy)*1024+x)&(1024*512-1);
+            for(int cx=0;cx<320;cx++)capture[cy*320+cx]=psxvideo::sample(source,row,(cx*width/320)*(rgb24?3:1));
+        }
+        game_cast::frame_xrgb8888(capture,320,240,320*4);
+    }
     if(display_blanked){uint64_t now=monotonic_us();printf("C1MAX_PSX_DISPLAY_RESTORED blank_vsyncs=%u blank_ms=%llu\n",vsyncs-display_blank_vsync,(unsigned long long)((now-display_blank_us)/1000));fflush(stdout);display_blanked=false;}
     if(headless)return;
+    auto notice=game_cast::message();
+    if(!game_cast::local_video()){
+        video_clear();port_printf(8,92,"PLAYING ON MAC");port_printf(8,114,"Physical controls remain active");
+        port_printf(8,136,"Back: pause / Hold Power: quit");video_flip();return;
+    }
     mapping.set(source,wide);fb_var_screeninfo v{};auto *dst=begin_frame(mapping.width,v);if(!dst)return;
     for(int i=0;i<mapping.width;i++){
         auto *col=(uint32_t*)(dst+size_t(799-mapping.left-i)*stride);
@@ -131,9 +145,14 @@ void video_frame(const uint16_t *vram,int x,int y,int width,int height,int activ
         for(int x=0;x<psxguide::Width;x++)for(int y=0;y<52;y++)
             *(uint32_t*)(dst+size_t(799-left-x)*stride+(8+y)*4)=power_notice[y*psxguide::Width+x];
     }
+    if(!notice.empty()){
+        for(int cy=0;cy<20;cy++)for(int cx=0;cx<320;cx++)*(uint32_t*)(dst+size_t(799-240-cx)*stride+(310+cy)*4)=0xff13232d;
+        int tx=244;for(unsigned char c:notice){if(tx>548)break;if(c>=128)c='?';for(int cy=0;cy<8;cy++)for(int cx=0;cx<8;cx++)if(font8x8_basic[c][cy]&(1<<cx))*(uint32_t*)(dst+size_t(799-tx-cx)*stride+(316+cy)*4)=0xffa5decd;tx+=8;}
+    }
     end_frame(v);
 }
 void video_blank(){
+    if(game_cast::video_due()){static const uint16_t black[320*240]={};game_cast::frame_rgb565(black,320,240,320*2);}
     if(!display_blanked){display_blanked=true;display_blank_vsync=vsyncs;display_blank_us=monotonic_us();printf("C1MAX_PSX_DISPLAY_BLANK vsync=%u\n",vsyncs);fflush(stdout);}
     fb_var_screeninfo v{};int width=wide?800:453,left=wide?0:173;auto *dst=begin_frame(width,v);if(!dst)return;
     for(int x=left;x<left+width;x++)memset(dst+size_t(799-x)*stride,0,340*4);
@@ -165,6 +184,7 @@ static bool open_display(){
     return true;
 }
 static void cleanup(){
+    game_cast::stop();
     if(initialized){sioSyncMcds();ReleasePlugins();psxShutdown();initialized=false;}
     if(memory){initial.activate=FB_ACTIVATE_VBL;ioctl(fb,FBIOPAN_DISPLAY,&initial);munmap(memory,map_size);memory=nullptr;}
     if(fb>=0)close(fb);for(int fd:keys)if(fd>=0)close(fd);
@@ -259,5 +279,6 @@ int main(int argc,char **argv){
     uint64_t hash=1469598103934665603ULL;for(unsigned char c:image){hash^=c;hash*=1099511628211ULL;}char id[32];snprintf(id,sizeof id,"%016llx",(unsigned long long)hash);
     state_path=data_dir+"/states/"+id+".0.sav";
     printf("C1MAX_PCSX_START cpu=%s bios=%s muted=%d\n",interpreter?"interpreter":"mips-dynarec",Config.HLE?"HLE":"external",c1_psx_mute);fflush(stdout);
+    if(!headless){auto slash=image.find_last_of('/');game_cast::start("pcsx4all",slash==std::string::npos?image:image.substr(slash+1));}
     psxCpu->Execute();cleanup();return 0;
 }

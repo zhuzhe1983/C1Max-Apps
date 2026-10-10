@@ -1,6 +1,7 @@
 #include "text_input.hpp"
 #include "display.hpp"
 #include "cast.hpp"
+#include "output_mode.hpp"
 #include "../../terminal/src/voice.hpp"
 #include "src/libs/tiny_ttf/lv_tiny_ttf.h"
 #include <tinyalsa/mixer.h>
@@ -30,7 +31,7 @@ c1ime::TextInput text_input;
 volatile sig_atomic_t interrupted = 0;
 void on_signal(int) { interrupted = 1; }
 
-constexpr const char *kVersion = "0.2.1";
+constexpr const char *kVersion = "0.3.1";
 constexpr const char *kBacklight = "/sys/class/backlight/backlight/brightness";
 constexpr const char *kBacklightMax = "/sys/class/backlight/backlight/max_brightness";
 
@@ -1435,13 +1436,30 @@ std::vector<Item> cast_page() {
         if(state=="playing"||state=="paused")v.push_back(action("cast-pause",state=="paused"?"继续播放":"暂停播放","",[state]{cast_action({{"action",state=="paused"?"play":"pause"},{"owner","settings"}});}));
         v.push_back(action("cast-disconnect","断开投屏","返回本机选择播放",[]{cast_action({{"action","disconnect"}});}));
     }
+    v.push_back(header("各应用的输出方式"));
+    for (auto app : std::vector<std::pair<std::string,std::string>>{
+             {"nes","NES / 红白机"},{"pcsx4all","PS1 / PCSX4all"},{"dosbox","DOSBox"},
+             {"streamplayer","StreamPlayer"},{"bilibili","Bilibili"},{"airtune","Airtune"}}) {
+        Item item; item.kind=Kind::Choice; item.key="cast-output-"+app.first; item.label=app.second;
+        item.options={"仅本机","仅远端","本机＋远端"};
+        item.option=static_cast<int>(casting::output_mode(app.first));
+        item.on_change=[id=app.first](int option){
+            if(!casting::set_output_mode(id,static_cast<casting::OutputMode>(option))) {
+                show_toast("输出方式保存失败",5000);return;
+            }
+            show_toast("已保存，下次开始游戏或播放时生效");
+        };
+        v.push_back(std::move(item));
+    }
+    v.push_back(note("cast-output-help","每个应用单独保存；默认仅本机。双屏时声音默认由远端输出，两块屏幕可能存在延迟。"));
+    v.push_back(header("可用接收设备"));
     if(cast_state.contains("devices")&&cast_state["devices"].is_array())for(auto d:cast_state["devices"]){
         auto id=d.value("id",std::string()),title=d.value("name",std::string());if(d.value("supported",false))v.push_back(action("cast-"+id,title,d.value("detail",std::string()),[id]{cast_action({{"action","select"},{"id",id}});}));
         else v.push_back(info(title,d.value("detail",std::string("暂不支持"))));
     }
     if(!name.empty())v.push_back(action("cast-forget","忘记接收设备",name,[]{confirm_title="忘记投屏设备";confirm_text="断开当前投屏并清除保存的接收器证书。下次连接重新信任所选设备。";confirm_button="忘记";confirm_fn=[]{cast_action({{"action","forget"}});};open_sheet(Sheet::Confirm);}));
-    v.push_back(note("cast-help","与电视连接同一局域网。连接后 StreamPlayer 和 Airtune 使用电视播放；电视端可使用 Google Cast 或 AirScreen 的 DLNA 接收。"));
-    v.push_back(note("cast-scope","当前为媒体投送。桌面和游戏镜像暂未开放；Apple TV 的 AirPlay 尚未适配。"));
+    v.push_back(note("cast-help","选择接收设备，再把所需应用设为仅远端或本机＋远端。电视可开启 Google Cast 或 DLNA 接收。"));
+    v.push_back(note("cast-scope","游戏投屏需要已配对的 Mac 辅助服务。完整桌面镜像和 Apple TV AirPlay 尚未开放。"));
     return v;
 }
 void poll_cast() {

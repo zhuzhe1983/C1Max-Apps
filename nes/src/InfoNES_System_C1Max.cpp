@@ -23,6 +23,7 @@
 #include "InfoNES_System.h"
 #include "InfoNES_pAPU.h"
 #include "../../shared/power_hold.hpp"
+#include "../../shared/game_cast.hpp"
 extern "C" {
 #include "../../launcher/src/typeface.h"
 }
@@ -55,6 +56,11 @@ static bool power_notice_visible=false;
 static bool virtual_controls=false;
 static std::vector<uint32_t> left_panel,right_panel;
 static std::vector<uint32_t> power_notice;
+static std::vector<uint32_t> cast_notice;
+static std::string last_cast_notice;
+static bool stats_enabled(){static bool enabled=[](){const char *v=getenv("C1_NES_STATS");return v&&*v&&strcmp(v,"0");}();return enabled;}
+static unsigned stats_vblanks=0,stats_frames=0,stats_captures=0;
+static uint64_t stats_started=0;
 static void quit_signal(int){g_quit=1;}
 static uint64_t monotonic_us(){timespec t{};clock_gettime(CLOCK_MONOTONIC,&t);return uint64_t(t.tv_sec)*1000000ULL+t.tv_nsec/1000;}
 static uint64_t boot_us(){
@@ -193,10 +199,16 @@ static int fb_init(){
   return 0;
 }
 void InfoNES_LoadFrame(){
+  if(stats_enabled())++stats_frames;
+  if(game_cast::video_due()){game_cast::frame_rgb555(WorkFrame,256,240,256*sizeof(WORD));if(stats_enabled())++stats_captures;}
+  const bool local=game_cast::local_video();
+  static bool previous_local=true;
+  if(!local&&previous_local)fillrect(VP_X0,0,VP_W,VP_H,rgb(12,20,29));
+  previous_local=local;
   // 当前显示帧基址（若pan生效则yoffset=0）
   long base=(long)vinfo.yoffset*fb_stride;
   WORD* wf=WorkFrame;
-  for(int dy=0; dy<VP_H; dy++){
+  for(int dy=0; local&&dy<VP_H; dy++){
     int ny=luty[dy]; WORD* line=&wf[ny*256];
     for(int i=0;i<VP_W;i++){
       int dx=VP_X0+i;
@@ -205,6 +217,17 @@ void InfoNES_LoadFrame(){
       uint32_t c=0xFF000000u | ((r<<3|r>>2)<<16) | ((g<<3|g>>2)<<8) | (b<<3|b>>2);
       *(uint32_t*)(fbmem+base+(long)(799-dx)*fb_stride+dy*4)=c;
     }
+  }
+  auto notice=game_cast::message();
+  if(!notice.empty()){
+    if(notice!=last_cast_notice){
+      cast_notice.assign(360*42,rgb(22,36,48));
+      const char *root=getenv("C1_APPS_ROOT");char path[512];snprintf(path,sizeof path,"%s/shared/NotoSansSC-Regular.ttf",root?root:"/storage/apps/current");
+      if(typeface_open(path)){typeface_draw(cast_notice.data(),360,42,9,10,notice.c_str(),rgb(154,223,209),13);typeface_close();}
+      last_cast_notice=notice;
+    }
+    int top=local?294:149;
+    for(int y=0;y<42;y++)for(int x=0;x<360;x++)px(VP_X0+1+x,top+y,cast_notice[y*360+x]);
   }
 }
 
@@ -305,6 +328,16 @@ void InfoNES_PadState(DWORD*p1,DWORD*p2,DWORD*sys){
   update_power_notice();
   *p1=padTouch|padKeys; *p2=0;
   *sys = g_quit ? PAD_SYS_QUIT : 0;
+  if(stats_enabled()){
+    uint64_t now=monotonic_us();
+    if(!stats_started){stats_started=now;stats_vblanks=stats_frames=stats_captures=0;}
+    else if(++stats_vblanks==300){
+      uint64_t elapsed=now-stats_started;
+      fprintf(stderr,"NES_STATS emulated_fps=%.2f vblanks=%u rendered_frames=%u cast_attempts=%u elapsed_ms=%llu local_video=%d local_audio=%d\n",
+        elapsed?double(stats_vblanks)*1000000.0/double(elapsed):0.0,stats_vblanks,stats_frames,stats_captures,(unsigned long long)(elapsed/1000),game_cast::local_video(),game_cast::local_audio());
+      stats_started=now;stats_vblanks=stats_frames=stats_captures=0;
+    }
+  }
 }
 
 // InfoNES calls this after every scanline. Silent pacing lives in PadState,
@@ -322,8 +355,11 @@ int main(int argc,char**argv){
   InfoNES_Init();
   fprintf(stderr,"加载 ROM: %s\n",argv[1]);
   if(InfoNES_Load(argv[1])!=0){ fprintf(stderr,"ROM加载失败\n"); return 1; }
+  std::string title=argv[1];auto slash=title.find_last_of('/');if(slash!=std::string::npos)title=title.substr(slash+1);
+  game_cast::start("nes",title);nes_audio::cast_hooks(game_cast::audio,game_cast::local_audio);
   fprintf(stderr,"开始模拟\n");
   InfoNES_Cycle();       // 主模拟循环
+  game_cast::stop();
   InfoNES_Fin();
   if(fbmem) munmap(fbmem,frame_sz*3);
   return 0;
