@@ -25,7 +25,7 @@ for name,entry in json.loads(tool_verification.read_text())['binaries'].items():
 for name in ['terminal/assets/shellrc','terminal/assets/inputrc','launcher/run.sh','launcher/apps.txt','launcher/desktop-service.sh']:
     if b'\r' in (root/name).read_bytes():raise SystemExit(name+' has CRLF line endings; re-checkout with LF (see .gitattributes)')
 versions={
-    'launcher':'0.3.0', 'piano':'0.3.0', 'nes':'0.2.1',
+    'launcher':'0.3.1', 'piano':'0.3.0', 'nes':'0.2.2',
     'streamplayer':'0.3.1', 'calendar':'0.3.1', 'calculator':'0.2.0',
     'settings':'0.2.1', 'terminal':'0.1.0', 'gomoku':'0.1.0',
     'pcsx4all':'0.1.1', 'processing':'0.1.0', 'dosbox':'0.1.2',

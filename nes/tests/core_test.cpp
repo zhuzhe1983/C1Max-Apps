@@ -22,6 +22,19 @@ int main(){
         std::fill_n(WorkFrame,256*240,colors[i]);InfoNES_LoadFrame();
         for(int y=0;y<VP_H;y++)for(int x=0;x<VP_W;x++)assert(*(uint32_t*)(fbmem+(799-(VP_X0+x))*fb_stride+y*4)==expected[i]);
     }
+    build_panels();virtual_controls=false;draw_controls();
+    assert(region_to_pad(720,150)==0);
+    for(bool touch:{true,false}){
+        virtual_controls=touch;draw_controls();
+        assert(region_to_pad(720,150)==(touch?NA:0));
+        for(int y=0;y<VP_H;y++)for(int x=0;x<VP_W;x++)
+            assert(*(uint32_t*)(fbmem+(799-(VP_X0+x))*fb_stride+y*4)==0xff000000);
+    }
+    // Optional synthetic render for margin typography inspection, not a
+    // screenshot of a running game and never included in public screenshots.
+    if(const char *path=getenv("C1_NES_TEST_FRAME")){
+        FILE *f=fopen(path,"wb");assert(f);assert(fwrite(fbmem,1,frame_sz,f)==size_t(frame_sz));fclose(f);
+    }
     free(fbmem);fbmem=nullptr;
     BYTE bank[8192]={0};ROMBANK0=ROMBANK1=ROMBANK2=ROMBANK3=bank;
     K6502_Init();K6502_Reset();

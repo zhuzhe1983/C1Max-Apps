@@ -229,7 +229,7 @@ sh ./dosbox/tests/run.sh
 # 设备上执行构建生成的 c1max-api-test：清单/版本/URL 校验
 ```
 
-StreamPlayer 的 Emby 实机结果与未迁移部分见 [播放器说明](streamplayer/README.md)。日历/计算器各有独立模型测试。[NES 0.2.1](nes/README.md) 支持 WASD/J/K 物理按键，修复系统音量并改用 Nes_Snd_Emu 合成。已用自制游戏 Alter Ego 和用户提供的《坦克大战》（mapper 0）验证画面／输入，后者还验证了音频与静音；其他游戏兼容性需分别测试。
+StreamPlayer 的 Emby 实机结果与未迁移部分见 [播放器说明](streamplayer/README.md)。日历/计算器各有独立模型测试。[NES](nes/README.md) 支持 WASD/J/K 物理按键，使用 Nes_Snd_Emu 合成及系统音量。0.2.2 增加独立帧率限制、唤醒后音频重连，以及默认实体按键提示／`T` 切换虚拟按钮；本轮真机验证状态见 [记录](docs/2026-10-10-game-resume-qa.md)。已用自制游戏 Alter Ego 和用户提供的《坦克大战》（mapper 0）验证画面／输入，后者还验证了音频与静音；其他游戏兼容性需分别测试。
 
 DOS 的导入与键盘说明见 [DOSBox](dosbox/README.md)。PS1 的镜像路径、按键和兼容性见 [PCSX4all](pcsx4all/README.md)，绘图语言的支持范围与示例来源见 [Processing 2D](processing/README.md)。
 

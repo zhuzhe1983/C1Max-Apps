@@ -26,15 +26,15 @@ public:
     }
 };
 
-// Called once per VBlank when PCM cannot provide back-pressure. InfoNES_Wait
-// is called per *scanline*, so a 60 Hz sleep there makes a game almost freeze.
+// Called every VBlank, even with a PCM handle: after resume a broken driver
+// may accept writes without providing back-pressure. Never use it as a clock.
 class FrameClock {
     uint64_t next_=0;
 public:
     void reset(){next_=0;}
-    unsigned delay(uint64_t now) {
+    unsigned delay(uint64_t now,unsigned interval=16667) {
         if(!next_||now>next_+100000)next_=now;
-        next_+=16667;
+        next_+=interval;
         return next_>now?unsigned(next_-now):0;
     }
 };
@@ -42,5 +42,7 @@ public:
 bool open(int samples_per_sync,int rate);
 void close();
 bool active();
+// BOOTTIME microseconds, so actual device suspend is included in the gap.
+void service(uint64_t now);
 void output(int samples,const int16_t *mono);
 }

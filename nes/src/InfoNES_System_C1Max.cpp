@@ -16,6 +16,7 @@
 #include <initializer_list>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <linux/fb.h>
 #include <linux/input.h>
 #include "InfoNES.h"
@@ -39,7 +40,7 @@ static int VP_X0 = (DISP_W - VP_W)/2;   // 219
 static int lutx[VP_W], luty[VP_H];      // display→NES 采样查表
 
 // ---------------- 声音 ----------------
-static nes_audio::FrameClock silent_clock;
+static nes_audio::FrameClock frame_clock;
 
 // ---------------- 输入 ----------------
 static int ev_touch=-1, ev_key=-1, ev_return=-1;
@@ -51,9 +52,18 @@ static keyboard::PowerHold power_key;
 static clockid_t input_clock=CLOCK_REALTIME;
 static uint64_t power_hint_until=0;
 static bool power_notice_visible=false;
+static bool virtual_controls=false;
+static std::vector<uint32_t> left_panel,right_panel;
 static std::vector<uint32_t> power_notice;
 static void quit_signal(int){g_quit=1;}
 static uint64_t monotonic_us(){timespec t{};clock_gettime(CLOCK_MONOTONIC,&t);return uint64_t(t.tv_sec)*1000000ULL+t.tv_nsec/1000;}
+static uint64_t boot_us(){
+  timespec t{};
+#ifdef CLOCK_BOOTTIME
+  if(clock_gettime(CLOCK_BOOTTIME,&t)==0)return uint64_t(t.tv_sec)*1000000ULL+t.tv_nsec/1000;
+#endif
+  return monotonic_us();
+}
 static uint64_t input_clock_ms(){timespec t{};clock_gettime(input_clock,&t);return uint64_t(t.tv_sec)*1000+t.tv_nsec/1000000;}
 static void power_action(keyboard::PowerHold::Action action){
   if(action==keyboard::PowerHold::Hint)power_hint_until=monotonic_us()+2500000;
@@ -93,8 +103,34 @@ static void px(int dx,int dy,uint32_t c){
 }
 static void fillrect(int x,int y,int w,int h,uint32_t c){ for(int j=0;j<h;j++)for(int i=0;i<w;i++) px(x+i,y+j,c); }
 static void fillcirc(int cx,int cy,int r,uint32_t c){ for(int y=-r;y<=r;y++)for(int x=-r;x<=r;x++) if(x*x+y*y<=r*r) px(cx+x,cy+y,c); }
+static void controls_path(char *path,size_t size){
+  const char *data=getenv("C1_APPS_DATA");
+  snprintf(path,size,"%s/nes/controls",data?data:"/storage/apps/data");
+}
+static void build_panels(){
+  const int w=219;const uint32_t bg=rgb(19,27,35),white=rgb(226,235,240),muted=rgb(145,162,177),accent=rgb(101,206,184);
+  left_panel.assign(w*DISP_H,bg);right_panel=left_panel;
+  const char *root=getenv("C1_APPS_ROOT");char path[512];snprintf(path,sizeof path,"%s/shared/NotoSansSC-Regular.ttf",root?root:"/storage/apps/current");
+  if(!typeface_open(path))return;
+  auto text=[&](std::vector<uint32_t>&p,int y,const char*s,uint32_t color,int size=17){typeface_draw(p.data(),w,DISP_H,20,y,s,color,size);};
+  text(left_panel,24,"NES / 红白机",accent,19);text(left_panel,62,"方向控制",muted,14);
+  text(left_panel,102,"W     向上",white);text(left_panel,140,"A / D   左 / 右",white);text(left_panel,178,"S     向下",white);
+  text(left_panel,236,"音量 − / ＋  调节",muted,15);text(left_panel,269,"长按音量 −  静音",muted,15);text(left_panel,308,"T  切换虚拟按键",accent,15);
+  text(right_panel,24,"实体按键",accent,19);text(right_panel,78,"J     A 键",white);text(right_panel,116,"K     B 键",white);
+  text(right_panel,172,"Q     SELECT",white);text(right_panel,210,"E / 回车   START",white);
+  text(right_panel,276,"长按电源 5 秒",muted,16);text(right_panel,304,"退出游戏",muted,16);
+  typeface_close();
+}
 static void draw_controls(){
-  fillrect(0,0,DISP_W,DISP_H,rgb(24,24,32));  // 深色背景
+  // Only paint the margins; toggling controls must not erase the game frame.
+  fillrect(0,0,VP_X0,DISP_H,rgb(24,24,32));
+  fillrect(VP_X0+VP_W,0,DISP_W-VP_X0-VP_W,DISP_H,rgb(24,24,32));
+  if(!virtual_controls){
+    for(int y=0;y<DISP_H;y++)for(int x=0;x<219;x++){
+      px(x,y,left_panel[y*219+x]);px(581+x,y,right_panel[y*219+x]);
+    }
+    return;
+  }
   uint32_t gray=rgb(90,90,100), red=rgb(210,50,50), yel=rgb(220,190,40), dk=rgb(50,50,60);
   // D-pad 十字(左边距)
   fillrect(40,155,130,50,gray);   // 横
@@ -106,12 +142,26 @@ static void draw_controls(){
   // Start/Select(底部小圆)
   fillcirc(700,305,24,gray);
   fillcirc(610,305,24,gray);
+  // Keep the same physical-key toggle discoverable in touch mode.
+  const char *root=getenv("C1_APPS_ROOT");char path[512];snprintf(path,sizeof path,"%s/shared/NotoSansSC-Regular.ttf",root?root:"/storage/apps/current");
+  if(typeface_open(path)){
+    std::vector<uint32_t> label(200*30,rgb(24,24,32));
+    typeface_draw(label.data(),200,30,10,4,"T  切换实体按键提示",rgb(101,206,184),15);typeface_close();
+    for(int y=0;y<30;y++)for(int x=0;x<200;x++)px(10+x,300+y,label[y*200+x]);
+  }
+}
+static void toggle_controls(){
+  virtual_controls=!virtual_controls;padTouch=0;
+  char path[512];controls_path(path,sizeof path);
+  char folder[512];snprintf(folder,sizeof folder,"%s",path);*strrchr(folder,'/')=0;mkdir(folder,0700);
+  FILE *f=fopen(path,"w");if(f){fprintf(f,"%s\n",virtual_controls?"touch":"keys");fclose(f);}
+  draw_controls();power_notice_visible=false;
 }
 static void update_power_notice(){
   const bool wanted=monotonic_us()<power_hint_until;
   if(wanted==power_notice_visible)return;
   if(wanted){for(int y=0;y<52;y++)for(int x=0;x<200;x++)px(10+x,10+y,power_notice[y*200+x]);}
-  else fillrect(10,10,200,52,rgb(24,24,32));
+  else draw_controls();
   power_notice_visible=wanted;
 }
 
@@ -133,7 +183,10 @@ static int fb_init(){
   for(int x=0;x<200;x++)for(int y=0;y<52;y++)if(x==0||y==0||x==199||y==51)power_notice[y*200+x]=0xff526a76;
   const char *root=getenv("C1_APPS_ROOT");char font_path[512];snprintf(font_path,sizeof font_path,"%s/shared/NotoSansSC-Regular.ttf",root?root:"/storage/apps/current");
   if(typeface_open(font_path)){const char *lines[]={"长按五秒","电源键退出"};for(int n=0;n<2;n++){int w=typeface_width(lines[n],15);typeface_draw(power_notice.data(),200,52,(200-w)/2,5+n*22,lines[n],0xffd8eceb,15);}typeface_close();}
-  draw_controls();       // 画可见手柄
+  build_panels();
+  char pref[512],mode[16]={0};controls_path(pref,sizeof pref);FILE *f=fopen(pref,"r");
+  if(f){if(fgets(mode,sizeof mode,f))virtual_controls=!strcmp(mode,"touch\n");fclose(f);}
+  draw_controls();
   // 采样查表
   for(int i=0;i<VP_W;i++) lutx[i]=i*256/VP_W;      // 0..255
   for(int j=0;j<VP_H;j++) luty[j]=j*240/VP_H;      // 0..239
@@ -158,7 +211,7 @@ void InfoNES_LoadFrame(){
 // ---- 声音 ----
 void InfoNES_SoundInit(){}
 int InfoNES_SoundOpen(int samples_per_sync,int rate){
-  silent_clock.reset();return nes_audio::open(samples_per_sync,rate)?1:0;
+  frame_clock.reset();return nes_audio::open(samples_per_sync,rate)?1:0;
 }
 void InfoNES_SoundClose(){nes_audio::close();}
 
@@ -195,6 +248,7 @@ static void map_touch(int rx,int ry,int*dx,int*dy){
 }
 // 屏上虚拟按键区域(横屏坐标)：左侧方向键，右侧AB
 static DWORD region_to_pad(int dx,int dy){
+  if(!virtual_controls)return 0;
   DWORD p=0;
   // 左上角退出
   // D-pad 方形区(允许对角)
@@ -226,14 +280,18 @@ static void poll_touch(){
   }
 }
 void InfoNES_PadState(DWORD*p1,DWORD*p2,DWORD*sys){
-  if(nes_audio::active())silent_clock.reset();
-  else if(!g_quit){unsigned delay=silent_clock.delay(monotonic_us());if(delay)usleep(delay);}
+  // Match this core's CPU time per frame to the APU's NTSC clock. A rounded
+  // 1/60 limit produces too few samples per second and slowly drains ALSA.
+  constexpr unsigned interval=uint64_t(SCAN_VBLANK_END+1)*STEP_PER_SCANLINE*1000000/1789773;
+  if(!g_quit){unsigned delay=frame_clock.delay(monotonic_us(),interval);if(delay)usleep(delay);}
+  nes_audio::service(boot_us());
   poll_touch();
   struct input_event e;
   while(ev_key>=0&&read(ev_key,&e,sizeof e)==sizeof e){
     if(e.type==EV_SYN&&e.code==SYN_DROPPED){power_key.reset();padKeys=0;continue;}
     if(e.type!=EV_KEY)continue;DWORD bit=0;
     if(e.code==KEY_POWER){power_action(power_key.event(e.value,uint64_t(e.time.tv_sec)*1000+e.time.tv_usec/1000));continue;}
+    if(e.code==KEY_T){if(e.value==1)toggle_controls();continue;}
     switch(e.code){case KEY_W:bit=NUP;break;case KEY_S:bit=NDOWN;break;case KEY_A:bit=NLEFT;break;case KEY_D:bit=NRIGHT;break;case KEY_J:bit=NA;break;case KEY_K:bit=NB;break;case KEY_Q:bit=NSEL;break;case KEY_E:bit=NSTART;break;default:break;}
     if(e.value)padKeys|=bit;else padKeys&=~bit;
   }
@@ -250,7 +308,7 @@ void InfoNES_PadState(DWORD*p1,DWORD*p2,DWORD*sys){
 }
 
 // InfoNES calls this after every scanline. Silent pacing lives in PadState,
-// once per VBlank; PCM back-pressure supplies timing while audio is healthy.
+// once per VBlank, independently of sound-card state.
 void InfoNES_Wait(){}
 int InfoNES_Menu(){ return 0; }  // 直接进游戏
 

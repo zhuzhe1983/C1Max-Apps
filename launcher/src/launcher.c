@@ -511,6 +511,8 @@ static void reload_apps(void){
     if(current_page*PAGE_SIZE>=napps)current_page=0;
 }
 #include "../../shared/audio_client.h"
+#include "../../shared/game_awake.h"
+#include "../../shared/idle_reset.h"
 static void launch_app(App *app){
     if(!app->present||!app->argv[0])return;
     const char *exclusive[]={"nes","pcsx4all","dosbox","bilibili","moonpilot","camera","tox"};
@@ -525,11 +527,15 @@ static void launch_app(App *app){
         execv(app->argv[0],app->argv);_exit(127);
     }
     if(child>0){
+        const int game=c1_game_needs_awake(app->icon_id);
+        C1GameAwake awake={.fd=-1};
+        if(game)c1_reset_idle();
         HomeKeys home_keys={0}; /* A new child never inherits an earlier hold. */
         int status=0;setpgid(child,child);
         for(;;){
             pid_t done=waitpid(child,&status,WNOHANG);if(done==child)break;
             if(done<0){if(errno==EINTR)continue;break;}
+            if(game)c1_game_awake_tick(&awake,now_ms());
             /* Stock binaries never exit on their own: power or a 2s back-hold
              * comes home to the grid (kills only this child; want_quit would
              * exit to the stock desktop). */
@@ -541,6 +547,7 @@ static void launch_app(App *app){
             }
             usleep(50000);
         }
+        if(game){c1_reset_idle();c1_game_awake_end(&awake);}
         fprintf(stderr,"[launcher] %s finished (status %d)\n",app->label,status);
     }else perror("[launcher] fork");
     drain_input();power_pressed=0;power_armed_at=0;power_ignore_until=now_ms()+POWER_GRACE_MS;

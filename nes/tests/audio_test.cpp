@@ -113,5 +113,40 @@ static void pacing(){
     for(int frame=0;frame<60;frame++){now+=3000;auto delay=c.delay(now);assert(delay<=16667);now+=delay;}
     assert(now-start>=1000000&&now-start<1010000);
     now+=1000000;assert(c.delay(now)==16667);c.reset();assert(c.delay(now)==16667);
+    // Broken PCM accepts every frame immediately. The independent wall clock
+    // still holds 60 frames to one second, rather than racing the CPU.
+    c.reset();now=1000000;start=now;
+    for(int i=0;i<60;i++){now+=100;now+=c.delay(now);}
+    assert(now-start>=1000000&&now-start<1001000);
+    // Healthy PCM blocks slightly longer than a frame: never add 16 ms to
+    // every blocking write, which would accidentally halve the game speed.
+    c.reset();now=1000000;start=now;
+    for(int i=0;i<60;i++){now+=17000;now+=c.delay(now);}
+    assert(now-start>=1020000&&now-start<1040000);
+    // InfoNES advances 263 * 113 CPU clocks per frame. Keep the wall-clock
+    // limit aligned with the APU rate instead of slowly starving a 44.1k DAC.
+    c.reset();now=1000000;start=now;
+    constexpr unsigned interval=uint64_t(263)*113*1000000/1789773;
+    for(int i=0;i<6000;i++){now+=100;now+=c.delay(now,interval);}
+    const double generated=6000.0*263*113*44100/1789773;
+    const double consumed=double(now-start)*44100/1000000;
+    assert(generated>=consumed&&generated-consumed<1000);
 }
-int main(){mixing();io();pacing();reset();std::puts("PASS NES: signed/silent PCM, headroom, live stereo volume/mute, gain ramps, short writes, bounded error recovery and VBlank clock");}
+static void resume(){
+    reset();assert(nes_audio::open(735,44100));nes_audio::service(1000000);
+    auto w=signal(735);writes={-EIO};send(w);assert(!nes_audio::active());
+    // Two seconds of healthy frame callbacks, no busy-loop reopen attempts.
+    for(uint64_t t=1010000;t<3000000;t+=10000)nes_audio::service(t);
+    assert(opens==1);nes_audio::service(3000000);assert(opens==2&&nes_audio::active());
+    captured.clear();send(w);assert(!captured.empty());
+    // A suspend gap also recreates a handle that still looks ready/healthy.
+    nes_audio::service(23000000);assert(opens==3&&closes==2&&nes_audio::active());
+    volumes[0]=volumes[1]=0;captured.clear();send(w);
+    for(auto value:captured)assert(value==0); // Preserve mute across resume.
+    nes_audio::close();nes_audio::service(25000000);assert(opens==3&&!nes_audio::active());
+    reset();fail_opens=99;assert(!nes_audio::open(735,44100));nes_audio::service(1000000);
+    unsigned failed=opens;
+    for(uint64_t t=1010000;t<3000000;t+=10000)nes_audio::service(t);
+    assert(opens==failed);fail_opens=0;nes_audio::service(3000000);assert(nes_audio::active());
+}
+int main(){mixing();io();pacing();resume();reset();std::puts("PASS NES: PCM/volume, bounded recovery, resume/retry/mute and independent VBlank clock");}

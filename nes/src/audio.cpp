@@ -12,6 +12,15 @@ mixer_ctl *volume_ctl=nullptr;
 Mixer mix;
 bool volume_warning=false;
 int minimum=0,maximum=255;
+int requested_samples=0,requested_rate=0;
+uint64_t last_service=0,retry_at=0;
+
+void close_device(){
+    if(device)pcm_close(device);
+    device=nullptr;
+    if(controls)mixer_close(controls);
+    controls=nullptr;volume_ctl=nullptr;
+}
 
 bool read_volume() {
     long values[2]={0,0}; // tinyalsa INTEGER arrays use native long, not int.
@@ -45,28 +54,24 @@ bool write_all(int16_t *data,unsigned frames) {
                 data[(offset+i)*2+c]=int16_t(int(data[(offset+i)*2+c])*int(i+1)/int(fade));
             std::fprintf(stderr,"NES: recovered PCM underrun\n");continue;
         }
-        std::fprintf(stderr,"NES: PCM write failed (%d/%d): %s; continuing silently\n",n,error,pcm_get_error(device));
+        std::fprintf(stderr,"NES: PCM write failed (%d/%d): %s; will retry\n",n,error,pcm_get_error(device));
         return false;
     }
     return true;
 }
 }
 void close(){
-    if(device)pcm_close(device);
-    device=nullptr;
-    if(controls)mixer_close(controls);
-    controls=nullptr;volume_ctl=nullptr;
+    close_device();requested_samples=requested_rate=0;last_service=retry_at=0;
 }
 bool active(){return device!=nullptr;}
-bool open(int samples_per_sync,int rate){
-    close();mix.reset(rate);volume_warning=false;
-    if(samples_per_sync<=0||rate<8000||rate>96000)return false;
+static bool open_device(int rate){
+    close_device();mix.reset(rate);volume_warning=false;
     controls=mixer_open(0);volume_ctl=controls?mixer_get_ctl_by_name(controls,"softvolume"):nullptr;
     if(!volume_ctl||mixer_ctl_get_type(volume_ctl)!=MIXER_CTL_TYPE_INT||mixer_ctl_get_num_values(volume_ctl)!=2){
-        std::fprintf(stderr,"NES: stereo system volume missing; continuing silently\n");close();return false;
+        std::fprintf(stderr,"NES: stereo system volume missing; will retry\n");close_device();return false;
     }
     minimum=mixer_ctl_get_range_min(volume_ctl);maximum=mixer_ctl_get_range_max(volume_ctl);
-    if(maximum<=minimum||!read_volume()){close();return false;}
+    if(maximum<=minimum||!read_volume()){close_device();return false;}
     static const struct {unsigned size,count;} candidates[]={{1280,4},{1280,8},{1024,8},{1024,4},{2048,4}};
     for(const auto &p:candidates){
         pcm_config cfg{};cfg.channels=2;cfg.rate=unsigned(rate);cfg.format=PCM_FORMAT_S16_LE;
@@ -79,7 +84,23 @@ bool open(int samples_per_sync,int rate){
         }
         if(candidate){std::fprintf(stderr,"NES: PCM %ux%u unavailable: %s\n",p.size,p.count,pcm_get_error(candidate));pcm_close(candidate);}
     }
-    std::fprintf(stderr,"NES: no PCM available; continuing silently\n");close();return false;
+    std::fprintf(stderr,"NES: no PCM available; will retry\n");close_device();return false;
+}
+bool open(int samples_per_sync,int rate){
+    close();
+    if(samples_per_sync<=0||rate<8000||rate>96000)return false;
+    requested_samples=samples_per_sync;requested_rate=rate;
+    return open_device(rate);
+}
+void service(uint64_t now){
+    if(!requested_samples)return;
+    if(last_service&&now>last_service&&now-last_service>500000){
+        // Handles successful-looking PCM writes after suspend as well as XRUN.
+        std::fprintf(stderr,"NES: resume/output gap; reopening PCM\n");
+        close_device();retry_at=0;
+    }
+    last_service=now;
+    if(!device&&now>=retry_at){retry_at=now+2000000;open_device(requested_rate);}
 }
 void output(int samples,const int16_t *mono){
     if(samples<=0||!mono||!device)return;
@@ -88,7 +109,7 @@ void output(int samples,const int16_t *mono){
     for(int offset=0;offset<samples&&device;){
         int count=std::min(1024,samples-offset);
         for(int i=0;i<count;i++)mix.sample(mono[offset+i],buffer+i*2);
-        if(!write_all(buffer,unsigned(count)))close();
+        if(!write_all(buffer,unsigned(count))){close_device();retry_at=last_service+2000000;}
         offset+=count;
     }
 }
