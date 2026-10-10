@@ -176,6 +176,9 @@ cleanup() {
     if [ -x "$BASE/current/shared/c1max-audio" ]; then
         "$BASE/current/shared/c1max-audio" --stop >/dev/null 2>&1 || true
     fi
+    for castd in "$BASE/data/appstore/current/settings/c1max-castd" "$BASE/current/shared/c1max-castd"; do
+        if [ -x "$castd" ]; then "$castd" --stop >/dev/null 2>&1 || true; break; fi
+    done
     # A global mute must survive restoring the stock audio routing.
     muted=$(amixer -c 0 cget name=softvolume 2>/dev/null | sed -n 's/^  : values=//p')
     if [ -f "$AUDIO" ]; then

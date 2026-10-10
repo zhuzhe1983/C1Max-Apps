@@ -25,13 +25,13 @@ for name,entry in json.loads(tool_verification.read_text())['binaries'].items():
 for name in ['terminal/assets/shellrc','terminal/assets/inputrc','launcher/run.sh','launcher/apps.txt','launcher/desktop-service.sh']:
     if b'\r' in (root/name).read_bytes():raise SystemExit(name+' has CRLF line endings; re-checkout with LF (see .gitattributes)')
 versions={
-    'launcher':'0.3.1', 'piano':'0.3.0', 'nes':'0.2.2',
-    'streamplayer':'0.3.1', 'calendar':'0.3.1', 'calculator':'0.2.0',
-    'settings':'0.2.1', 'terminal':'0.1.0', 'gomoku':'0.1.0',
+    'launcher':'0.3.2', 'piano':'0.3.0', 'nes':'0.2.2',
+    'streamplayer':'0.4.0', 'calendar':'0.3.1', 'calculator':'0.2.0',
+    'settings':'0.3.0', 'terminal':'0.1.0', 'gomoku':'0.1.0',
     'pcsx4all':'0.1.1', 'processing':'0.1.0', 'dosbox':'0.1.2',
-    'airtune':'0.3.1', 'crosspoint':'0.4.1', 'camera':'0.2.0',
+    'airtune':'0.4.0', 'crosspoint':'0.4.1', 'camera':'0.2.0',
     'mail':'0.2.1', 'bilibili':'0.2.1', 'hidpilot':'0.2.0',
-    'moonpilot':'0.1.1', 'tox':'0.3.1', 'appstore':'0.1.0',
+    'moonpilot':'0.1.1', 'tox':'0.3.1', 'appstore':'0.1.1',
 }
 apps=[]
 for name in ids:
@@ -146,6 +146,11 @@ shutil.copy2(root/'.build/mips/c1max-power-guard',out/'shared')
 shutil.copy2(root/'.build/mips/c1max-hotkey',out/'shared')
 for owner in ['shared','piano','airtune','streamplayer']:
     shutil.copy2(root/'.build/mips/c1max-audio',out/owner)
+for owner in ['shared','settings']:
+    shutil.copy2(root/'.build/mips/c1max-castd',out/owner)
+    (out/owner/'licenses/cast').mkdir(parents=True,exist_ok=True)
+    shutil.copy2(root/'.deps/mbedtls-2.28.10/LICENSE',out/owner/'licenses/cast/MbedTLS-Apache-2.0.txt')
+    shutil.copy2(root/'moonpilot/licenses/tinyxml2.txt',out/owner/'licenses/cast/tinyxml2.txt')
 # Store apps remain usable when Terminal is not installed.
 for app in ['crosspoint','airtune','streamplayer','bilibili','calendar','mail','settings','moonpilot','tox']:
     shutil.copytree(out/'terminal/assets/rime-data',out/app/'assets/rime-data')
@@ -153,7 +158,7 @@ for app in ['crosspoint','airtune','streamplayer','bilibili','calendar','mail','
 font=root/'shared/fonts/NotoSansSC-Regular.ttf'
 if font.exists():shutil.copy2(font,out/'shared')
 shutil.copy2(root/'shared/fonts/OFL.txt',out/'shared/NotoSansSC-OFL.txt')
-shutil.copytree(root/'shared/licenses',out/'shared/licenses')
+shutil.copytree(root/'shared/licenses',out/'shared/licenses',dirs_exist_ok=True)
 # This opt-in hook may append private manifests/assets/menu entries to the
 # in-memory catalog. The resulting catalog is written only inside .build.
 hook=root/'config/package.local.py'

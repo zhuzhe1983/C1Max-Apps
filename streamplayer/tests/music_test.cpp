@@ -13,5 +13,13 @@ int main(int argc,char**argv){assert(argc==2);MediaClient c;c.config={{"base",ar
     assert(url.find("api_key=fixture%20%2B%20token")!=std::string::npos&&url.find("AudioCodec=mp3")!=std::string::npos&&url.find("StartTimeTicks=0")!=std::string::npos);
     auto r=c1::http("GET",url);assert(r.status==200&&r.body=="ID3fixture");
     bool threw=false;try{c.audio_url("");}catch(...){threw=true;}assert(threw);
+    StreamOptions local;auto small=c.playback("movie",0,local);
+    assert(small.url.find("maxwidth=400")!=std::string::npos&&small.url.find("maxheight=288")!=std::string::npos);
+    StreamOptions tv;tv.television=true;tv.subtitle=2;auto large=c.playback("movie",0,tv);
+    assert(large.hls_url.find("/master.m3u8?")!=std::string::npos&&large.hls_url.find("maxwidth=1280")!=std::string::npos);
+    assert(large.hls_url.find("maxheight=720")!=std::string::npos&&large.hls_url.find("subtitlemethod=Encode")!=std::string::npos);
+    assert(large.hls_url.find("subtitlestreamindex=2")!=std::string::npos&&large.hls_url.find("api_key=fixture%20%2B%20token")!=std::string::npos);
+    assert(large.subtitles.size()==1&&large.subtitles[0].index==2&&large.duration==600000000);
+    assert(local.max_width()==400&&local.max_height()==288);local.width_fill=false;assert(local.max_height()==170);
     puts("PASS music API: music/video libraries, bounded tracks, metadata, authenticated MP3 URL and encoded IDs");
 }

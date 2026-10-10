@@ -1,5 +1,6 @@
 // One audio owner for the three lightweight players. No display/input handles.
 #include "audio_client.h"
+#include "cast.hpp"
 #include "power_lock.h"
 #include <algorithm>
 #include <cerrno>
@@ -41,6 +42,9 @@ template<size_t N> void text(char(&out)[N],const std::string&s){
 }
 struct Track {int kind=0,song=0;int64_t duration=0;std::string url,title;};
 struct Player {
+    bool remote=false;
+    uint64_t cast_content=0;
+    int64_t last_cast=0;
     std::vector<Track> queue;
     c1_audio_status status{};
     pid_t child=-1,ui=-1;
@@ -49,7 +53,7 @@ struct Player {
     std::string buffer,ui_identity;
     Player(){status.magic=C1_AUDIO_MAGIC;status.song=-1;}
     ~Player(){stop_child();release_power();}
-    bool active()const{return child>0;}
+    bool active()const{return child>0||remote;}
     void command(const std::string &s){if(input>=0){ssize_t n=write(input,s.data(),s.size());(void)n;}}
     void release_power(){if(power>=0){powerlock_command_timeout(power,"susunlock",100);close(power);power=-1;}}
     void update_power(int64_t now){
@@ -63,6 +67,7 @@ struct Player {
         if(power>=0&&powerlock_command_timeout(power,"suslock",100)){close(power);power=-1;}
     }
     void stop_child(){
+        if(remote){casting::detach("audio");remote=false;cast_content=0;}
         if(child>0){
             command("quit\n");
             for(int i=0;i<8;i++){if(waitpid(child,nullptr,WNOHANG)==child){child=-1;break;}usleep(10000);}
@@ -78,6 +83,11 @@ struct Player {
         status.index=index;status.count=queue.size();status.position_ms=0;status.duration_ms=queue[index].duration;
         status.song=queue[index].kind==C1_AUDIO_SONG?queue[index].song:-1;
         text(status.title,queue[index].title);text(status.url,queue[index].url);status.error[0]=0;
+        if(queue[index].kind==C1_AUDIO_URL&&casting::selected()){
+            const auto&t=queue[index];auto result=casting::load("audio",t.url,t.title,casting::audio_mime(t.url),t.duration==0);
+            if(!result.value("ok",false)){error(result.value("error",std::string("投屏发送失败")));return;}
+            cast_content=result.value("accepted_id",uint64_t(0));remote=true;status.state=C1_AUDIO_CONNECTING;started=clock_at=now_ms();last_cast=0;return;
+        }
         int in[2],out[2];if(pipe2(in,O_CLOEXEC)){error("Cannot create audio input pipe");return;}
         if(pipe2(out,O_CLOEXEC)){close(in[0]);close(in[1]);error("Cannot create audio status pipe");return;}
         const auto &track=queue[index];
@@ -108,6 +118,16 @@ struct Player {
     void poll_player(){
         auto now=now_ms();
         if(active()&&!status.background&&(ui<=1||process_identity(ui)!=ui_identity)){finish();return;}
+        if(remote){
+            if(now-last_cast<500){update_power(now);return;}last_cast=now;auto s=casting::status();
+            if(!s.value("connected",false)){error("电视已断开，请重新选择本机播放");return;}
+            if(s.value("content_id",uint64_t(0))!=cast_content){if(now-started>15000)error(s.value("error",std::string()).empty()?"投屏内容已切换或加载失败":s.value("error",std::string()));return;}
+            auto state=s.value("state",std::string());if(state=="error"){error(s.value("error",std::string("电视播放失败")));return;}
+            if(state=="playing")status.state=C1_AUDIO_PLAYING;else if(state=="paused")status.state=C1_AUDIO_PAUSED;
+            else if(state=="idle"&&status.state!=C1_AUDIO_CONNECTING){if(status.index+1<int(queue.size()))select(status.index+1);else finish();return;}
+            status.position_ms=int64_t(std::max(0.0,s.value("position",0.0))*1000);auto duration=s.value("duration",0.0);if(duration>0)status.duration_ms=int64_t(duration*1000);
+            if(status.state==C1_AUDIO_CONNECTING&&now-started>45000){error("电视连接音频超时");return;}update_power(now);return;
+        }
         if(output>=0){char b[2048];ssize_t n;
             while((n=read(output,b,sizeof b))>0){for(ssize_t i=0;i<n;i++)if(b[i]=='\r')b[i]='\n';buffer.append(b,n);
                 size_t cut;while((cut=buffer.find('\n'))!=std::string::npos){line(buffer.substr(0,cut));buffer.erase(0,cut+1);}if(buffer.size()>8192)buffer.clear();}
@@ -147,8 +167,8 @@ struct Player {
         if(r.action==C1_AUDIO_DETACH){if(!status.background)finish();ui=-1;ui_identity.clear();return 0;}
         if(r.action==C1_AUDIO_NEXT||r.action==C1_AUDIO_PREVIOUS){if(queue.empty())return -1;ui=caller;ui_identity=process_identity(ui);select((status.index+int(queue.size())+(r.action==C1_AUDIO_NEXT?1:-1))%queue.size());return 0;}
         if(!active())return -1;
-        if(r.action==C1_AUDIO_PAUSE){if(status.state==C1_AUDIO_CONNECTING)return -1;command("pause\n");status.state=status.state==C1_AUDIO_PAUSED?C1_AUDIO_PLAYING:C1_AUDIO_PAUSED;clock_at=now_ms();return 0;}
-        if(r.action==C1_AUDIO_SEEK){int seconds=std::clamp(r.value,-3600,3600);command("pausing_keep_force seek "+std::to_string(seconds)+" 0\n");status.position_ms=std::max<int64_t>(0,status.position_ms+seconds*1000);clock_at=now_ms();return 0;}
+        if(r.action==C1_AUDIO_PAUSE){if(status.state==C1_AUDIO_CONNECTING)return -1;if(remote){auto s=casting::command("audio",status.state==C1_AUDIO_PAUSED?"play":"pause");return s.value("ok",false)?0:-1;}command("pause\n");status.state=status.state==C1_AUDIO_PAUSED?C1_AUDIO_PLAYING:C1_AUDIO_PAUSED;clock_at=now_ms();return 0;}
+        if(r.action==C1_AUDIO_SEEK){int seconds=std::clamp(r.value,-3600,3600);if(remote){auto s=casting::command("audio","seek",std::max(0.0,status.position_ms/1000.0+seconds));return s.value("ok",false)?0:-1;}command("pausing_keep_force seek "+std::to_string(seconds)+" 0\n");status.position_ms=std::max<int64_t>(0,status.position_ms+seconds*1000);clock_at=now_ms();return 0;}
         return -1;
     }
 };

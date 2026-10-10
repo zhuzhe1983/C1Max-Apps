@@ -72,7 +72,18 @@ std::map<std::string,Local> load_state(){
     std::map<std::string,Local>out;
     if(fs::exists(home()+"/current/state.json")){
         auto j=Json::parse(c1::read_file(home()+"/current/state.json",65536));if(j.at("schema")!=1)throw std::runtime_error("本地应用记录损坏");
-        for(auto it=j.at("apps").begin();it!=j.at("apps").end();++it){auto id=it.key();if(!valid_id(id))throw std::runtime_error("无效的本地应用 ID");out[id]={it->at("installed"),it->at("visible"),it->at("version"),it->at("revision"),it->at("path"),it->value("title",id)};}return out;
+        for(auto it=j.at("apps").begin();it!=j.at("apps").end();++it){auto id=it.key();if(!valid_id(id))throw std::runtime_error("无效的本地应用 ID");out[id]={it->at("installed"),it->at("visible"),it->at("version"),it->at("revision"),it->at("path"),it->value("title",id)};
+            // A full runtime deployment changes these symlink targets without
+            // changing the user's selection. Read the actual installed build,
+            // otherwise an old menu snapshot could invite a store downgrade.
+            auto &local=out[id];auto manifest=base()+"/"+id+"/manifest.json";
+            if(local.installed&&local.path.empty()&&fs::exists(manifest)){
+                auto actual=Json::parse(c1::read_file(manifest,4096));
+                auto revision=actual.at("revision").get<std::string>();auto v=actual.at("version").get<std::string>();
+                if(actual.at("id")!=id||!hash_ok(revision))throw std::runtime_error("本地运行时清单损坏");version(v);
+                local.version=v;local.revision=revision;
+            }
+        }return out;
     }
     auto catalog=Json::parse(c1::read_file(base()+"/catalog.json",65536));for(auto&a:builtin())for(auto&entry:catalog.at("apps"))if(entry.at("id")==a.id){std::string exe=a.id=="nes"?"c1max-nes-browser":"c1max-"+a.id;out[a.id]={access((base()+"/"+a.id+"/"+exe).c_str(),X_OK)==0,true,entry.at("version"),entry.at("revision"),""};}return out;
 }

@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <tinyalsa/mixer.h>
 #include "idle_reset.h"
+#include "cast_volume.h"
 
 #define VOLUME_STEP 13
 #define REPEAT_MS 150
@@ -98,6 +99,7 @@ static int adjust(struct mixer_ctl *control, int delta) {
     }
     fprintf(stderr, "[volume] softvolume=%ld,%ld (range %d..%d)\n",
             values[0], values[1], minimum, maximum);
+    c1_cast_volume_step((double)delta/(maximum-minimum),values[0]==minimum&&values[1]==minimum);
     return 0;
 }
 

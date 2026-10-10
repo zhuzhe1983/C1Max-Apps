@@ -2,6 +2,17 @@ import http.server,json,threading,subprocess,sys,urllib.parse
 requests=[]
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self,*args):pass
+    def do_POST(self):
+        query=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+        data=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+        profile=data['DeviceProfile'];tv=profile['Name']=='C1Max TV 720p'
+        assert profile['TranscodingProfiles'][0]['Protocol']==('hls' if tv else 'http')
+        assert data['MaxStreamingBitrate']==(2628000 if tv else 464000)
+        assert query['SubtitleStreamIndex']==(['2'] if tv else ['-1'])
+        assert query['SubtitleMethod']==(['Encode'] if tv else ['External'])
+        assert query['MaxWidth']==(['1280'] if tv else ['400'])
+        body={'PlaySessionId':'session','MediaSources':[{'Id':'source','SupportsTranscoding':True,'RunTimeTicks':600000000,'MediaStreams':[{'Type':'Subtitle','Index':2,'Codec':'srt','DisplayTitle':'中文'}]}]}
+        output=json.dumps(body).encode();self.send_response(200);self.send_header('Content-Length',str(len(output)));self.end_headers();self.wfile.write(output)
     def do_GET(self):
         u=urllib.parse.urlsplit(self.path);q=urllib.parse.parse_qs(u.query);requests.append((u.path,q,self.headers.get('X-Emby-Token')))
         if u.path.endswith('/Views'):body={'Items':[{'Id':'music','Name':'Music','CollectionType':'music'},{'Id':'films','Name':'Movies','CollectionType':'movies'}]}

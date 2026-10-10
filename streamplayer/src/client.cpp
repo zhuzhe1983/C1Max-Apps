@@ -48,21 +48,26 @@ std::string MediaClient::audio_url(const std::string&id)const{
     return config.at("base").get<std::string>()+"/Audio/"+c1::encode(id)+"/stream.mp3?Static=false&AudioCodec=mp3&AudioBitRate=128000&AudioSampleRate=44100&AudioChannels=2&MaxAudioChannels=2&EnableAutoStreamCopy=false&StartTimeTicks=0&DeviceId=c1max-streamplayer-audio&api_key="+c1::encode(config.at("token"));
 }
 Playback MediaClient::playback(const std::string&id,int64_t start,StreamOptions options){
+    const int fps=options.television?30:20,video_rate=options.television?2500000:400000,audio_rate=options.television?128000:64000,total_rate=video_rate+audio_rate;
+    const std::string level=options.television?"31":"21";
     // Bounded software decode; the display mode also determines the server size.
     // Never claim hardware decode from the presence of a /dev/video node alone.
     Json conditions=Json::array();
-    for(auto pair:std::vector<std::pair<std::string,std::string>>{{"Width",std::to_string(options.max_width())},{"Height",std::to_string(options.max_height())},{"VideoFramerate","20"}})
+    for(auto pair:std::vector<std::pair<std::string,std::string>>{{"Width",std::to_string(options.max_width())},{"Height",std::to_string(options.max_height())},{"VideoFramerate",std::to_string(fps)}})
         conditions.push_back({{"Condition","LessThanEqual"},{"Property",pair.first},{"Value",pair.second},{"IsRequired",true}});
-    Json transcode={{"Container","ts"},{"Type","Video"},{"VideoCodec","h264"},{"AudioCodec","aac"},{"Protocol","http"},{"Context","Streaming"},{"MaxAudioChannels","2"},{"CopyTimestamps",false},{"MinSegments",2},{"BreakOnNonKeyFrames",false}};
-    Json profile={{"Name","C1Max adaptive"},{"MaxStreamingBitrate",464000},{"DirectPlayProfiles",Json::array()},
+    Json transcode={{"Container","ts"},{"Type","Video"},{"VideoCodec","h264"},{"AudioCodec","aac"},{"Protocol",options.television?"hls":"http"},{"Context","Streaming"},{"MaxAudioChannels","2"},{"CopyTimestamps",false},{"MinSegments",2},{"BreakOnNonKeyFrames",false}};
+    Json profile={{"Name",options.television?"C1Max TV 720p":"C1Max adaptive"},{"MaxStreamingBitrate",total_rate},{"DirectPlayProfiles",Json::array()},
         {"TranscodingProfiles",Json::array({transcode})},
         {"CodecProfiles",Json::array({{{"Type","Video"},{"Codec","h264"},{"Conditions",conditions}}})}};
-    Json body={{"UserId",config.at("user_id")},{"MaxStreamingBitrate",464000},{"MaxAudioChannels",2},{"EnableDirectPlay",false},{"EnableDirectStream",false},{"EnableTranscoding",true},{"AllowVideoStreamCopy",false},{"AllowAudioStreamCopy",false},{"IsPlayback",true},{"DeviceProfile",profile}};
-    std::string params="&VideoCodec=h264&AudioCodec=aac&VideoBitrate=400000&AudioBitrate=64000&MaxWidth=400&MaxHeight="+std::to_string(options.max_height())+"&MaxFramerate=20&Framerate=20&h264-profile=baseline&h264-level=21&MaxAudioChannels=2&AudioSampleRate=44100&Profile=baseline&Level=21&SegmentContainer=ts&SegmentLength=3&AllowVideoStreamCopy=false&AllowAudioStreamCopy=false";
-    start=std::max<int64_t>(0,start);body["StartTimeTicks"]=start;body["SubtitleStreamIndex"]=-1;
-    params+="&SubtitleStreamIndex=-1&SubtitleMethod=External";
+    Json body={{"UserId",config.at("user_id")},{"MaxStreamingBitrate",total_rate},{"MaxAudioChannels",2},{"EnableDirectPlay",false},{"EnableDirectStream",false},{"EnableTranscoding",true},{"AllowVideoStreamCopy",false},{"AllowAudioStreamCopy",false},{"IsPlayback",true},{"DeviceProfile",profile}};
+    std::string params="&VideoCodec=h264&AudioCodec=aac&VideoBitrate="+std::to_string(video_rate)+"&AudioBitrate="+std::to_string(audio_rate)+"&MaxWidth="+std::to_string(options.max_width())+"&MaxHeight="+std::to_string(options.max_height())+"&MaxFramerate="+std::to_string(fps)+"&Framerate="+std::to_string(fps)+"&h264-profile=baseline&h264-level="+level+"&MaxAudioChannels=2&AudioSampleRate=44100&Profile=baseline&Level="+level+"&SegmentContainer=ts&SegmentLength=3&AllowVideoStreamCopy=false&AllowAudioStreamCopy=false";
+    if(options.television)profile["SubtitleProfiles"]=Json::array({{{"Format","srt"},{"Method","Encode"}},{{"Format","ass"},{"Method","Encode"}},{{"Format","pgssub"},{"Method","Encode"}}});
+    body["DeviceProfile"]=profile;
+    int server_subtitle=options.television?options.subtitle:-1;
+    start=std::max<int64_t>(0,start);body["StartTimeTicks"]=start;body["SubtitleStreamIndex"]=server_subtitle;
+    params+="&SubtitleStreamIndex="+std::to_string(server_subtitle)+"&SubtitleMethod="+(options.television&&server_subtitle>=0?"Encode":"External");
     params+="&StartTimeTicks="+std::to_string(start)+"&CopyTimestamps=false";
-    auto r=call("POST","/Items/"+c1::encode(id)+"/PlaybackInfo?UserId="+c1::encode(config.at("user_id"))+"&MaxStreamingBitrate=464000"+params,body);
+    auto r=call("POST","/Items/"+c1::encode(id)+"/PlaybackInfo?UserId="+c1::encode(config.at("user_id"))+"&MaxStreamingBitrate="+std::to_string(total_rate)+params,body);
     Playback p;p.options=options;p.item=id;p.start=start;p.session=r.value("PlaySessionId",std::string());
     if(p.session.empty())throw std::runtime_error("Missing playback session ID");
     for(auto&s:r.at("MediaSources")){
@@ -83,7 +88,9 @@ Playback MediaClient::playback(const std::string&id,int64_t start,StreamOptions 
         auto pos=url.find('?');std::string path=url.substr(0,pos);std::map<std::string,std::string> q;
         auto add=[&](std::string query){size_t off=0;while(off<query.size()){auto end=query.find('&',off);auto part=query.substr(off,end==std::string::npos?end:end-off);auto eq=part.find('=');auto key=part.substr(0,eq);std::transform(key.begin(),key.end(),key.begin(),[](unsigned char c){return std::tolower(c);});if(!key.empty())q[key]=(eq==std::string::npos?"":part.substr(eq+1));if(end==std::string::npos)break;off=end+1;}};
         if(pos!=std::string::npos)add(url.substr(pos+1));add(params.substr(1));q["api_key"]=c1::encode(config.at("token"));q["deviceid"]="c1max-streamplayer";
-        url=path+"?";for(auto&kv:q)url+=kv.first+"="+kv.second+"&";url.pop_back();p.url=url;p.hls_url=hls_url(p,options,p.session);return p;
+        url=path+"?";for(auto&kv:q)url+=kv.first+"="+kv.second+"&";url.pop_back();p.url=url;
+        if(options.television){auto mark=url.find("/stream.ts?");if(mark==std::string::npos)throw std::runtime_error("Missing TV stream path");p.hls_url=url;p.hls_url.replace(mark,11,"/master.m3u8?");}
+        else p.hls_url=hls_url(p,options,p.session);return p;
     }
     throw std::runtime_error("Server did not offer H.264/AAC transcoding");
 }

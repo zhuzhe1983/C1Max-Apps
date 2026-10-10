@@ -1,5 +1,6 @@
 #include "text_input.hpp"
 #include "display.hpp"
+#include "cast.hpp"
 #include "../../terminal/src/voice.hpp"
 #include "src/libs/tiny_ttf/lv_tiny_ttf.h"
 #include <tinyalsa/mixer.h>
@@ -529,11 +530,11 @@ Item action(const std::string &key, const std::string &label, const std::string 
     Item i; i.kind = Kind::Action; i.key = "a:" + key; i.label = label; i.value = value; i.on_enter = std::move(fn); return i;
 }
 
-enum class Section { Wifi, Display, Sound, Usb, Ssh, Voice, Battery, About };
-constexpr int kSections = 8;
+enum class Section { Wifi, Display, Sound, Usb, Ssh, Voice, Battery, About, Cast };
+constexpr int kSections = 9;
 const char *const kSectionIcon[] = {LV_SYMBOL_WIFI, LV_SYMBOL_IMAGE, LV_SYMBOL_VOLUME_MAX, LV_SYMBOL_USB,
-                                    LV_SYMBOL_SHUFFLE, LV_SYMBOL_AUDIO, LV_SYMBOL_BATTERY_FULL, LV_SYMBOL_LIST};
-const char *const kSectionName[] = {"WLAN", "显示与熄屏", "声音", "USB", "SSH 服务", "语音输入", "电池", "关于本机"};
+                                    LV_SYMBOL_SHUFFLE, LV_SYMBOL_AUDIO, LV_SYMBOL_BATTERY_FULL, LV_SYMBOL_LIST, LV_SYMBOL_VIDEO};
+const char *const kSectionName[] = {"WLAN", "显示与熄屏", "声音", "USB", "SSH 服务", "语音输入", "电池", "关于本机", "无线投屏"};
 
 // Sheets replace the list temporarily; Back always returns to the page.
 enum class Sheet { None, Network, Password, Hidden, SshPassword, Voice, Confirm, Picker };
@@ -1410,6 +1411,43 @@ std::vector<Item> picker_sheet() {
     return v;
 }
 
+casting::Json cast_state=casting::Json::object();
+void cast_action(casting::Json request) {
+    auto result=casting::call(request,true);
+    if(!result.value("ok",false))show_toast(result.value("error",std::string("投屏操作失败")),5000);
+    else {cast_state=result;show_toast("正在处理投屏请求…");}
+}
+std::vector<Item> cast_page() {
+    std::vector<Item> v;
+    bool connected=cast_state.value("connected",false),busy=cast_state.value("busy",false);
+    std::string name=cast_state.contains("device")?cast_state["device"].value("name",std::string()):std::string();
+    v.push_back(info("接收设备",connected?name:"未连接"));
+    v.push_back(action("cast-scan","搜索接收设备",busy?"处理中":"Google Cast / DLNA",[]{cast_action({{"action","scan"}});}));
+    auto error=cast_state.value("error",std::string());if(!error.empty()&&cast_state.value("ok",false))v.push_back(note("cast-error",error));
+    if(connected){
+        auto state=cast_state.value("state",std::string());v.push_back(info("播放状态",state=="playing"?"正在播放":state=="paused"?"已暂停":state=="buffering"?"正在缓冲":state=="error"?"播放失败":"等待选择内容"));
+        auto title=cast_state.value("title",std::string());if(!title.empty())v.push_back(info("当前内容",title));
+        if(cast_state.contains("volume")&&cast_state["volume"].is_number()){
+            Item volume;volume.kind=Kind::Slider;volume.key="cast-volume";volume.label="电视音量";volume.lo=0;volume.hi=100;volume.step=5;
+            volume.cur=std::clamp(int(cast_state["volume"].get<double>()*100),0,100);volume.value=format("%d%%",volume.cur);
+            volume.on_change=[](int value){cast_action({{"action","volume"},{"owner","settings"},{"value",value/100.0}});};v.push_back(std::move(volume));
+        }
+        if(state=="playing"||state=="paused")v.push_back(action("cast-pause",state=="paused"?"继续播放":"暂停播放","",[state]{cast_action({{"action",state=="paused"?"play":"pause"},{"owner","settings"}});}));
+        v.push_back(action("cast-disconnect","断开投屏","返回本机选择播放",[]{cast_action({{"action","disconnect"}});}));
+    }
+    if(cast_state.contains("devices")&&cast_state["devices"].is_array())for(auto d:cast_state["devices"]){
+        auto id=d.value("id",std::string()),title=d.value("name",std::string());if(d.value("supported",false))v.push_back(action("cast-"+id,title,d.value("detail",std::string()),[id]{cast_action({{"action","select"},{"id",id}});}));
+        else v.push_back(info(title,d.value("detail",std::string("暂不支持"))));
+    }
+    if(!name.empty())v.push_back(action("cast-forget","忘记接收设备",name,[]{confirm_title="忘记投屏设备";confirm_text="断开当前投屏并清除保存的接收器证书。下次连接重新信任所选设备。";confirm_button="忘记";confirm_fn=[]{cast_action({{"action","forget"}});};open_sheet(Sheet::Confirm);}));
+    v.push_back(note("cast-help","与电视连接同一局域网。连接后 StreamPlayer 和 Airtune 使用电视播放；电视端可使用 Google Cast 或 AirScreen 的 DLNA 接收。"));
+    v.push_back(note("cast-scope","当前为媒体投送。桌面和游戏镜像暂未开放；Apple TV 的 AirPlay 尚未适配。"));
+    return v;
+}
+void poll_cast() {
+    static uint32_t last=0;if(section!=static_cast<int>(Section::Cast)||screen::tick()-last<700)return;last=screen::tick();
+    auto next=casting::status();if(next!=cast_state){cast_state=std::move(next);if(sheet==Sheet::None)sync_list();}
+}
 std::vector<Item> build_items() {
     switch (sheet) {
     case Sheet::Network: return network_sheet();
@@ -1430,6 +1468,7 @@ std::vector<Item> build_items() {
     case Section::Voice: return voice_page();
     case Section::Battery: return battery_page();
     case Section::About: return about_page();
+    case Section::Cast: return cast_page();
     }
     return {};
 }
@@ -2113,6 +2152,7 @@ int main(int argc, char **argv) {
         if (interrupted || screen::quit) break;
         poll_jobs();
         poll_sshd_action();
+        poll_cast();
         if (toast_until && screen::tick() >= toast_until) paint_chrome();
         ::usleep(std::max<uint32_t>(wait_ms, 1) * 1000);
     }

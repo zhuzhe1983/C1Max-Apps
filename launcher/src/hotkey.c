@@ -11,6 +11,7 @@
 #include <sys/file.h>
 #include <unistd.h>
 #include "../../shared/mute_hold.h"
+#include "../../shared/cast_volume.h"
 
 #define HOLD_MS 1500u
 #define BACK_HOLD_MS 2000u
@@ -111,6 +112,7 @@ static int foreground_busy(const char *path) {
 #include <tinyalsa/mixer.h>
 
 static void mute_system(void) {
+    c1_cast_volume_step(0,1);
     struct mixer *m=mixer_open(0);
     struct mixer_ctl *c=m?mixer_get_ctl_by_name(m,"softvolume"):NULL;
     if(c&&mixer_ctl_get_type(c)==MIXER_CTL_TYPE_INT&&mixer_ctl_get_num_values(c)==2){

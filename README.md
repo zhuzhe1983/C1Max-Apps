@@ -11,7 +11,7 @@ apps/
 ├── terminal/       PTY / ANSI / UTF-8 终端、物理控制键、远程 Coding Agent attach
 ├── linux-tools/    独立 bash / less / nano / SSH 客户端工具包
 ├── calculator/     四则运算、括号、乘方、小数
-├── settings/       WLAN、亮度/熄屏、音量、USB、SSH 服务、电池与本机信息
+├── settings/       WLAN、亮度/熄屏、音量、USB、SSH、无线投屏与本机信息
 ├── gomoku/         人机／双人五子棋、悔棋和自动续局
 ├── pcsx4all/       PS1 模拟器、游戏库、即时存档（自备游戏）
 ├── dosbox/         DOS 游戏库、命令行与实体键盘（解释器）
@@ -36,6 +36,8 @@ apps/
 ```
 
 旧的顶层 `launcher/`、`piano/`、`emu/` 已分别迁入这里，tinyalsa 合并到 `shared/`。来源是 CardputerZero 的应用保留在各自 README 中；未改写原工程。
+
+可从 **设置 → 无线投屏** 选择 Google Cast / DLNA 接收器，让 StreamPlayer、Airtune 在电视或 Mac Kodi 上播放。[使用方法与当前限制](docs/casting.md)。当前只支持媒体投送，游戏和全桌面镜像尚未开放。
 
 ## 新增应用
 

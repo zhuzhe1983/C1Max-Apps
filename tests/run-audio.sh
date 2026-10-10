@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 mkdir -p .build/audio-tests
 flags='-O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer'
 cc -std=c11 $flags -Ishared -c shared/audio_client.c -o .build/audio-tests/client.o
-c++ -std=c++17 $flags -Ishared shared/audio_service.cpp .build/audio-tests/client.o -o .build/audio-tests/c1max-audio
+c++ -std=c++17 $flags -Ishared -I.build/include shared/audio_service.cpp shared/cast_client.cpp .build/audio-tests/client.o -o .build/audio-tests/c1max-audio
 c++ -std=c++17 $flags -Ishared tests/audio_service_test.cpp .build/audio-tests/client.o -o .build/audio-tests/test
 python3 - <<'PY'
 import pathlib,tempfile,subprocess,shutil,os,socket,struct,time

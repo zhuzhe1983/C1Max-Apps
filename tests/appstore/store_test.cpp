@@ -13,6 +13,9 @@ int main(int argc,char**argv){assert(argc==4);try{
     for(auto id:{app.id,std::string("appstore")}){fs::create_directories(root+"/base/"+id);auto exe=root+"/base/"+id+"/c1max-"+id;c1::save_private(exe,"test");chmod(exe.c_str(),0755);local["apps"].push_back({{"id",id},{"version","0.1.0"},{"revision",std::string(64,'a')}});}
     c1::save_private(root+"/base/catalog.json",local.dump());auto before=store::load_state();assert(before.at(app.id).installed);
     store::set_visible(app.id,false);auto state=store::load_state();assert(state.at(app.id).installed&&!state.at(app.id).visible);assert(c1::read_file(root+"/data/appstore/current/launcher-menu.txt").find("/"+app.id+"/")==std::string::npos);
+    c1::save_private(root+"/base/"+app.id+"/manifest.json",Json{{"id",app.id},{"version","99.0.0"},{"revision",std::string(64,'b')}}.dump());
+    auto deployed=store::load_state().at(app.id);assert(!deployed.visible&&deployed.version=="99.0.0"&&deployed.revision==std::string(64,'b'));
+    assert(store::compare(deployed,app)=="本地版本较新");
     store::set_visible(app.id,true);assert(store::load_state().at(app.id).visible);
     store::rollback();assert(!store::load_state().at(app.id).visible);
     store::uninstall(app.id);assert(!store::load_state().at(app.id).installed);

@@ -1,6 +1,7 @@
 #include "text_input.hpp"
 #include "client.hpp"
 #include "audio_client.h"
+#include "cast.hpp"
 #include "segment_stream.hpp"
 #include "subtitle_stream.hpp"
 #include "timeline.hpp"
@@ -53,7 +54,12 @@ static std::string video_fifo,frame_error;
 static bool decoder_pipe=false;
 static Y4mReader video_reader;
 static FrameWatchdog frame_watchdog;
-enum class View { Setup, Libraries, Items, Detail, Updates, Roms, Music };
+enum class View { Setup, Libraries, Items, Detail, Updates, Roms, Music, Cast };
+static bool tv_casting=false;
+static uint64_t tv_content=0,tv_generation=0;
+static uint32_t tv_started=0,tv_poll_at=0;
+static lv_obj_t *tv_status=nullptr,*tv_progress=nullptr;
+static void show_tv();static void begin_tv(const Playback&,double seek=0);static void poll_tv();static void stop_tv();static void tv_subtitle();
 static View view=View::Setup;
 static bool music_background=false;
 static c1_audio_status music_state{};
@@ -189,13 +195,50 @@ static void show_detail(){
     auto overview=label(content,item.value("Overview",std::string("")),176,50,576);lv_obj_set_height(overview,112);if(small_font)lv_obj_set_style_text_font(overview,small_font,0);lv_label_set_long_mode(overview,LV_LABEL_LONG_DOT);lv_obj_set_style_text_color(overview,lv_color_hex(0xa6b5c4),0);
     auto play=button(content,"Play",176,190,272,[](lv_event_t*){
         if(busy)return;if(rows[item_index].value("Type",std::string())=="Audio"){play_music();return;}auto id=rows[item_index].at("Id").get<std::string>();auto next=std::make_shared<Playback>();auto old=current;bool dirty=server_session_dirty;auto options=requested_options;options.subtitle=-1;
-        work("Preparing playback...",[id,next,old,dirty,options]{if(dirty)client.stop_transcode(old);*next=client.playback(id,0,options);return Json::object();},[next](Json){current=*next;server_session_dirty=true;pause_on_start=false;start_player(current);});
+        options.television=casting::selected();
+        work(options.television?"正在准备电视播放…":"Preparing playback...",[id,next,old,dirty,options]{if(dirty)client.stop_transcode(old);*next=client.playback(id,0,options);return Json::object();},[next](Json){current=*next;server_session_dirty=true;pause_on_start=false;if(current.options.television)begin_tv(current);else start_player(current);});
     });lv_obj_set_style_bg_color(play,accent(),0);lv_obj_set_style_text_color(play,lv_color_hex(0x041008),0);
     button(content,"Back",480,190,272,[](lv_event_t*){render_items();});
     if(item.value("Type",std::string())=="Audio"){status("Music · MP3 / 44.1 kHz · background playback optional");return;}
     status("During playback: F width/fit   ·   S subtitles   ·   Enter pause   ·   Return stop");
 }
 static std::string music_time(int64_t ms){auto sec=std::max<int64_t>(0,ms)/1000;char b[32];snprintf(b,sizeof b,"%lld:%02lld",(long long)(sec/60),(long long)(sec%60));return b;}
+static void tv_pause_action(){auto s=casting::status();auto r=casting::command("streamplayer-video",s.value("state",std::string())=="paused"?"play":"pause");if(!r.value("ok",false))status(r.value("error",std::string("投屏操作失败")));}
+static void tv_seek(int seconds){casting::command("streamplayer-video","seek",std::max(0.0,position/10000000.0+seconds));}
+static void show_tv(){
+    view=View::Cast;screen_base("StreamPlayer / 无线投屏");label(content,title,24,18,720);
+    tv_status=label(content,"正在连接电视…",24,68,720);tv_progress=label(content,"",24,108,720);
+    button(content,"暂停 / 继续",24,160,174,[](lv_event_t*){tv_pause_action();});
+    button(content,"后退 10 秒",212,160,174,[](lv_event_t*){tv_seek(-10);});
+    button(content,"前进 10 秒",400,160,174,[](lv_event_t*){tv_seek(10);});
+    button(content,"停止",588,160,160,[](lv_event_t*){stop_tv();render_items();});
+    std::string caption="字幕：关闭";for(auto&t:current.subtitles)if(t.index==current.options.subtitle)caption="字幕："+t.title;
+    button(content,caption,24,208,724,[](lv_event_t*){tv_subtitle();});
+    status("电视播放视频与字幕 · Enter 暂停 · A/D ±10秒 · Q/E ±60秒 · S 字幕 · 返回停止");
+}
+static void begin_tv(const Playback&p,double seek){
+    c1_audio_command(0,C1_AUDIO_STOP,0,nullptr);auto r=casting::load("streamplayer-video",p.hls_url,title,"application/x-mpegURL",false,"",seek);
+    if(!r.value("ok",false)){frame_error=r.value("error",std::string("投屏失败"));status(frame_error);ended=true;playback_failed=true;return;}
+    ended=false;playback_failed=false;frame_error.clear();tv_content=r.value("accepted_id",uint64_t(0));tv_casting=true;tv_started=screen::tick();tv_poll_at=0;position=int64_t(seek*10000000);have_time=false;reported=false;last_report=0;show_tv();
+}
+static void stop_tv(){++tv_generation;if(tv_casting||view==View::Cast){casting::detach("streamplayer-video");tv_casting=false;ended=true;}tv_status=tv_progress=nullptr;}
+static void tv_subtitle(){
+    if(busy||!tv_casting)return;size_t index=0;for(size_t i=0;i<current.subtitles.size();i++)if(current.subtitles[i].index==current.options.subtitle)index=i+1;
+    index=(index+1)%(current.subtitles.size()+1);auto options=current.options;options.subtitle=index?current.subtitles[index-1].index:-1;auto old=current;auto next=std::make_shared<Playback>();double seek=position/10000000.0;
+    casting::detach("streamplayer-video");tv_casting=false;auto generation=++tv_generation;
+    work("正在切换电视字幕…",[old,options,next]{client.stop_transcode(old);*next=client.playback(old.item,0,options);return Json::object();},[next,seek,generation](Json){if(generation!=tv_generation||view!=View::Cast){retired_sessions.push_back(*next);ended=true;return;}current=*next;server_session_dirty=true;begin_tv(current,seek);});
+}
+static void poll_tv(){
+    if(!tv_casting||screen::tick()-tv_poll_at<700)return;tv_poll_at=screen::tick();auto s=casting::status();
+    if(!s.value("connected",false)){auto error=s.value("error",std::string("接收设备已断开"));stop_tv();render_items();status(error);playback_failed=true;return;}
+    if(s.value("content_id",uint64_t(0))!=tv_content){if(screen::tick()-tv_started>15000){stop_tv();render_items();status("电视未加载此视频或内容已切换");playback_failed=true;}return;}
+    auto state=s.value("state",std::string());std::string message=state=="playing"?"正在电视播放":state=="paused"?"电视已暂停":state=="buffering"?"电视正在缓冲…":state=="error"?s.value("error",std::string("电视播放失败")):"播放已结束";
+    auto command_error=s.value("error",std::string());if(!command_error.empty())message=command_error;
+    if(tv_status)lv_label_set_text(tv_status,message.c_str());double at=s.value("position",0.0);if(std::isfinite(at)&&at>=0&&at<7*86400)position=int64_t(at*10000000);have_time=have_time||state=="playing"||state=="paused";
+    if(tv_progress)lv_label_set_text(tv_progress,(music_time(position/10000)+" / "+music_time(current.duration/10000)+" · H.264 720p · 声音由电视输出").c_str());
+    if(state=="error"||(state=="idle"&&have_time)||(!have_time&&screen::tick()-tv_started>60000)){stop_tv();render_items();status(message);playback_failed=state=="error";if(playback_failed)frame_error=message;return;}
+    if(have_time&&!busy&&screen::tick()-last_report>10000){last_report=screen::tick();auto p=current;auto ticks=position;bool pause=state=="paused";auto event=reported?"Progress":"";work("电视播放中",[p,ticks,pause,event]{client.report(p,event,ticks,pause);return Json::object();},[](Json){reported=true;});}
+}
 static void poll_music(){
     if(screen::playing||mode!="stream")return;static uint32_t last=0;if(screen::tick()-last<400)return;last=screen::tick();
     c1_audio_status current{};bool own=c1_audio_get(&current)==0&&current.owner==C1_AUDIO_STREAMPLAYER;music_state=own?current:c1_audio_status{};
@@ -584,6 +627,7 @@ static void physical_key(uint32_t key){
         screen::quit=true;return;
     }
     if(key==screen::KEY_HOME_LONG){if(mode=="roms")screen::quit=true;return;}
+    if(view==View::Cast){if(key==screen::KEY_EXIT){stop_tv();render_items();}else if(key==LV_KEY_ENTER||key==' ')tv_pause_action();else if(key=='a')tv_seek(-10);else if(key=='d')tv_seek(10);else if(key=='q')tv_seek(-60);else if(key=='e')tv_seek(60);else if(key=='s')tv_subtitle();return;}
     if(key==screen::KEY_SYMBOL&&active_field==username&&view==View::Setup&&!busy){
         text_input.open("streamplayer","用户名",lv_textarea_get_text(username),128,font,[](std::string value){if(view==View::Setup&&username)lv_textarea_set_text(username,value.c_str());});return;
     }
@@ -658,9 +702,9 @@ int main(int argc,char**argv){
             else if(r["ok"].get<bool>()){
                 auto done=std::move(completed);
                 try{done(r["result"]);}catch(std::exception&){status("Unexpected server response; please retry");if(screen::playing){cleanup_player();ended=true;playback_failed=true;}}
-            }else{status(r["error"].get<std::string>());if(restarting){cleanup_player();ended=true;playback_failed=true;}}
+            }else{status(r["error"].get<std::string>());if(view==View::Cast&&!tv_casting){frame_error=r["error"].get<std::string>();ended=true;playback_failed=true;render_items();status(frame_error);}if(restarting){cleanup_player();ended=true;playback_failed=true;}}
         }
-        poll_player();poll_music();
+        poll_player();poll_music();poll_tv();
         if(ended&&!busy){
             ended=false;auto p=current;auto ticks=position;bool did=reported||have_time;auto retired=std::move(retired_sessions);retired_sessions.clear();
             work("Stopping server session...",[p,ticks,did,retired]{for(auto&r:retired)try{client.stop_transcode(r);}catch(...){}try{if(did)client.report(p,"Stopped",ticks);}catch(...){}client.stop_transcode(p);return Json::object();},[](Json){server_session_dirty=false;status(playback_failed?(!frame_error.empty()?frame_error:"Playback failed: stream or decoder unavailable"):"Stopped. Choose another video.");});
@@ -668,7 +712,7 @@ int main(int argc,char**argv){
         usleep(10000);
     }
     if(mode=="stream")c1_audio_command(C1_AUDIO_STREAMPLAYER,C1_AUDIO_DETACH,0,nullptr);
-    bool was_playing=screen::playing;cleanup_player();c1::cancel_requests();if(job.valid())job.wait();c1::reset_requests(900);if(was_playing||ended||server_session_dirty){try{if(reported||have_time)client.report(current,"Stopped",position);}catch(...){}try{client.stop_transcode(current);}catch(...){}}
+    bool was_playing=screen::playing;stop_tv();cleanup_player();c1::cancel_requests();if(job.valid())job.wait();c1::reset_requests(900);if(was_playing||ended||server_session_dirty){try{if(reported||have_time)client.report(current,"Stopped",position);}catch(...){}try{client.stop_transcode(current);}catch(...){}}
     for(auto&p:retired_sessions)try{client.stop_transcode(p);}catch(...){}
     unlink((c1::data()+"/streamplayer/playback.m3u").c_str());if(audio_mixer)mixer_close(audio_mixer);text_input.close();screen::close();return 0;
 }
