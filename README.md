@@ -82,7 +82,7 @@ Airtune 的本地电台筛选、StreamPlayer 的远程媒体搜索、Bilibili �
   </tr>
   <tr>
     <td><strong>五子棋</strong><br><a href="docs/screenshots/gomoku.png"><img src="docs/screenshots/gomoku.png" alt="五子棋进行中的对局" width="400"></a><br>人机／双人对局、悔棋与自动续局。</td>
-    <td><strong>NES 游戏</strong><br><a href="docs/screenshots/nes.png"><img src="docs/screenshots/nes.png" alt="NES 0.2.1 真机运行坦克大战" width="400"></a><br>0.2.1 真机运行用户提供的《坦克大战》，支持系统音量与静音。</td>
+    <td><strong>NES 游戏</strong><br><a href="docs/screenshots/nes.png"><img src="docs/screenshots/nes.png" alt="NES 0.2.2 真机运行坦克大战，左右显示实体按键提示" width="400"></a><br>0.2.2 真机运行《坦克大战》；默认实体按键提示，T 切换触摸按钮，支持系统音量与静音。</td>
   </tr>
   <tr>
     <td><strong>PCSX4all</strong><br><a href="docs/screenshots/pcsx4all.png"><img src="docs/screenshots/pcsx4all.png" alt="PCSX4all 运行《北欧女神》标题菜单" width="400"></a><br>PS1 游戏运行画面示例，游戏镜像不随仓库发布。</td>
