@@ -126,6 +126,14 @@ Tox 截图使用专用测试身份；功能、按键与验证范围见 [Tox 说�
 | --- | --- |
 | ![应用商店](docs/screenshots/appstore.png) | ![Tox 语音消息](docs/screenshots/tox-voice.png) |
 
+## 在电脑上调试（QEMU）
+
+[`simulator/`](simulator/README.md) 提供独立的 QEMU/MIPS Linux 兼容环境，在电脑上运行官方包中的原始 MIPS ELF。浏览器显示真实 framebuffer 并转发键盘和触摸，声音经虚拟 AC97 输出；视频支持主机 FFmpeg 加速，应用逻辑和绘制仍在 MIPS 客体中执行。
+
+安装 Python 3.11+、QEMU、FFmpeg 和 Docker/Podman 后，在 `simulator/` 目录执行 `python3 scripts/build.py --engine podman`，然后运行 `python3 start.py`，打开 <http://127.0.0.1:8775>。macOS 首次使用 Podman 需要先执行 `podman machine init --cpus 4 --memory 8192`。停止命令为 `python3 start.py --stop`，个人数据保存在独立的 `simulator/runtime/`。
+
+该环境使用 Malta/24Kf、上游 Linux 和设备接口适配，并非 X2000 固件整机仿真。应用包按需下载并校验哈希，基础运行时固定源码提交；构建、调试方法及已验证范围见模拟器说明，不要求修改真机部署流程。
+
 ## 构建、同步与启动
 
 可独立克隆此仓库；在主仓库中它位于 `apps/` submodule。以下命令从本仓库根目录执行（在主仓库先 `cd apps`）。

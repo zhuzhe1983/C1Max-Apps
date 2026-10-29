@@ -1,0 +1,54 @@
+[
+  {
+    "case": "original",
+    "requests": [
+      {
+        "referer_ok": true,
+        "user_agent_ok": true,
+        "status": 200
+      }
+    ],
+    "guest_exit": 0,
+    "playback_headers_ok": true,
+    "guest_reported_403": false
+  },
+  {
+    "case": "explicit",
+    "requests": [
+      {
+        "referer_ok": true,
+        "user_agent_ok": true,
+        "status": 200
+      }
+    ],
+    "guest_exit": 0,
+    "playback_headers_ok": true,
+    "guest_reported_403": false
+  },
+  {
+    "case": "lavf_only",
+    "requests": [
+      {
+        "referer_ok": true,
+        "user_agent_ok": true,
+        "status": 200
+      }
+    ],
+    "guest_exit": 0,
+    "playback_headers_ok": true,
+    "guest_reported_403": false
+  },
+  {
+    "case": "order_independent",
+    "requests": [
+      {
+        "referer_ok": true,
+        "user_agent_ok": true,
+        "status": 200
+      }
+    ],
+    "guest_exit": 0,
+    "playback_headers_ok": true,
+    "guest_reported_403": false
+  }
+]

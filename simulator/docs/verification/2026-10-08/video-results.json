@@ -1,0 +1,38 @@
+{
+  "original_bilibili": "0.2.0",
+  "fixture": "H.264/AAC 640x360 10fps",
+  "playback_speed": 1.006175298804781,
+  "actual_fps": 9.9601593625498,
+  "playing": {
+    "frames": 34,
+    "elapsed_ms": 5003,
+    "position_ms": 3233,
+    "paused": 0
+  },
+  "paused": {
+    "frames": 110,
+    "elapsed_ms": 15026,
+    "position_ms": 11795,
+    "paused": 1
+  },
+  "paused_seek": {
+    "frames": 111,
+    "elapsed_ms": 20031,
+    "position_ms": 21795,
+    "paused": 1
+  },
+  "resumed": {
+    "frames": 152,
+    "elapsed_ms": 25034,
+    "position_ms": 25790,
+    "paused": 0
+  },
+  "backward_seek": {
+    "frames": 192,
+    "elapsed_ms": 30039,
+    "position_ms": 18412,
+    "paused": 0
+  },
+  "picture_changes": true,
+  "pause_picture_stable": true
+}

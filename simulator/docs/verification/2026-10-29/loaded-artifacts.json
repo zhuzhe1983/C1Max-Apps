@@ -1,0 +1,8 @@
+{
+  "/sbin/c1max-bridge": "bf8548ec21cb3bce104195b70da4583dc9cfce3f6764ee27de34d667d2b577c7",
+  "/usr/bin/c1max-host-video": "d5e5d9cc9661fd6e549df08869e0439fe35f7721d69457098f54a0676c54b7e8",
+  "/lib/modules/c1maxsim.ko": "dcefea4ad3c3fee47e97e883d58ba312f02fa532a713196c88a1a65c64eaf1cb",
+  "/storage/apps/current/shared/c1max-audio": "0f7ac6acec2f7f0263426fbed098503917a7e300a9f37766ac9d808d64a1d93e",
+  "/storage/apps/current/shared/c1max-volume": "3ab8ddf831a5f7e347b4255d934d441a945847574ec3d67243dfaaffccd52e58",
+  "/storage/apps/current/launcher/c1max-launcher": "f35be17fb424b80b6ead8c95a2f3f0d58d16b1aa481def5be4c3bf1028980bf5"
+}

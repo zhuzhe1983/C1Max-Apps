@@ -1,0 +1,9 @@
+{
+  "sample_rate": 48000,
+  "channels": 2,
+  "sample_width": 2,
+  "frames": 948345,
+  "nonzero_samples": 1893483,
+  "peak": 3220,
+  "strongest_test_frequency_hz": 880
+}

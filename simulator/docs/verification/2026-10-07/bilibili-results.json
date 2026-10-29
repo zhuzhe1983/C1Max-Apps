@@ -1,0 +1,127 @@
+{
+  "environment": "macOS Apple Silicon / QEMU Malta 24Kf / 128 MB",
+  "original_elf": {
+    "version": "0.2.0",
+    "sha256": "dd448002834cfb4567230372424c8223662f9832e425c8cb960e2aaa9c086565",
+    "guest_matches_official_package": true
+  },
+  "headers_before_fix": {
+    "runs": 2,
+    "http_status": 403,
+    "referer_ok": false,
+    "user_agent_ok": false,
+    "guest_exit": 1
+  },
+  "headers_after_fix": [
+    {
+      "case": "original",
+      "requests": [
+        {
+          "referer_ok": true,
+          "user_agent_ok": true,
+          "status": 200
+        }
+      ],
+      "guest_exit": 0,
+      "playback_headers_ok": true,
+      "guest_reported_403": false
+    },
+    {
+      "case": "explicit",
+      "requests": [
+        {
+          "referer_ok": true,
+          "user_agent_ok": true,
+          "status": 200
+        }
+      ],
+      "guest_exit": 0,
+      "playback_headers_ok": true,
+      "guest_reported_403": false
+    },
+    {
+      "case": "lavf_only",
+      "requests": [
+        {
+          "referer_ok": true,
+          "user_agent_ok": true,
+          "status": 200
+        }
+      ],
+      "guest_exit": 0,
+      "playback_headers_ok": true,
+      "guest_reported_403": false
+    },
+    {
+      "case": "order_independent",
+      "requests": [
+        {
+          "referer_ok": true,
+          "user_agent_ok": true,
+          "status": 200
+        }
+      ],
+      "guest_exit": 0,
+      "playback_headers_ok": true,
+      "guest_reported_403": false
+    }
+  ],
+  "video_controls": {
+    "original_bilibili": "0.2.0",
+    "fixture": "H.264/AAC 640x360 10fps",
+    "playing": {
+      "frames": 16,
+      "elapsed_ms": 5015,
+      "position_ms": 1300,
+      "paused": 0
+    },
+    "paused": {
+      "frames": 25,
+      "elapsed_ms": 10018,
+      "position_ms": 2400,
+      "paused": 1
+    },
+    "paused_seek": {
+      "frames": 26,
+      "elapsed_ms": 15023,
+      "position_ms": 12400,
+      "paused": 1
+    },
+    "resumed": {
+      "frames": 44,
+      "elapsed_ms": 20028,
+      "position_ms": 14200,
+      "paused": 0
+    },
+    "backward_seek": {
+      "frames": 65,
+      "elapsed_ms": 25031,
+      "position_ms": 5800,
+      "paused": 0
+    },
+    "picture_changes": true,
+    "pause_picture_stable": true
+  },
+  "audio": {
+    "rate": 48000,
+    "channels": 2,
+    "frames": 493920,
+    "tone_880_peak": 1450.7822823441713,
+    "aac_video_audio_verified": true
+  },
+  "live_playback": {
+    "bvid": "BV1XGpF6CEwq",
+    "original_bilibili": "0.2.0",
+    "original_mips_app_unchanged": true,
+    "cdn_same_url_differential": {
+      "http_without_headers": 403,
+      "http_with_headers": 206,
+      "https_with_headers": 206
+    },
+    "live_native_player_stats": [
+      "[bilibili] frames=943 elapsed_ms=215773 position_ms=37680 paused=0",
+      "[bilibili] frames=965 elapsed_ms=220777 position_ms=38560 paused=0",
+      "[bilibili] frames=986 elapsed_ms=225778 position_ms=39320 paused=0"
+    ]
+  }
+}

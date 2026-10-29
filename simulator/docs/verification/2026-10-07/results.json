@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-07",
+  "host": "macOS Apple Silicon",
+  "upstream": {
+    "repository": "https://github.com/zhuzhe1983/C1Max-Apps",
+    "revision": "69179e11c105193bc3888d142169ef4f42a24d31",
+    "lvgl": {
+      "url": "https://github.com/lvgl/lvgl.git",
+      "commit": "85aa60d18b3d5e5588d7b247abf90198f07c8a63",
+      "header_sha256": "bf989936a0e69b53b455e583b583d0bffb6feaaa72b8c2a05af4bacfef7c6ed9"
+    }
+  },
+  "full_build_passed": true,
+  "runtime_build_passed": true,
+  "original_elf_hash_verified": true,
+  "seven_apps_started": true,
+  "calculator_input_result": "12+3=15",
+  "terminal_input_result": "abc 123",
+  "native_appstore_https_refresh": true,
+  "native_appstore_installed": "settings",
+  "web_installed": "mail",
+  "native_menu_after_web_install": true,
+  "post_method_headers_body_verified": true,
+  "persistent_data_after_restart": true,
+  "disk_check": "No errors were found on the image",
+  "clean_unmount": true,
+  "mp3_decoded_in_mips": true,
+  "mplayer_pause_resume_position": true,
+  "audio_capture": {
+    "rate_hz": 48000,
+    "channels": 2,
+    "sample_bits": 16,
+    "nonzero_samples": 370430,
+    "peak": 5400
+  },
+  "daily_instance": {
+    "ready": true,
+    "port": 8775,
+    "app": "launcher",
+    "audio": "coreaudio",
+    "fresh_disk": true
+  },
+  "browser": "Chrome native screenshot verified",
+  "unverified": [
+    "Windows/Linux hosts",
+    "video",
+    "camera",
+    "USB HID",
+    "real WLAN",
+    "external account services"
+  ],
+  "nes_rom_browser_started": true,
+  "game_roms_tested": false
+}

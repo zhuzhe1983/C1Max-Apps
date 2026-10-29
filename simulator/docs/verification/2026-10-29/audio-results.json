@@ -1,0 +1,11 @@
+{
+  "sample_rate": 48000,
+  "channels": 2,
+  "sample_bits": 16,
+  "frames": 1264094,
+  "nonzero_samples": 2094297,
+  "test_frequencies_hz": [
+    660,
+    880
+  ]
+}

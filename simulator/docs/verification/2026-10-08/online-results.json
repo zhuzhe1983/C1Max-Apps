@@ -1,0 +1,17 @@
+{
+  "stream": "public_360p",
+  "first": {
+    "frames": 159,
+    "elapsed_ms": 20063,
+    "position_ms": 8434,
+    "paused": 0
+  },
+  "last": {
+    "frames": 599,
+    "elapsed_ms": 45259,
+    "position_ms": 33734,
+    "paused": 0
+  },
+  "playback_speed": 1.0041276393078267,
+  "actual_fps": 17.46308937926655
+}

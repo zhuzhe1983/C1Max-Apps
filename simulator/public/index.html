@@ -1,0 +1,8 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>C1 Max 模拟器</title><link rel="stylesheet" href="/style.css"></head><body>
+<header><div><span class="brand">C1 MAX</span><h1>设备应用模拟器</h1></div><span id="status">正在启动 Linux…</span></header>
+<main><section class="screen-section"><div class="device"><div class="device-top"><span>C1 MAX</span><span>QEMU · MIPS</span></div><canvas id="screen" width="800" height="340" tabindex="0" aria-label="C1 Max 触摸屏"></canvas></div>
+<div class="toolbar"><button id="home">返回桌面</button><button id="rotate">旋转屏幕</button><button data-key="116" data-source="1">电源</button><button data-key="114" data-source="0">音量 −</button><button data-key="115" data-source="0">音量 +</button></div>
+<p class="hint">点击屏幕模拟触摸；电脑键盘直接输入。Shift 双击切换设备大小写，Shift＋字母输入键帽数字和符号。</p>
+<div id="keyboard"></div><div id="message" role="status"></div></section>
+<aside><h2>应用</h2><p class="hint">默认运行原始 MIPS 应用包。未安装的应用可按需下载。</p><div id="apps"></div><details><summary>程序输出</summary><pre id="logs">等待客体连接…</pre></details></aside></main>
+<footer>C1 Max 应用兼容环境 · 800×340 彩屏 · 触摸、键盘与声卡 · <a href="/api/binaries" target="_blank">二进制来源与哈希</a></footer><script src="/app.js"></script></body></html>

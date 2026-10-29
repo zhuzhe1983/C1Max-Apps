@@ -1,0 +1,51 @@
+#!/bin/sh
+export PATH=/usr/bin:/bin:/sbin:/usr/sbin
+export HOME=/root TERM=xterm-256color
+export TZ=UTC
+export C1_APPS_ROOT=/storage/apps/current C1_APPS_DATA=/storage/apps/data
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+echo c1maxsim > /proc/sys/kernel/hostname
+mount -t devtmpfs devtmpfs /dev
+mkdir -p /dev/pts /dev/shm /dev/socket /tmp /run /storage
+mount -t devpts devpts /dev/pts
+mount -t tmpfs tmpfs /dev/shm
+mount -t tmpfs tmpfs /tmp
+mount -t tmpfs tmpfs /run
+NEW=0
+for option in $(cat /proc/cmdline); do
+    case "$option" in c1sim_newdisk=*) NEW=${option#*=} ;; c1sim_port=*) PORT=${option#*=} ;; c1sim_http=*) C1SIM_HTTP=${option#*=} ;; c1sim_token=*) C1SIM_TOKEN=${option#*=} ;; c1sim_tz=*) TZ=${option#*=} ;; c1sim_video=*) C1SIM_VIDEO=${option#*=} ;; esac
+done
+export C1SIM_HTTP C1SIM_TOKEN C1SIM_VIDEO
+if ! mount -t ext4 /dev/vda /storage 2>/dev/null; then
+    if [ "$NEW" = 1 ]; then /bin/busybox mkfs.ext2 -F /dev/vda && mount -t ext4 /dev/vda /storage; else echo C1MAX_DISK_ERROR; exec sh; fi
+fi
+if ! mount | grep -q ' /storage '; then echo C1MAX_DISK_ERROR; exec sh; fi
+mkdir -p /storage/apps/current /storage/apps/data
+cp -a /opt/c1max/shared /storage/apps/current/
+mkdir -p /storage/apps/current/launcher
+for file in /opt/c1max/launcher/*; do
+    if [ "${file##*/}" = apps.txt ] && [ -f /storage/apps/current/launcher/apps.txt ]; then continue; fi
+    cp -a "$file" /storage/apps/current/launcher/
+done
+cp /opt/c1max/catalog.json /storage/apps/current/catalog.json
+# Upgrade the simulator's early three-column menu to the upstream cwd syntax.
+sed -i 's#|/storage/apps/current/\([^|]*\)$#|cwd=/storage/apps/current/\1#' /storage/apps/current/launcher/apps.txt
+for app in $(cat /etc/c1max-apps); do
+    case "$app" in launcher|shared) continue ;; esac
+    if [ -d "/opt/c1max/$app" ] && [ ! -x "/storage/apps/current/$app/c1max-$app" ]; then
+        cp -a "/opt/c1max/$app" /storage/apps/current/
+    fi
+done
+for app in $(cat /etc/c1max-apps); do mkdir -p "/storage/apps/data/$app"; done
+mkdir -p /storage/apps/data/audio /storage/apps/data/nes/roms /storage/apps/data/crosspoint/books
+ifconfig lo 127.0.0.1 up
+ifconfig eth0 10.0.2.15 netmask 255.255.255.0 up
+route add default gw 10.0.2.2
+echo 'nameserver 10.0.2.3' > /etc/resolv.conf
+/sbin/c1sim-audio --init
+insmod /lib/modules/c1maxsim.ko || exec sh
+/bin/sh /sbin/services.sh &
+echo C1MAX_READY
+/sbin/c1max-bridge "$PORT" &
+while true; do setsid cttyhack sh; sleep 1; done

@@ -1,0 +1,228 @@
+{
+  "schema": 1,
+  "platform": "c1max-mipsel-linux",
+  "runtime": 1,
+  "release": "nes-0.2.1",
+  "apps": [
+    {
+      "id": "piano",
+      "version": "0.2.0",
+      "revision": "f76d1d2bca98642b3db95b3ab9b6212e64308d1ee00cd4e1b169c1f9b3cc932d",
+      "title": "钢琴",
+      "description": "钢琴 · C1 Max 原生应用",
+      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/apps-20261002-media-store/piano-0.2.0-f76d1d2bca98.c1pkg",
+      "size": 651660,
+      "unpacked": 650692,
+      "sha256": "85723b3e8416fb31e819b042f699aad70b839c2cdeb1b03b1aa44b117b479f44"
+    },
+    {
+      "id": "nes",
+      "version": "0.2.1",
+      "revision": "b8a8c18cc98b2bf43da97f696c9efd2c250f3c45cea00cf52f4e35ffbd984873",
+      "title": "NES 游戏",
+      "description": "红白机游戏 · 修复音色、系统音量与静音",
+      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/nes-0.2.1/nes-0.2.1-b8a8c18cc98b.c1pkg",
+      "size": 5616242,
+      "unpacked": 5614749,
+      "sha256": "ef17f5c0194ebda6329b9ced22be4422e829d84c85359a54539b5aef58474185"
+    },
+    {
+      "id": "streamplayer",
+      "version": "0.2.0",
+      "revision": "5f9506a94120732ef9e11686354b0fb837c5d764b4a9e3a02a3c11463acc3ae9",
+      "title": "StreamPlayer",
+      "description": "StreamPlayer · C1 Max 原生应用",
+      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/apps-20261002-media-store/streamplayer-0.2.0-5f9506a94120.c1pkg",
+      "size": 2559153,
+      "unpacked": 2557833,
+      "sha256": "c2b06e38fa0d722663849a2106b34b282c7c4e85104865db809b97c169badb36"
+    },
+    {
+      "id": "calendar",
+      "version": "0.3.0",
+      "revision": "32e06eb7e05f2f705b1d95df7cb66b2e68453ea0bc6e8b6abb67852c3f3f3aad",
+      "title": "日历",
+      "description": "日历 · C1 Max 原生应用",
+      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/apps-20261002-media-store/calendar-0.3.0-32e06eb7e05f.c1pkg",
+      "size": 2218656,
+      "unpacked": 2217663,
+      "sha256": "208b93c5b679873b7cd195b96c5f7b46837717af908430434ff30291010cd263"
+    },
+    {
+      "id": "calculator",
+      "version": "0.2.0",
+      "revision": "5aebd89a1b513b6fecd37ab62caab4c1d55d85034ff6d0549088dcbcb8a07b25",
+      "title": "计算器",
+      "description": "计算器 · C1 Max 原生应用",
+      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/apps-20261002-media-store/calculator-0.2.0-5aebd89a1b51.c1pkg",
+      "size": 1909094,
+      "unpacked": 1908085,
+      "sha256": "48b8f611204a5aa0af17ce1e3b53fa635372dfa06e3f7cd6fb099507349d359f"
+    },
+    {
+      "id": "settings",
+      "version": "0.2.0",
+      "revision": "d9f67a92739fd5d67d6fe86c68a1528041c5600d7f29ccdbeae6e8e872e1d07a",
+      "title": "设置",
+      "description": "设置 · C1 Max 原生应用",
+      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/apps-20261002-media-store/settings-0.2.0-d9f67a92739f.c1pkg",
+      "size": 2014956,
+      "unpacked": 2013963,
+      "sha256": "e52a4c11a5cd8742c550d35edad3db6530ccf916abe6ee18ff6ed9ae3b4a1221"
+    },
+    {
+      "id": "terminal",
+      "version": "0.1.0",
+      "revision": "5516574eef85dc97522a87cfbe46f5406b158f473eaec2cf390c5b12e2b20cfb",
+      "title": "终端",
+      "description": "终端 · C1 Max 原生应用",
+      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/apps-20261002-media-store/terminal-0.1.0-5516574eef85.c1pkg",
+      "size": 1908345,
+      "unpacked": 1906209,
+      "sha256": "cca0bb0b3d11b092e0043fd846809045f8614c96a11866458f92ea873a4ad24d"
+    },
+    {
+      "id": "gomoku",
+      "version": "0.1.0",
+      "revision": "b007e53ce6773037560ed0faa752fe94e09d0ce3ffb537c4bab64743a6893d16",
+      "title": "五子棋",
+      "description": "五子棋 · C1 Max 原生应用",
+      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/apps-20261002-media-store/gomoku-0.1.0-b007e53ce677.c1pkg",
+      "size": 1933346,
+      "unpacked": 1932369,
+      "sha256": "47cfff15f3b184f31571b98270da62577c37cc46fe3efbf38451ca01839a8e2e"
+    },
+    {
+      "id": "pcsx4all",
+      "version": "0.1.1",
+      "revision": "e9c4f97a96edcd22d02f49250076701b07262112682323e8bdecade7ee0b9bbc",
+      "title": "PCSX4all",
+      "description": "PCSX4all · C1 Max 原生应用",
+      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/apps-20261002-media-store/pcsx4all-0.1.1-e9c4f97a96ed.c1pkg",
+      "size": 3794299,
+      "unpacked": 3792463,
+      "sha256": "d317d2fd600e284ccbcca79d90a634d21d3346792e9ac0e6906b08525798a3c8"
+    },
+    {
+      "id": "processing",
+      "version": "0.1.0",
+      "revision": "1973d99e178f50f0b10a3d66953570f2aea2781ce7bdec4735ab3565dc2d4aa2",
+      "title": "Processing",
+      "description": "Processing · C1 Max 原生应用",
+      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/apps-20261002-media-store/processing-0.1.0-1973d99e178f.c1pkg",
+      "size": 2765050,
+      "unpacked": 2760731,
+      "sha256": "525733aaeec5de610de885d6ae51511a75af07b895e24d8e4f6e626ec530722e"
+    },
+    {
+      "id": "dosbox",
+      "version": "0.1.2",
+      "revision": "5421d52fbd71cc91ec7edcf3f97a5f0e7de66484c136932de2da05e064a7ee6d",
+      "title": "DOSBox",
+      "description": "DOSBox · C1 Max 原生应用",
+      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/apps-20261002-media-store/dosbox-0.1.2-5421d52fbd71.c1pkg",
+      "size": 6485513,
+      "unpacked": 6483437,
+      "sha256": "f6c79a53e5255e082146b59be4cd163f5de1e2f3f5da1d10698e255f281f184e"
+    },
+    {
+      "id": "airtune",
+      "version": "0.2.0",
+      "revision": "5c6de8c95bbc3543023ce1ca956c81ecb0d4182f5eea956776b722905070b424",
+      "title": "Airtune",
+      "description": "Airtune · C1 Max 原生应用",
+      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/apps-20261002-media-store/airtune-0.2.0-5c6de8c95bbc.c1pkg",
+      "size": 2405411,
+      "unpacked": 2404426,
+      "sha256": "471f289cf60ece3326ecbbc090eb30ad36813ba0862b9809bac416761870f37b"
+    },
+    {
+      "id": "crosspoint",
+      "version": "0.3.1",
+      "revision": "65fa388c6743cb2fb2229a57d09747d88eb9073e74d97584128d9b0073149a4e",
+      "title": "CrossPoint",
+      "description": "CrossPoint · C1 Max 原生应用",
+      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/apps-20261002-media-store/crosspoint-0.3.1-65fa388c6743.c1pkg",
+      "size": 4352436,
+      "unpacked": 4350438,
+      "sha256": "bba39b79444e7bc264bcbc243e659c72bc8666e33bd20b824451aecfa1e1a843"
+    },
+    {
+      "id": "camera",
+      "version": "0.2.0",
+      "revision": "b448d7477f3764ce48356cfe8c52428f97197956d5a4382797b012dc39d397bc",
+      "title": "拍立得",
+      "description": "拍立得 · C1 Max 原生应用",
+      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/apps-20261002-media-store/camera-0.2.0-b448d7477f37.c1pkg",
+      "size": 4041119,
+      "unpacked": 4038867,
+      "sha256": "0743af86d958e94b4e7b75d97dd114ba4c7ae7da452449e18373d51a2186a9e2"
+    },
+    {
+      "id": "mail",
+      "version": "0.2.0",
+      "revision": "b501d2e2808d10e581c6158ab1ddded9333405fd68e235e99a4004eea6599639",
+      "title": "邮件",
+      "description": "邮件 · C1 Max 原生应用",
+      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/apps-20261002-media-store/mail-0.2.0-b501d2e2808d.c1pkg",
+      "size": 2587396,
+      "unpacked": 2586299,
+      "sha256": "c03a4314e7a7eaef1a31fc95daf80a7a920e9f3575054989912b3a523fb433a8"
+    },
+    {
+      "id": "bilibili",
+      "version": "0.2.0",
+      "revision": "703e73bedaf1b8bcd69bdbd6ee305bf8743d2f6a6124da400c74ff3ec808778c",
+      "title": "Bilibili",
+      "description": "Bilibili · C1 Max 原生应用",
+      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/apps-20261002-media-store/bilibili-0.2.0-703e73bedaf1.c1pkg",
+      "size": 2499444,
+      "unpacked": 2497894,
+      "sha256": "51d4c4817f4c6644c8f4182a7f263c6f8143be53c45da95215246b7842b17d02"
+    },
+    {
+      "id": "hidpilot",
+      "version": "0.2.0",
+      "revision": "067de1a5d9121a0c00444c8a029cd36031b4b2840e288e0886795a85b68f2590",
+      "title": "HID 键鼠",
+      "description": "HID 键鼠 · C1 Max 原生应用",
+      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/apps-20261002-media-store/hidpilot-0.2.0-067de1a5d912.c1pkg",
+      "size": 3291128,
+      "unpacked": 3289718,
+      "sha256": "c6a679ceae95604c1d7e0b5363afb1762b10952af5b672fe24df5d6e72c6f8e9"
+    },
+    {
+      "id": "moonpilot",
+      "version": "0.1.0",
+      "revision": "198999ad69f288fdb4b092426d3f25d886cf02ae4a473389e5ca29664167443f",
+      "title": "MoonPilot AI",
+      "description": "MoonPilot AI · C1 Max 原生应用",
+      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/apps-20261002-media-store/moonpilot-0.1.0-198999ad69f2.c1pkg",
+      "size": 3191474,
+      "unpacked": 3189333,
+      "sha256": "e5b8c59c2985f7551da8efdc5008fe9cb71939a199d0113c4a6edbb05a41c3a5"
+    },
+    {
+      "id": "tox",
+      "version": "0.3.0",
+      "revision": "73e8b7c60b57b163aa9efeb70366da7b444be0b8cb31643e5e04faef5e57667d",
+      "title": "Tox 聊天",
+      "description": "Tox 聊天 · C1 Max 原生应用",
+      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/apps-20261002-tox-outbox/tox-0.3.0-73e8b7c60b57.c1pkg",
+      "size": 3138569,
+      "unpacked": 3136523,
+      "sha256": "ec9e7026bebe052c26cd556f0dac126b11536a32c440418ab790f31d6aed6b8d"
+    },
+    {
+      "id": "appstore",
+      "version": "0.1.0",
+      "revision": "ec29b260fd9a888b3e3a011b4c03bb974567a0406720f46b3ab3aad17c67c66b",
+      "title": "应用商店",
+      "description": "应用商店 · C1 Max 原生应用",
+      "url": "https://github.com/zhuzhe1983/C1Max-Apps/releases/download/apps-20261002-media-store/appstore-0.1.0-ec29b260fd9a.c1pkg",
+      "size": 2387763,
+      "unpacked": 2386489,
+      "sha256": "f1283ea3e6adc918afa436cde759cbd9d74d54df8e9f2a0c6b433d9634b9d8b0"
+    }
+  ]
+}

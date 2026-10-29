@@ -1,0 +1,16 @@
+{
+  "sample_seconds": 5.00898566597607,
+  "frames": 157,
+  "capture_fps": 31.343671247940453,
+  "source_target_fps": 60,
+  "baseline": {
+    "frames": 39,
+    "sample_seconds": 5.0081737079890445,
+    "capture_fps": 7.787269826081942
+  },
+  "chrome": {
+    "draws": 111,
+    "sample_seconds": 3.5006999999284742,
+    "browser_fps": 31.707944126108472
+  }
+}

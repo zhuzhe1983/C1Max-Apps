@@ -1,0 +1,7 @@
+{
+  "id": "nes",
+  "version": "0.2.1",
+  "started": true,
+  "original_elf_sha256": "8ce4ac2cf234c176c89468a8fc342ad4b03ba92794783c5b251565152b4eb393",
+  "rom_loaded": false
+}

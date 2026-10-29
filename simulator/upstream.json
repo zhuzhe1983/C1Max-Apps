@@ -1,0 +1,9 @@
+{
+  "repository": "https://github.com/zhuzhe1983/C1Max-Apps",
+  "revision": "1b7ac9f15f953a9459d05ae8b2efd30fb2fd5a3b",
+  "lvgl": {
+    "url": "https://github.com/lvgl/lvgl.git",
+    "commit": "85aa60d18b3d5e5588d7b247abf90198f07c8a63",
+    "header_sha256": "bf989936a0e69b53b455e583b583d0bffb6feaaa72b8c2a05af4bacfef7c6ed9"
+  }
+}
